@@ -7,6 +7,7 @@ import pytest
 from src.indicator_calculator import (
     DispersionSignal,
     IndicatorConfig,
+    _confirm_regime,
     calculate_forward_returns,
     calculate_indicators,
     calculate_sector_dispersion,
@@ -763,3 +764,239 @@ class TestSectorEdge:
         disp_df = calculate_sector_dispersion(data)
         result = calculate_sector_edge(disp_df, data, window=5)
         assert "level_regime" in result.columns
+
+
+class TestConfirmRegime:
+    """Unit tests for the causal regime confirmation state machine."""
+
+    def _series(self, values):
+        return pd.Series(
+            values,
+            index=pd.bdate_range("2024-01-01", periods=len(values), freq="B"),
+            dtype=object,
+        )
+
+    def test_short_blip_absorbed(self):
+        """A run shorter than min_days is absorbed into the previous regime."""
+        s = self._series(["normal"] * 3 + ["diverged"] * 2)
+        out = _confirm_regime(s, 3)
+        assert list(out) == ["normal"] * 5
+
+    def test_confirmation_only_on_min_days(self):
+        """A transition is emitted only on the min_days-th consecutive candidate day."""
+        s = self._series(["normal"] * 3 + ["diverged"] * 3)
+        out = _confirm_regime(s, 3)
+        # 3 normals, then 2 absorbed diverged days, then the 3rd diverged day confirms
+        assert list(out) == ["normal", "normal", "normal", "normal", "normal", "diverged"]
+
+    def test_two_day_candidate_not_confirmed_then_revert(self):
+        """A 2-day candidate that reverts never gets confirmed."""
+        s = self._series(["normal"] * 3 + ["diverged"] * 2 + ["normal"] * 2)
+        out = _confirm_regime(s, 3)
+        assert list(out) == ["normal"] * 7
+
+    def test_blip_then_revert_to_previous(self):
+        """A short candidate that returns to the confirmed regime is fully absorbed."""
+        s = self._series(["normal"] * 4 + ["converged"] * 2 + ["normal"] * 3)
+        out = _confirm_regime(s, 3)
+        assert list(out) == ["normal"] * 9
+
+    def test_retransition_to_previously_seen_regime(self):
+        """After a confirmed regime, the same regime can be re-confirmed later."""
+        s = self._series(
+            ["normal"] * 3 + ["diverged"] * 3 + ["normal"] * 3 + ["diverged"] * 3
+        )
+        out = _confirm_regime(s, 3)
+        assert list(out) == [
+            "normal", "normal", "normal",
+            "normal", "normal", "diverged",
+            "diverged", "diverged", "normal",
+            "normal", "normal", "diverged",
+        ]
+
+    def test_initial_baseline_is_first_observation(self):
+        """The first non-NaN regime becomes the baseline immediately."""
+        s = self._series(["diverged", "diverged", "normal"])
+        out = _confirm_regime(s, 3)
+        assert list(out) == ["diverged", "diverged", "diverged"]
+
+    def test_missing_observation_resets_candidate(self):
+        """A NaN day interrupts the candidate run, delaying confirmation."""
+        s = pd.Series(
+            ["normal", "normal", "normal", "diverged", np.nan, "diverged", "diverged"],
+            index=pd.bdate_range("2024-01-01", periods=7, freq="B"),
+            dtype=object,
+        )
+        out = _confirm_regime(s, 3)
+        assert list(out.iloc[:3]) == ["normal"] * 3
+        assert out.iloc[3] == "normal"      # unconfirmed diverged absorbed
+        assert pd.isna(out.iloc[4])          # NaN preserved as NaN
+        assert out.iloc[5] == "normal"       # candidate restarted after NaN
+        assert out.iloc[6] == "normal"
+
+    def test_min_days_le_one_passthrough(self):
+        """min_days <= 1 returns the series unchanged (no noise filter)."""
+        s = self._series(["normal", "diverged", "normal"])
+        out = _confirm_regime(s, 1)
+        assert list(out) == ["normal", "diverged", "normal"]
+
+    def test_empty_series_passthrough(self):
+        out = _confirm_regime(pd.Series([], dtype=object), 3)
+        assert out.empty
+
+    def test_all_nan_passthrough(self):
+        s = pd.Series(
+            [np.nan, np.nan],
+            index=pd.bdate_range("2024-01-01", periods=2, freq="B"),
+            dtype=object,
+        )
+        out = _confirm_regime(s, 3)
+        assert out.isna().all()
+
+    def test_prefix_invariance(self):
+        """Labels at each position are identical to those of the full series.
+
+        This is the causal guarantee: no label depends on future observations.
+        """
+        values = [
+            "normal", "converged", "normal", "diverged", "converged",
+            "normal", "normal", "diverged", "diverged", "diverged",
+            "normal", "converged", "converged", "converged", "normal",
+        ]
+        full_out = _confirm_regime(self._series(values), 3)
+        for k in range(1, len(values) + 1):
+            pre = _confirm_regime(self._series(values).iloc[:k], 3)
+            assert list(pre) == list(full_out.iloc[:k]), f"prefix length {k} differs"
+
+    def test_prefix_invariance_randomized(self):
+        """Randomized prefix-invariance check over varied series lengths."""
+        import random
+        rng = random.Random(42)
+        pool = ["normal", "converged", "diverged"]
+        for _ in range(25):
+            n = rng.randint(5, 30)
+            values = [rng.choice(pool) for _ in range(n)]
+            full_out = _confirm_regime(self._series(values), 3)
+            for k in range(1, n + 1):
+                pre = _confirm_regime(self._series(values).iloc[:k], 3)
+                assert list(pre) == list(full_out.iloc[:k])
+
+    def test_prefix_invariance_with_nan_randomized(self):
+        """Randomized prefix-invariance check including NaN (missing) observations."""
+        import random
+        rng = random.Random(7)
+        pool = ["normal", "converged", "diverged", np.nan]
+        for _ in range(25):
+            n = rng.randint(5, 30)
+            values = [rng.choice(pool) for _ in range(n)]
+            s = pd.Series(
+                values,
+                index=pd.bdate_range("2024-01-01", periods=n, freq="B"),
+                dtype=object,
+            )
+            full_out = _confirm_regime(s, 3)
+            for k in range(1, n + 1):
+                pre = _confirm_regime(s.iloc[:k], 3)
+                assert list(pre) == list(full_out.iloc[:k])
+
+    def test_leading_nan_then_baseline(self):
+        """A leading NaN prefix is preserved, then the first non-NaN becomes baseline."""
+        s = pd.Series(
+            [np.nan, np.nan, "diverged", "diverged", "normal"],
+            index=pd.bdate_range("2024-01-01", periods=5, freq="B"),
+            dtype=object,
+        )
+        out = _confirm_regime(s, 3)
+        assert pd.isna(out.iloc[0])
+        assert pd.isna(out.iloc[1])
+        assert list(out.iloc[2:]) == ["diverged", "diverged", "diverged"]
+
+
+class TestDispersionRegimePrefixInvariance:
+    """Integration: calculate_sector_dispersion() regime column is prefix-invariant."""
+
+    def test_regime_prefix_invariant_across_truncation(self):
+        """Regime labels over shared dates are identical for a prefix vs the full series."""
+        data = _make_sector_data(n=120)
+        full = calculate_sector_dispersion(data).set_index("date")
+        for k in [70, 90, 110]:
+            prefix_data = {key: df.iloc[:k] for key, df in data.items()}
+            pre = calculate_sector_dispersion(prefix_data).set_index("date")
+            common = full.index.intersection(pre.index)
+            assert full.loc[common, "regime"].equals(pre.loc[common, "regime"]), \
+                f"prefix length {k} differs"
+
+
+class TestForwardReturnsConfirmationDate:
+    """Forward returns use the first observable confirmation date for a regime event."""
+
+    def test_no_event_on_blip_start(self):
+        """A short candidate that never confirms does not create a regime event."""
+        n = 15
+        dates = pd.bdate_range("2024-01-01", periods=n, freq="B")
+        raw = ["normal"] * 4 + ["diverged"] * 2 + ["normal"] * 9
+        regimes = _confirm_regime(pd.Series(raw, dtype=object), 3)
+        # The 2-day diverged blip is absorbed, so regime stays normal throughout
+        assert set(regimes) == {"normal"}
+        disp_df = pd.DataFrame({
+            "date": dates,
+            "dispersion": [0.08] * n,
+            "mean_ratio": [0.25] * n,
+            "range": [0.1] * n,
+            "dispersion_ma10": [0.08] * n,
+            "dispersion_velocity": [0.01] * n,
+            "regime": list(regimes),
+            "level_regime": ["mid"] * n,
+            "p25": [0.06] * n,
+            "p75": [0.12] * n,
+            "velocity_p90": [0.02] * n,
+            "dispersion_median": [0.09] * n,
+        })
+        mkt_df = pd.DataFrame({
+            "date": dates,
+            "ratio": np.linspace(0.2, 0.4, n),
+            "ma_10": np.linspace(0.2, 0.4, n),
+        })
+        result = calculate_forward_returns(disp_df, mkt_df, windows=(5,))
+        div = result[result["regime"] == "diverged"]
+        assert div.empty  # no diverged event because the blip was never confirmed
+
+    def test_event_date_is_confirmation_date(self):
+        """The regime event is measured from the confirmation date, not the run start."""
+        n = 15
+        dates = pd.bdate_range("2024-01-01", periods=n, freq="B")
+        raw = ["normal"] * 4 + ["diverged"] * 11
+        regimes = _confirm_regime(pd.Series(raw, dtype=object), 3)
+        regime_list = list(regimes)
+        # normal for 6 rows (4 baseline + 2 absorbed candidates), diverged confirmed on row 6
+        assert regime_list[4] == "normal"
+        assert regime_list[5] == "normal"
+        assert regime_list[6] == "diverged"
+        mkt_ratio = np.linspace(0.2, 0.4, n)
+        disp_df = pd.DataFrame({
+            "date": dates,
+            "dispersion": [0.08] * n,
+            "mean_ratio": [0.25] * n,
+            "range": [0.1] * n,
+            "dispersion_ma10": [0.08] * n,
+            "dispersion_velocity": [0.01] * n,
+            "regime": regime_list,
+            "level_regime": ["mid"] * n,
+            "p25": [0.06] * n,
+            "p75": [0.12] * n,
+            "velocity_p90": [0.02] * n,
+            "dispersion_median": [0.09] * n,
+        })
+        mkt_df = pd.DataFrame({
+            "date": dates,
+            "ratio": mkt_ratio,
+            "ma_10": mkt_ratio,
+        })
+        result = calculate_forward_returns(disp_df, mkt_df, windows=(5,))
+        div = result[(result["regime"] == "diverged") & (result["level_regime"] == "mid")]
+        assert len(div) == 1  # exactly one diverged event
+        row = div.iloc[0]
+        assert row["count"] == 1
+        # forward return measured from the confirmation date (index 6) over window 5
+        expected_fwd = mkt_ratio[11] - mkt_ratio[6]
+        assert abs(row["mean_return"] - expected_fwd) < 1e-10
