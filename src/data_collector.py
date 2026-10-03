@@ -61,11 +61,79 @@ class CollectResult:
         return [k for k in self.failed if k.startswith("ind_")]
 
 
-def mask_secrets(text: str) -> str:
-    """Mask known secrets from URLs and exception messages."""
-    if not text:
+DEFAULT_SECRET_MASK = "***"
+
+
+def redact(text, secrets=(), mask: str = DEFAULT_SECRET_MASK):
+    """Redact secrets from arbitrary text.
+
+    Replaces each literal secret value with ``mask`` and masks ``auth=...``
+    query tokens in URLs. Non-string inputs are returned unchanged so this is
+    safe to apply to log-record ``args`` (which may contain ints, floats, etc).
+    """
+    if not text or not isinstance(text, str):
         return text
-    return re.sub(r"(auth=)[^&\s]+", r"\1***", text)
+    out = text
+    for secret in secrets:
+        if secret:
+            out = out.replace(secret, mask)
+    return re.sub(r"(auth=)[^&\s]+", r"\1" + mask, out)
+
+
+def mask_secrets(text: str) -> str:
+    """Mask known secrets from URLs and exception messages (backward-compatible)."""
+    return redact(text)
+
+
+class RedactingFilter(logging.Filter):
+    """Log filter that removes secret values before a record is emitted.
+
+    This must be attached to a logging *handler*, not merely to a logger: a
+    logger-level filter does not apply to records propagated from child loggers
+    (e.g. urllib3's ``connectionpool``), whereas a handler-level filter does.
+    The filter mutates the ``LogRecord`` in place, so every handler that sees
+    the record observes the scrubbed values, including pytest's caplog handler.
+    """
+
+    def __init__(self, secrets=()):
+        super().__init__()
+        self.secrets = tuple(s for s in secrets if s)
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.msg = redact(record.msg, self.secrets)
+        args = record.args
+        if args is None or args == ():
+            pass
+        elif isinstance(args, dict):
+            record.args = {k: redact(v, self.secrets) for k, v in args.items()}
+        elif isinstance(args, tuple):
+            record.args = tuple(redact(a, self.secrets) for a in args)
+        else:
+            record.args = redact(args, self.secrets)
+        return True
+
+
+def configure_logging(verbose: bool, secrets=()) -> None:
+    """Configure root logging with a secret-redacting filter.
+
+    The filter is attached to the handlers present on the root logger so that
+    records emitted by third-party loggers (such as urllib3) are scrubbed of
+    secrets before emission, while keeping normal status/retry diagnostics.
+
+    Limitation: only handlers present at this call are filtered; any handler
+    added afterwards bypasses the filter (acceptable for the single-entrypoint
+    collector CLI).
+    """
+    logging.basicConfig(
+        level=logging.DEBUG if verbose else logging.INFO,
+        format="%(asctime)s %(levelname)s: %(message)s",
+    )
+    redacting = RedactingFilter(secrets)
+    root = logging.getLogger()
+    for handler in list(root.handlers):
+        handler.addFilter(redacting)
+    # Safety net for records logged directly through the root logger itself.
+    root.addFilter(redacting)
 
 
 @dataclass
@@ -109,11 +177,26 @@ class DataCollector:
 
     _RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
-    @staticmethod
-    def _safe_http_error(exc: requests.HTTPError) -> requests.HTTPError:
-        """Create an HTTPError with a sanitized message."""
+    @property
+    def _redaction_secrets(self) -> Tuple[str, ...]:
+        return (self._config.finviz_api_key,)
+
+    def _safe_http_error(self, exc: requests.HTTPError) -> requests.HTTPError:
+        """Create an HTTPError with a sanitized, secret-free message."""
         status = exc.response.status_code if exc.response is not None else "unknown"
-        return requests.HTTPError(f"HTTP {status} from Finviz export API")
+        return requests.HTTPError(
+            redact(f"HTTP {status} from Finviz export API", self._redaction_secrets)
+        )
+
+    def _raise_request_error(self, exc: requests.RequestException) -> None:
+        """Re-raise a request exception with a sanitized message of the same class.
+
+        ``from None`` suppresses the secret-bearing exception context so that a
+        formatted traceback cannot expose the API key via the exception chain.
+        Preserving the ``RequestException`` subclass keeps worksheet failures
+        classified correctly by ``collect_all``.
+        """
+        raise exc.__class__(redact(str(exc), self._redaction_secrets)) from None
 
     def _make_request(self, url: str) -> pd.DataFrame:
         """Fetch CSV from Finviz with exponential backoff retry + jitter."""
@@ -132,10 +215,10 @@ class DataCollector:
                     "Request failed (attempt %d/%d): %s",
                     attempt,
                     self._config.max_retries,
-                    mask_secrets(str(exc)),
+                    redact(str(exc), self._redaction_secrets),
                 )
                 if attempt == self._config.max_retries:
-                    raise
+                    self._raise_request_error(exc)
                 jitter = random.uniform(0, delay * 0.25)
                 time.sleep(delay + jitter)
                 delay *= 2
@@ -145,12 +228,14 @@ class DataCollector:
                     logger.warning("HTTP %s (attempt %d/%d), backing off %.1fs",
                                    status, attempt, self._config.max_retries, delay)
                     if attempt == self._config.max_retries:
-                        raise self._safe_http_error(exc) from exc
+                        raise self._safe_http_error(exc) from None
                     jitter = random.uniform(0, delay * 0.25)
                     time.sleep(delay + jitter)
                     delay *= 2
                 else:
-                    raise self._safe_http_error(exc) from exc
+                    raise self._safe_http_error(exc) from None
+            except requests.RequestException as exc:
+                self._raise_request_error(exc)
 
     def _fetch_stock_count(self, sector: str = None) -> Tuple[int, int]:
         """Fetch uptrend count and total count for a sector (or all)."""
@@ -245,7 +330,10 @@ class DataCollector:
                     worksheet, date, dry_run=dry_run,
                 )
             except (requests.RequestException, ValueError, pd.errors.EmptyDataError) as exc:
-                logger.error("Failed to collect %s: %s", worksheet, mask_secrets(str(exc)))
+                logger.error(
+                    "Failed to collect %s: %s", worksheet,
+                    redact(str(exc), self._redaction_secrets),
+                )
                 result.failed.append(worksheet)
         return result
 
