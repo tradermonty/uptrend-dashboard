@@ -14,6 +14,7 @@
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2026-10-03 | v5.1 | P1 secret-leak fix: prevent Finviz API key leaking from HTTP debug logs and chained exceptions. Added `redact()`, `RedactingFilter` (handler-level), `configure_logging()`; `_raise_request_error()` raises sanitized `RequestException` with `from None`; `_make_request` uses `from None` on HTTPError paths; `collect.py` wires `configure_logging` with the API key |
 | 2026-02-08 | v1 | Initial version (Google Sheets based) |
 | 2026-02-08 | v2 | Migrated data store from Google Sheets to SQLite. Ported derived data calculations to Python. Added Excel import functionality |
 | 2026-02-08 | v2.1 | Removed signal logic (Long/Short Entry/Exit). Changed chart trend display to green/red/gray color coding |
@@ -29,6 +30,16 @@
 | 2026-02-14 | v3.4 | CSV download buttons on main page for LLM data analysis |
 | 2026-02-11 | v3.3 | Sector summary bar chart click → Sector Detail page navigation |
 | 2026-02-11 | v3.2 | Data validation hardening, secret masking, CI test workflow. DB CHECK constraints, Python-level count/total validation, import_excel row filtering, mask_secrets/safe_http_error, GitHub Actions pytest |
+
+### v5.1 Key Changes (Secret Leak Prevention)
+
+- **`redact(text, secrets, mask="***")`**: Replaces `mask_secrets()`. Sanitizes literal secrets passed explicitly plus the `auth=` query param pattern. Type-safe: non-`str` input (e.g. `int`, `None`) is returned unchanged.
+- **`RedactingFilter(logging.Filter)`**: Handler-level redaction filter that scrubs `record.getMessage()` and `str(record.args)` before emitting. Applied to HANDLERS (not the root logger) because a filter on the root LOGGER does not see records raised by child loggers such as urllib3.
+- **`configure_logging(verbose, secrets)`**: Replaces the inline `logging.basicConfig` in `collect.py`. Keeps the same format/level, and attaches a `RedactingFilter(secrets)` to every handler on the root logger.
+- **`DataCollector._raise_request_error(exc)`**: Re-raises a sanitized copy of the original `RequestException` subclass (`exc.__class__(redact(...))`) using `from None`, so the secret-bearing original is not chained into the printed traceback.
+- **`_make_request`**: `ConnectionError`/`Timeout` exhaustion and the `except requests.RequestException` fallback now go through `_raise_request_error`; retryable-exhausted and non-retryable `HTTPError` paths use `raise self._safe_http_error(exc) from None`. `_safe_http_error` became an instance method using `redact`.
+- **`collect.py`**: Reads `FINVIZ_API_KEY` before calling `configure_logging(args.verbose, secrets=[api_key])`; the except-branch error log uses `redact(str(exc), [api_key])`.
+- **Acceptance**: the Finviz API key never appears in any log record or formatted traceback under verbose success, timeout, connection error, HTTP 401, and exhausted 5xx; status/retry/worksheet diagnostics are preserved (redaction masks secrets, not context).
 
 ### v5.0 Key Changes (Sector Dispersion Analysis)
 
@@ -1286,6 +1297,21 @@ Implemented with TDD. Tests are written first, and implementation is written to 
 | test_cli_scope_all_sector_partial_fail_exit2 | Sector partial fail → exit 2 (v4.0) |
 | test_cli_scope_all_industry_partial_fail_exit0 | Industry fail + sectors OK → exit 0 (v4.0) |
 | test_cli_scope_all_industry_all_fail_exit2 | All sectors OK + all industries failed → exit 2 (v4.0) |
+| test_redact_literal_secret | redact() masks explicit secret (v5.1) |
+| test_redact_auth_token | redact() masks auth= query value (v5.1) |
+| test_redact_keeps_plain_text | redact() leaves secret-free text unchanged (v5.1) |
+| test_redact_type_safe_for_non_string | redact() returns non-str input unchanged (v5.1) |
+| test_filter_scrubs_msg_and_args_tuple | RedactingFilter scrubs tuple-args record (v5.1) |
+| test_filter_scrubs_dict_args | RedactingFilter scrubs Mapping-args record (v5.1) |
+| test_filter_on_handler_catches_child_logger | Handler filter catches urllib3 child logger (v5.1) |
+| test_attaches_filter_to_existing_root_handlers | configure_logging wires filter to root handlers (v5.1) |
+| test_connection_error_leak | No key in logs/traceback on ConnectionError (v5.1) |
+| test_timeout_leak | No key in logs/traceback on Timeout (v5.1) |
+| test_401_leak | No key in logs/traceback on HTTP 401 (v5.1) |
+| test_exhausted_5xx_leak | No key in logs/traceback on exhausted 5xx (v5.1) |
+| test_uncaught_request_exception_leak | No key in traceback for uncaught RequestException (v5.1) |
+| test_successful_verbose_run_has_no_key | No key in verbose success logs (v5.1) |
+| test_diagnostics_retained | Status/retry diagnostics kept while key masked (v5.1) |
 
 **test_constants.py (v4.0):**
 
@@ -1399,8 +1425,24 @@ Dashboard data is updated in SQLite by one of the following methods:
 #### data_collector.py Design
 
 ```python
+def redact(text: typing.Any, secrets=(), mask="***") -> typing.Any:
+    """Sanitize literal secrets and auth= query params from text.
+    Non-str input is returned unchanged (type-safe). (v5.1)"""
+    ...
+
 def mask_secrets(text: str) -> str:
-    """Mask known secrets (auth= query params) from URLs and exception messages (v3.2)"""
+    """Backcompat wrapper around redact(text) (v3.2, now delegates to redact)."""
+    ...
+
+class RedactingFilter(logging.Filter):
+    """Handler-level filter that scrubs record.getMessage() and
+    str(record.args) before emission. (v5.1)"""
+    def __init__(self, secrets): ...
+    def filter(self, record) -> bool: ...
+
+def configure_logging(verbose: bool, secrets=()) -> None:
+    """Configure root logging (DEBUG if verbose else INFO) and attach a
+    RedactingFilter(secrets) to every root handler. (v5.1)"""
     ...
 
 class DataCollector:
@@ -1409,9 +1451,15 @@ class DataCollector:
     def __init__(self, db_client: DBClient, config: CollectorConfig):
         ...
 
+    @property
+    def _redaction_secrets(self) -> tuple:
+        """Tuple of secrets (e.g. API key) to redact when logging/raising."""
+        ...
+
     def collect_all(self, date=None, dry_run=False) -> Dict[str, Tuple[int, int]]:
         """Fetch data for full market + all 11 sectors and save to DB
-        dry_run=True skips DB writes (validation still runs)"""
+        dry_run=True skips DB writes (validation still runs)
+        (logs failures via redact(str(exc), self._redaction_secrets))"""
         ...
 
     def collect_worksheet(self, worksheet, date=None, dry_run=False) -> Tuple[int, int]:
@@ -1423,9 +1471,15 @@ class DataCollector:
         """Close the HTTP Session"""
         ...
 
-    @staticmethod
-    def _safe_http_error(exc) -> requests.HTTPError:
-        """Create HTTPError with sanitized message (no URL leakage) (v3.2)"""
+    def _safe_http_error(self, exc) -> requests.HTTPError:
+        """Create HTTPError with sanitized message (no URL leakage) via redact.
+        Instance method (v3.2 static, v5.1 instance)."""
+        ...
+
+    def _raise_request_error(self, exc) -> None:
+        """Re-raise a sanitized copy of a RequestException subclass.
+        Raises exc.__class__(redact(...)) using 'from None' so the
+        secret-bearing original is never chained. (v5.1)"""
         ...
 
     def _validate_counts(self, worksheet, count, total) -> None:
@@ -1436,6 +1490,12 @@ class DataCollector:
         """Fetch (uptrend_count, total_count) from Finviz API"""
         ...
 
+    def _make_request(self, url: str) -> requests.Response:
+        """GET url with retry/backoff; ConnectionError/Timeout exhaustion and
+        non-HTTPError RequestException go through _raise_request_error;
+        HTTPError paths raise sanitized errors via 'from None'. (v5.1)"""
+        ...
+
     def _build_uptrend_url(self, sector: str = None) -> str:
         """Build uptrend screener URL"""
         ...
@@ -1444,6 +1504,14 @@ class DataCollector:
         """Build total screener URL"""
         ...
 ```
+
+**Logging & secret-leak policy (v5.1):**
+
+- All collection logs (progress, retries, HTTP status, failures) keep their diagnostics. Only secret material (the Finviz API key, or `auth=` query values) is scrubbed.
+- Redaction is enforced at two layers: (1) sanitized exception messages and (2) a handler-level `RedactingFilter` that also scrubs child-logger (urllib3) records.
+- A filter attached to the root LOGGER does **not** observe records from child loggers, so the filter is attached to HANDLERS on the root, which do see propagated child records.
+- `raise ... from None` suppresses the secret-bearing `__context__`/`__cause__` chain so the printed traceback never contains the key.
+- `collect.py` calls `configure_logging(args.verbose, secrets=[api_key])` after reading `FINVIZ_API_KEY`.
 
 **CollectorConfig:**
 

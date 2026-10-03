@@ -1,12 +1,24 @@
 """Tests for DataCollector — Finviz Elite CSV-based data collection."""
 
+import io
+import logging
+import traceback
 from unittest.mock import MagicMock, call
 
 import pandas as pd
 import pytest
 import requests
 
-from src.data_collector import CollectorConfig, CollectResult, CollectScope, DataCollector, mask_secrets
+from src.data_collector import (
+    CollectorConfig,
+    CollectResult,
+    CollectScope,
+    DataCollector,
+    RedactingFilter,
+    configure_logging,
+    mask_secrets,
+    redact,
+)
 
 
 class TestCollectorConfig:
@@ -648,3 +660,242 @@ class TestCLI:
         with pytest.raises(SystemExit) as exc_info:
             main()
         assert exc_info.value.code == 2
+
+
+class TestRedact:
+    """Tests for the redact() helper."""
+
+    KEY = "SYNTHETIC_TEST_KEY"
+
+    def test_redact_literal_secret(self):
+        out = redact(f"auth={self.KEY}", [self.KEY])
+        assert self.KEY not in out
+        assert "***" in out
+
+    def test_redact_auth_token(self):
+        out = redact("https://host/export.ashx?v=1&auth=abc123&ft=4")
+        assert "abc123" not in out
+        assert "auth=***" in out
+
+    def test_redact_keeps_plain_text(self):
+        assert redact("connection refused") == "connection refused"
+
+    def test_redact_type_safe_for_non_string(self):
+        assert redact(42, [self.KEY]) == 42
+        assert redact(None, [self.KEY]) is None
+
+
+class TestRedactingFilter:
+    """Tests for the handler-level RedactingFilter."""
+
+    KEY = "SYNTHETIC_TEST_KEY"
+
+    def _capture(self, filter_):
+        stream = io.StringIO()
+        hdlr = logging.StreamHandler(stream)
+        hdlr.setLevel(logging.DEBUG)
+        hdlr.addFilter(filter_)
+        return stream, hdlr
+
+    def test_filter_scrubs_msg_and_args_tuple(self):
+        stream, hdlr = self._capture(RedactingFilter([self.KEY]))
+        rec = logging.LogRecord(
+            "test", logging.DEBUG, __file__, 1,
+            "https://elite.finviz.com%s",
+            (f"/export.ashx?v=151&auth={self.KEY}&ft=4",),
+            None,
+        )
+        hdlr.handle(rec)
+        assert self.KEY not in stream.getvalue()
+        assert "auth=***" in stream.getvalue()
+
+    def test_filter_scrubs_dict_args(self):
+        stream, hdlr = self._capture(RedactingFilter([self.KEY]))
+        rec = logging.LogRecord(
+            "test", logging.DEBUG, __file__, 1,
+            "%(url)s",
+            ({"url": f"auth={self.KEY}"},),
+            None,
+        )
+        hdlr.handle(rec)
+        assert self.KEY not in stream.getvalue()
+
+    def test_filter_on_handler_catches_child_logger(self):
+        stream, hdlr = self._capture(RedactingFilter([self.KEY]))
+        root = logging.getLogger()
+        old_handlers = list(root.handlers)
+        old_level = root.level
+        child = logging.getLogger("urllib3.connectionpool")
+        old_child_level = child.level
+        try:
+            root.handlers = [hdlr]
+            root.setLevel(logging.DEBUG)
+            child.setLevel(logging.DEBUG)
+            child.propagate = True
+            child.debug(
+                "HTTPSConnectionPool: %s",
+                f"/export.ashx?v=151&auth={self.KEY}&ft=4",
+            )
+        finally:
+            root.handlers = old_handlers
+            root.setLevel(old_level)
+            child.setLevel(old_child_level)
+        assert self.KEY not in stream.getvalue()
+        assert "auth=***" in stream.getvalue()
+
+
+class TestConfigureLogging:
+    """Tests for configure_logging secret wiring."""
+
+    KEY = "SYNTHETIC_TEST_KEY"
+
+    def test_attaches_filter_to_existing_root_handlers(self):
+        root = logging.getLogger()
+        old_handlers = list(root.handlers)
+        old_filters = list(root.filters)
+        tmp = logging.StreamHandler(io.StringIO())
+        root.handlers = [tmp]
+        try:
+            configure_logging(True, [self.KEY])
+            assert any(
+                isinstance(f, RedactingFilter) and self.KEY in f.secrets
+                for f in tmp.filters
+            )
+        finally:
+            root.handlers = old_handlers
+            root.filters = old_filters
+
+
+def _http_error_resp(url, status_code=401, reason="Unauthorized", body=""):
+    """Build a mock response whose raise_for_status raises an HTTPError whose
+    message carries the given URL (used to exercise secret sanitization)."""
+    resp = MagicMock(spec=requests.Response)
+    resp.status_code = status_code
+    resp.reason = reason
+    resp.url = url
+    resp.content = body.encode("utf-8")
+
+    def _raise():
+        raise requests.HTTPError(f"{status_code} {reason} for url: {url}", response=resp)
+
+    resp.raise_for_status = _raise
+    return resp
+
+
+class TestVerboseSecretLeak:
+    """Issue #1 A01: the synthetic key must never appear in logs or tracebacks
+    under verbose collection across all failure scenarios (non-vacuous)."""
+
+    KEY = "SYNTHETIC_TEST_KEY"
+
+    @pytest.fixture
+    def collector(self, db_client):
+        config = CollectorConfig(
+            finviz_api_key=self.KEY,
+            max_retries=2,
+            retry_delay=0.01,
+            request_interval=0.0,
+        )
+        return DataCollector(db_client=db_client, config=config)
+
+    def _assert_no_key(self, exc, caplog):
+        tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+        assert self.KEY not in tb, "secret leaked into exception traceback"
+        assert self.KEY not in caplog.text, "secret leaked into log records"
+        assert exc.__cause__ is None and exc.__suppress_context__, (
+            "secret-bearing exception chain not suppressed"
+        )
+
+    def test_connection_error_leak(self, collector, caplog, mocker):
+        caplog.set_level(logging.DEBUG)
+        caplog.handler.addFilter(RedactingFilter([self.KEY]))
+        mocker.patch.object(collector._config, "max_retries", 1)
+        mocker.patch.object(
+            collector._session, "get",
+            side_effect=requests.ConnectionError(
+                f"Max retries exceeded with url: /export.ashx?v=151&auth={self.KEY}&ft=4"
+            ),
+        )
+        with pytest.raises(requests.ConnectionError) as excinfo:
+            collector.collect_worksheet("all", date="2026-02-07")
+        self._assert_no_key(excinfo.value, caplog)
+
+    def test_timeout_leak(self, collector, caplog, mocker):
+        caplog.set_level(logging.DEBUG)
+        caplog.handler.addFilter(RedactingFilter([self.KEY]))
+        mocker.patch.object(collector._config, "max_retries", 1)
+        mocker.patch.object(
+            collector._session, "get",
+            side_effect=requests.Timeout(
+                f"Max retries exceeded with url: /export.ashx?v=151&auth={self.KEY}&ft=4"
+            ),
+        )
+        with pytest.raises(requests.Timeout) as excinfo:
+            collector.collect_worksheet("all", date="2026-02-07")
+        self._assert_no_key(excinfo.value, caplog)
+
+    def test_401_leak(self, collector, caplog, mocker):
+        caplog.set_level(logging.DEBUG)
+        caplog.handler.addFilter(RedactingFilter([self.KEY]))
+        url = f"https://elite.finviz.com/export.ashx?v=151&auth={self.KEY}&ft=4"
+        mocker.patch.object(
+            collector._session, "get",
+            return_value=_http_error_resp(url, status_code=401, reason="Unauthorized"),
+        )
+        with pytest.raises(requests.RequestException) as excinfo:
+            collector.collect_worksheet("all", date="2026-02-07")
+        self._assert_no_key(excinfo.value, caplog)
+        assert "HTTP 401" in str(excinfo.value)
+
+    def test_exhausted_5xx_leak(self, collector, caplog, mocker):
+        caplog.set_level(logging.DEBUG)
+        caplog.handler.addFilter(RedactingFilter([self.KEY]))
+        url = f"https://elite.finviz.com/export.ashx?v=151&auth={self.KEY}&ft=4"
+        mocker.patch.object(
+            collector._session, "get",
+            return_value=_http_error_resp(url, status_code=502, reason="Bad Gateway"),
+        )
+        with pytest.raises(requests.RequestException) as excinfo:
+            collector.collect_worksheet("all", date="2026-02-07")
+        self._assert_no_key(excinfo.value, caplog)
+        assert "HTTP 502" in str(excinfo.value)
+
+    def test_uncaught_request_exception_leak(self, collector, caplog, mocker):
+        caplog.set_level(logging.DEBUG)
+        caplog.handler.addFilter(RedactingFilter([self.KEY]))
+        mocker.patch.object(collector._config, "max_retries", 1)
+        mocker.patch.object(
+            collector._session, "get",
+            side_effect=requests.TooManyRedirects(
+                f"Exceeded 30 redirects for url: /export.ashx?auth={self.KEY}"
+            ),
+        )
+        with pytest.raises(requests.TooManyRedirects) as excinfo:
+            collector.collect_worksheet("all", date="2026-02-07")
+        self._assert_no_key(excinfo.value, caplog)
+
+    def test_successful_verbose_run_has_no_key(self, collector, caplog, mocker):
+        caplog.set_level(logging.DEBUG)
+        caplog.handler.addFilter(RedactingFilter([self.KEY]))
+        mocker.patch.object(
+            collector._session, "get",
+            side_effect=[_csv_response(SAMPLE_CSV), _csv_response(SAMPLE_CSV)],
+        )
+        count, total = collector.collect_worksheet("all", date="2026-02-07")
+        assert (count, total) == (3, 3)
+        assert self.KEY not in caplog.text
+
+    def test_diagnostics_retained(self, collector, caplog, mocker):
+        caplog.set_level(logging.DEBUG)
+        caplog.handler.addFilter(RedactingFilter([self.KEY]))
+        mocker.patch.object(
+            collector._session, "get",
+            side_effect=[
+                _http_error_resp("http://x", status_code=502, reason="Bad Gateway"),
+                _http_error_resp("http://x", status_code=502, reason="Bad Gateway"),
+            ],
+        )
+        with pytest.raises(requests.RequestException):
+            collector.collect_worksheet("all", date="2026-02-07")
+        assert "HTTP 502" in caplog.text
+        assert "attempt 1/2" in caplog.text
