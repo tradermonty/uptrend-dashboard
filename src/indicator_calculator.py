@@ -154,38 +154,66 @@ def calculate_indicators(
     return result
 
 
-def _stabilize_regime(regime: pd.Series, min_days: int) -> pd.Series:
-    """Absorb short regime segments into the previous stable regime.
+def _confirm_regime(regime: pd.Series, min_days: int) -> pd.Series:
+    """Causally confirm regime transitions using a sequential state machine.
 
-    Any regime segment lasting fewer than min_days consecutive rows
-    is replaced with the preceding stable regime value.
+    Each row is classified based only on observations up to and including that
+    row (no lookahead). A regime change is emitted only once the new regime has
+    been observed for min_days consecutive valid days; before that the row keeps
+    the previous confirmed regime, absorbing short blips (noise). Because the
+    output at any row depends only on data up to that row, the labels are
+    prefix-invariant: appending future history never relabels an earlier row.
+
+    Missing (NaN) observations reset the in-progress candidate run (a missing
+    day provides no evidence), are emitted as NaN, and do not extend a run;
+    the current confirmed regime is retained.
+
+    Args:
+        regime: Regime label series, indexed ascending by date.
+        min_days: Minimum consecutive valid days to confirm a regime change.
+
+    Returns:
+        New regime series with the same index.
     """
     if regime.dropna().empty or min_days <= 1:
         return regime
 
-    result = regime.copy()
-    valid_idx = result.dropna().index.tolist()
-    if not valid_idx:
-        return result
+    result = pd.Series(np.nan, index=regime.index, dtype=object)
+    confirmed = None
+    candidate = None
+    candidate_count = 0
 
-    # Build run-length segments: (start_pos, end_pos, value)
-    segments = []
-    seg_start = 0
-    for i in range(1, len(valid_idx)):
-        if result[valid_idx[i]] != result[valid_idx[seg_start]]:
-            segments.append((seg_start, i - 1, result[valid_idx[seg_start]]))
-            seg_start = i
-    segments.append((seg_start, len(valid_idx) - 1, result[valid_idx[seg_start]]))
+    for i, r in enumerate(regime.values):
+        if pd.isna(r):
+            result.iloc[i] = np.nan
+            candidate = None
+            candidate_count = 0
+            continue
 
-    # Replace short segments with previous stable regime
-    prev_stable = None
-    for seg_start_pos, seg_end_pos, seg_val in segments:
-        seg_len = seg_end_pos - seg_start_pos + 1
-        if seg_len >= min_days:
-            prev_stable = seg_val
-        elif prev_stable is not None:
-            for j in range(seg_start_pos, seg_end_pos + 1):
-                result[valid_idx[j]] = prev_stable
+        if confirmed is None:
+            confirmed = r
+            result.iloc[i] = r
+            continue
+
+        if r == confirmed:
+            candidate = None
+            candidate_count = 0
+            result.iloc[i] = confirmed
+            continue
+
+        if r == candidate:
+            candidate_count += 1
+        else:
+            candidate = r
+            candidate_count = 1
+
+        if candidate_count >= min_days:
+            confirmed = candidate
+            candidate = None
+            candidate_count = 0
+            result.iloc[i] = confirmed
+        else:
+            result.iloc[i] = confirmed
 
     return result
 
@@ -279,9 +307,10 @@ def calculate_sector_dispersion(
     regime[diverged_mask] = "diverged"
     regime[normal_mask] = "normal"
 
-    # Hysteresis: absorb regime segments shorter than MIN_REGIME_DAYS
-    # into the previous stable regime to reduce noise
-    regime = _stabilize_regime(regime, DISPERSION_MIN_REGIME_DAYS)
+    # Hysteresis: confirm regime transitions only after MIN_REGIME_DAYS
+    # consecutive valid days, absorbing shorter blips into the previous
+    # confirmed regime. Causal (no lookahead): labels are prefix-invariant.
+    regime = _confirm_regime(regime, DISPERSION_MIN_REGIME_DAYS)
 
     # Level regime classification
     level_regime = pd.Series(np.nan, index=matrix.index, dtype=object)

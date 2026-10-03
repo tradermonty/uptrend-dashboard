@@ -91,6 +91,24 @@ Expanding window percentile を使用（ルックアヘッドバイアス回避�
 | `normal` | between 25th and 75th |
 | `diverged` | dispersion > expanding 75th percentile |
 
+##### Regime Stabilization (Causal Confirmation, v5.1)
+
+Raw regime labels are noise-reduced by `_confirm_regime(regime, DISPERSION_MIN_REGIME_DAYS)`, a
+left-to-right sequential state machine (replaces the prior lookahead `_stabilize_regime`):
+
+- A regime change is confirmed only on the `DISPERSION_MIN_REGIME_DAYS`-th consecutive valid day of the
+  new regime; before that, rows keep the previous confirmed regime (short blips are absorbed as noise).
+- **No lookahead / prefix-invariant**: each row's label depends only on observations up to that row, so
+  appending future history never relabels an earlier row (Issue #4 fix).
+- **Missing observations**: a NaN day resets the in-progress candidate run, is emitted as NaN, and does not
+  extend a run — a transition needs `min_days` consecutive valid days. (Old behavior treated a
+  NaN-interrupted run as contiguous because it operated on `dropna()`; this is an intentional, conservative
+  change.)
+- **Initial regime**: the first non-NaN classification becomes the baseline immediately and is never
+  relabeled.
+- Forward-return / sector-edge events use the composite `(regime, level_regime)` transition, which now
+  occurs on the confirmation date (see Section 2.5).
+
 Level regime (mean_ratio):
 
 | Level | Condition |
@@ -353,6 +371,7 @@ build_sector_ranking_table() — NEW in data_processor.py
 1. CSV export 拡張
 2. GitHub Actions 更新
 3. design.md 更新（v5.0）
+4. レジーム確定の因果化対応（v5.1, Issue #4）
 
 ---
 
@@ -362,6 +381,9 @@ build_sector_ranking_table() — NEW in data_processor.py
 |----------|-----------|----------|
 | Dispersion calculation | Empty data, single sector, all sectors equal (σ=0), normal data | `tests/test_indicator_calculator.py` |
 | Regime classification | Below p25, above p75, between, insufficient history (fallback) | `tests/test_indicator_calculator.py` |
+| Regime stabilization (v5.1) | Causal `_confirm_regime`: short blip absorbed, confirmation on min_days-th day, NaN resets candidate, initial baseline, prefix-invariance (deterministic + randomized) | `tests/test_indicator_calculator.py` |
+| Regime prefix-invariance (v5.1) | `calculate_sector_dispersion()` regime column identical over shared dates when truncated vs full | `tests/test_indicator_calculator.py` |
+| Forward event date (v5.1) | Forward-return event detected on confirmation date, and no event for an unconfirmed blip | `tests/test_indicator_calculator.py` |
 | Signal detection | CAPITULATION (low+converged), DIVERGENCE_WARNING, BREAKOUT_VELOCITY, no signal | `tests/test_indicator_calculator.py` |
 | Forward stats | Regime-wise fwd returns match manual calc, leader/survivor ranking, empty data, single regime | `tests/test_indicator_calculator.py` |
 | Expanding window | Verify no future data leakage, min history guard | `tests/test_indicator_calculator.py` |

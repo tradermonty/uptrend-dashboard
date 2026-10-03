@@ -5,8 +5,8 @@
 | Document Type | Software Design Document |
 | Project Name | uptrend-dashboard |
 | Created | 2026-02-08 |
-| Revised | 2026-04-11 |
-| Status | v5.0 Sector Dispersion Analysis |
+| Revised | 2026-10-03 |
+| Status | v5.1 Sector Dispersion Analysis |
 
 ---
 
@@ -19,6 +19,7 @@
 | 2026-02-08 | v2.1 | Removed signal logic (Long/Short Entry/Exit). Changed chart trend display to green/red/gray color coding |
 | 2026-02-08 | v2.2 | Code review fixes. Improved DB connection management, centralized constants, empty data handling, added logging, test improvements |
 | 2026-02-08 | v2.3 | Sector Comparison chart improvements. 10MA display, threshold lines, custom palette, latest value annotations, Y-axis % format, legend sorting |
+| 2026-10-03 | v5.1 | Sector Dispersion regime stabilization made causal: `_stabilize_regime` replaced by `_confirm_regime` sequential state machine (no lookahead, prefix-invariant labels, transition emitted only on confirmation date) |
 | 2026-04-11 | v5.0 | Sector Dispersion Analysis: cross-sectional dispersion indicator, regime classification, signal detection, forward return stats, new Dispersion Monitor page, CSV export |
 | 2026-04-11 | v4.4 | Code quality fixes: extracted `data_loader.py` (DIP fix), unified threshold constants, date validation, exit code gaps, CI concurrency guard |
 | 2026-02-18 | v4.3 | Default display period limit: date_input defaults to max 2 years via `default_start_date()`, `python-dateutil` dependency |
@@ -29,6 +30,15 @@
 | 2026-02-14 | v3.4 | CSV download buttons on main page for LLM data analysis |
 | 2026-02-11 | v3.3 | Sector summary bar chart click → Sector Detail page navigation |
 | 2026-02-11 | v3.2 | Data validation hardening, secret masking, CI test workflow. DB CHECK constraints, Python-level count/total validation, import_excel row filtering, mask_secrets/safe_http_error, GitHub Actions pytest |
+
+### v5.1 Key Changes (Causal Regime Confirmation)
+
+- **Causal regime stabilization**: `_stabilize_regime()` (whole-run re-labelling with lookahead) replaced by `_confirm_regime()` — a left-to-right sequential confirmation state machine. A regime change is confirmed only on the `min_days`-th consecutive valid day; before that, rows keep the previous confirmed regime (absorbing short blips as noise reduction).
+- **No lookahead / prefix-invariant labels**: each row's regime depends only on observations up to that row, so appending future history never relabels an earlier row. This is the core defect fix for Issue #4.
+- **Missing observations**: a NaN day resets the in-progress candidate run (a missing day provides no evidence), is emitted as NaN, and does not extend a run; it delays confirmation by requiring `min_days` consecutive valid days. (Old behavior counted a NaN-interrupted run as contiguous because it operated on `dropna()`; this is an intentional, conservative change.)
+- **Initial regime**: the first non-NaN classification establishes the baseline immediately; it is never relabeled.
+- **Forward-return events**: composite `(regime, level_regime)` transition events now occur at the confirmation date rather than the run start, removing backdating in `calculate_forward_returns()` / `calculate_sector_edge()`.
+- **New tests**: `TestConfirmRegime`, `TestDispersionRegimePrefixInvariance`, `TestForwardReturnsConfirmationDate`.
 
 ### v5.0 Key Changes (Sector Dispersion Analysis)
 
@@ -1125,6 +1135,23 @@ Implemented with TDD. Tests are written first, and implementation is written to 
 | test_calculate_indicators_empty_df | Empty DataFrame handling |
 | test_ratio_with_nan_count | NaN count fillna(0) handling |
 | test_ratio_with_nan_total | NaN total fillna(0) handling |
+| test_short_blip_absorbed | Short regime run absorbed (v5.1) |
+| test_confirmation_only_on_min_days | Transition emitted on min_days-th day (v5.1) |
+| test_two_day_candidate_not_confirmed_then_revert | 2-day candidate reverts without confirming (v5.1) |
+| test_blip_then_revert_to_previous | Candidate returns to confirmed regime (v5.1) |
+| test_retransition_to_previously_seen_regime | Same regime re-confirmed later (v5.1) |
+| test_initial_baseline_is_first_observation | First observation is the baseline (v5.1) |
+| test_missing_observation_resets_candidate | NaN resets candidate run (v5.1) |
+| test_min_days_le_one_passthrough | min_days<=1 passthrough (v5.1) |
+| test_empty_series_passthrough | Empty series passthrough (v5.1) |
+| test_all_nan_passthrough | All-NaN series passthrough (v5.1) |
+| test_prefix_invariance | Deterministic prefix-invariance (v5.1) |
+| test_prefix_invariance_randomized | Randomized prefix-invariance (v5.1) |
+| test_prefix_invariance_with_nan_randomized | Randomized prefix-invariance incl. NaN (v5.1) |
+| test_leading_nan_then_baseline | Leading NaN then baseline (v5.1) |
+| test_regime_prefix_invariant_across_truncation | calculate_sector_dispersion regime prefix-invariance (v5.1) |
+| test_no_event_on_blip_start | Short blip yields no forward-stat event (v5.1) |
+| test_event_date_is_confirmation_date | Forward-stat event date = confirmation date (v5.1) |
 
 **test_data_processor.py:**
 
