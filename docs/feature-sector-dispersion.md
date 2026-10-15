@@ -100,7 +100,8 @@ left-to-right sequential state machine (replaces the prior lookahead `_stabilize
   new regime; before that, rows keep the previous confirmed regime (short blips are absorbed as noise).
 - **No lookahead / prefix-invariant**: each row's label depends only on observations up to that row, so
   appending future history never relabels an earlier row (Issue #4 fix).
-- **Missing observations**: a NaN day resets the in-progress candidate run, is emitted as NaN, and does not
+- **Missing observations**: Interior all-sector NaN dates are retained by the public calculation pipeline (leading warmup rows are trimmed; the final partial-day exclusion remains).
+  A NaN day resets the in-progress candidate run, is emitted as NaN, and does not
   extend a run — a transition needs `min_days` consecutive valid days. (Old behavior treated a
   NaN-interrupted run as contiguous because it operated on `dropna()`; this is an intentional, conservative
   change.)

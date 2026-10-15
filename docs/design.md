@@ -5,7 +5,7 @@
 | Document Type | Software Design Document |
 | Project Name | uptrend-dashboard |
 | Created | 2026-02-08 |
-| Revised | 2026-10-03 |
+| Revised | 2026-10-14 |
 | Status | v5.1 Sector Dispersion Analysis |
 
 ---
@@ -14,6 +14,7 @@
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2026-10-14 | v5.2 | Preserve interior all-sector missing dates to reset regime candidates; retain leading warmup trimming and final partial-day exclusion. End-to-end regression verifies missing-day confirmation and nonlinear forward-return/sector-edge event dates. |
 | 2026-02-08 | v1 | Initial version (Google Sheets based) |
 | 2026-02-08 | v2 | Migrated data store from Google Sheets to SQLite. Ported derived data calculations to Python. Added Excel import functionality |
 | 2026-02-08 | v2.1 | Removed signal logic (Long/Short Entry/Exit). Changed chart trend display to green/red/gray color coding |
@@ -1725,3 +1726,7 @@ pytest tests/ -v
 # Import new Excel file (existing data is overwritten via UPSERT)
 python import_excel.py path/to/new_export.xlsx
 ```
+
+### v5.2 missing-observation integration
+
+calculate_sector_dispersion trims only leading all-sector NaN warmup rows; interior all-sector NaN dates remain with missing regime/level_regime to reset confirmation. The existing final partial-day exclusion remains. TestDispersionMissingDateBoundary covers the public pipeline and both statistical consumers with nonlinear values; the uninterrupted confirmation-date test also uses nonlinear values.

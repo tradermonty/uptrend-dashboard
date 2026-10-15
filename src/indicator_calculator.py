@@ -258,8 +258,9 @@ def calculate_sector_dispersion(
         return pd.DataFrame(columns=output_cols)
 
     matrix = pd.DataFrame(aligned)
-    # Drop rows where ALL sectors are NaN
-    matrix = matrix.dropna(how="all")
+    # Trim leading warmup only. Interior all-sector missing dates must reach
+    # confirmation as NaN to reset a candidate run across the gap.
+    matrix = matrix.loc[matrix.notna().any(axis=1).cummax()]
 
     # Drop the last row if not all sectors reported (partial day data)
     n_sectors = len(aligned)

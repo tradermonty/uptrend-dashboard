@@ -299,7 +299,7 @@ class TestCalculateSectorDispersion:
         """Output should have rows for dates where at least one sector has valid ma_10."""
         data = _make_sector_data(n=80)
         result = calculate_sector_dispersion(data)
-        # ma_10 has 9 leading NaNs, so matrix.dropna(how="all") removes those
+        # ma_10 has 9 leading NaNs, so leading warmup trimming removes those
         first_sec = [k for k in data if k.startswith("sec_")][0]
         expected_valid = data[first_sec]["ma_10"].notna().sum()
         assert len(result) == expected_valid
@@ -972,7 +972,7 @@ class TestForwardReturnsConfirmationDate:
         assert regime_list[4] == "normal"
         assert regime_list[5] == "normal"
         assert regime_list[6] == "diverged"
-        mkt_ratio = np.linspace(0.2, 0.4, n)
+        mkt_ratio = 0.2 + np.arange(n) ** 2 * 0.001
         disp_df = pd.DataFrame({
             "date": dates,
             "dispersion": [0.08] * n,
@@ -1000,3 +1000,33 @@ class TestForwardReturnsConfirmationDate:
         # forward return measured from the confirmation date (index 6) over window 5
         expected_fwd = mkt_ratio[11] - mkt_ratio[6]
         assert abs(row["mean_return"] - expected_fwd) < 1e-10
+
+
+class TestDispersionMissingDateBoundary:
+    def test_interior_missing_day_resets_confirmation_and_consumer_events(self):
+        dates = pd.bdate_range("2026-01-05", periods=12)
+        z = np.linspace(-1, 1, len(SECTORS))
+        z /= np.std(z)
+        sigma = np.array([.08, .14, np.nan] + [.14] * 9)
+        data = {sector: pd.DataFrame({"date": dates, "ma_10": .4 + sigma * z[i]})
+                for i, sector in enumerate(SECTORS)}
+        result = calculate_sector_dispersion(data)
+        labels = result.set_index("date")["regime"]
+        assert dates[2] in labels.index
+        assert pd.isna(labels.loc[dates[2]])
+        assert labels.loc[dates[3]] == labels.loc[dates[4]] == "normal"
+        assert labels.loc[dates[5]] == "diverged"
+        for end in range(6, 13):
+            prefix = calculate_sector_dispersion({k: v.iloc[:end] for k, v in data.items()})
+            pd.testing.assert_series_equal(prefix["regime"], result["regime"].iloc[:end])
+        values = .2 + np.arange(12) ** 2 * .001
+        market = pd.DataFrame({"date": dates, "ratio": values})
+        expected = values[10] - values[5]
+        returns = calculate_forward_returns(result, market, windows=(5,))
+        event = returns[returns.regime == "diverged"].iloc[0]
+        assert event["count"] == 1
+        assert event["mean_return"] == pytest.approx(expected)
+        edge = calculate_sector_edge(result, {"sec_test": pd.DataFrame({"date": dates, "ma_10": values})}, window=5)
+        event = edge[edge.regime == "diverged"].iloc[0]
+        assert event["count"] == 1
+        assert event["mean_change"] == pytest.approx(expected)
