@@ -14,6 +14,7 @@
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2026-10-14 | v5.2 | Logging boundary renders messages before redaction, sanitizes chained/cached tracebacks and stack text, and excludes the API credential from CollectorConfig repr. Boundary regressions cover numeric/mapping interpolation and nested objects. |
 | 2026-10-03 | v5.1 | P1 secret-leak fix: prevent Finviz API key leaking from HTTP debug logs and chained exceptions. Added `redact()`, `RedactingFilter` (handler-level), `configure_logging()`; `_raise_request_error()` raises sanitized `RequestException` with `from None`; `_make_request` uses `from None` on HTTPError paths; `collect.py` wires `configure_logging` with the API key |
 | 2026-02-08 | v1 | Initial version (Google Sheets based) |
 | 2026-02-08 | v2 | Migrated data store from Google Sheets to SQLite. Ported derived data calculations to Python. Added Excel import functionality |
@@ -34,7 +35,7 @@
 ### v5.1 Key Changes (Secret Leak Prevention)
 
 - **`redact(text, secrets, mask="***")`**: Replaces `mask_secrets()`. Sanitizes literal secrets passed explicitly plus the `auth=` query param pattern. Type-safe: non-`str` input (e.g. `int`, `None`) is returned unchanged.
-- **`RedactingFilter(logging.Filter)`**: Handler-level redaction filter that scrubs `record.getMessage()` and `str(record.args)` before emitting. Applied to HANDLERS (not the root logger) because a filter on the root LOGGER does not see records raised by child loggers such as urllib3.
+- **`RedactingFilter(logging.Filter)`**: Handler-level redaction filter that interpolates `record.getMessage()` before redaction, clears args, sanitizes cached or freshly formatted chained exception text and stack text, and clears raw exc_info before emitting. Applied to HANDLERS (not the root logger) because a filter on the root LOGGER does not see records raised by child loggers such as urllib3.
 - **`configure_logging(verbose, secrets)`**: Replaces the inline `logging.basicConfig` in `collect.py`. Keeps the same format/level, and attaches a `RedactingFilter(secrets)` to every handler on the root logger.
 - **`DataCollector._raise_request_error(exc)`**: Re-raises a sanitized copy of the original `RequestException` subclass (`exc.__class__(redact(...))`) using `from None`, so the secret-bearing original is not chained into the printed traceback.
 - **`_make_request`**: `ConnectionError`/`Timeout` exhaustion and the `except requests.RequestException` fallback now go through `_raise_request_error`; retryable-exhausted and non-retryable `HTTPError` paths use `raise self._safe_http_error(exc) from None`. `_safe_http_error` became an instance method using `redact`.
@@ -1490,7 +1491,7 @@ class DataCollector:
         """Fetch (uptrend_count, total_count) from Finviz API"""
         ...
 
-    def _make_request(self, url: str) -> requests.Response:
+    def _make_request(self, url: str) -> pd.DataFrame:
         """GET url with retry/backoff; ConnectionError/Timeout exhaustion and
         non-HTTPError RequestException go through _raise_request_error;
         HTTPError paths raise sanitized errors via 'from None'. (v5.1)"""
@@ -1766,3 +1767,7 @@ pytest tests/ -v
 # Import new Excel file (existing data is overwritten via UPSERT)
 python import_excel.py path/to/new_export.xlsx
 ```
+
+### v5.2 logging boundary regression coverage
+
+`test_config_repr_excludes_credential`, `test_configured_logging_renders_objects_and_templates`, and `test_configured_logging_sanitizes_chained_traceback` exercise the actual configure_logging wiring with synthetic credentials. CollectorConfig.finviz_api_key uses field(repr=False). Sanitized tracebacks retain diagnostic frames.

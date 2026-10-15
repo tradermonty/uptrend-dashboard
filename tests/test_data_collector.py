@@ -899,3 +899,60 @@ class TestVerboseSecretLeak:
             collector.collect_worksheet("all", date="2026-02-07")
         assert "HTTP 502" in caplog.text
         assert "attempt 1/2" in caplog.text
+
+
+@pytest.fixture
+def configured_log_stream():
+    root = logging.getLogger()
+    handlers, filters, level = list(root.handlers), list(root.filters), root.level
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    root.handlers = [handler]
+    root.setLevel(logging.DEBUG)
+    try:
+        configure_logging(True, ["BOUNDARY_SYNTHETIC_KEY"])
+        yield stream
+    finally:
+        root.handlers, root.filters = handlers, filters
+        root.setLevel(level)
+
+
+def test_config_repr_excludes_credential():
+    assert "BOUNDARY_SYNTHETIC_KEY" not in repr(CollectorConfig("BOUNDARY_SYNTHETIC_KEY"))
+
+
+def test_configured_logging_renders_objects_and_templates(configured_log_stream, capsys):
+    key = "BOUNDARY_SYNTHETIC_KEY"
+    log = logging.getLogger("boundary.collector")
+    log.debug("config=%r", CollectorConfig(key))
+    log.debug("payload=%s", {"nested": {"api_key": key}})
+    log.debug({"api_key": key})
+    log.debug("request auth=%s attempt=%d", key, 1)
+    log.debug("request auth=%(key)s attempt=%(attempt)d", {"key": key, "attempt": 2})
+    output = configured_log_stream.getvalue()
+    assert key not in output
+    assert "payload=" in output
+    assert "attempt=1" in output and "attempt=2" in output
+    assert "Logging error" not in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("cached", [False, True])
+def test_configured_logging_sanitizes_chained_traceback(configured_log_stream, cached):
+    import sys
+    key = "BOUNDARY_SYNTHETIC_KEY"
+    try:
+        try:
+            raise requests.ConnectionError("connection auth=" + key)
+        except requests.ConnectionError as exc:
+            raise RuntimeError("retry " + key) from exc
+    except RuntimeError:
+        record = logging.LogRecord("boundary.collector", logging.ERROR, __file__, 1,
+                                   "request failed", (), sys.exc_info())
+        if cached:
+            logging.Formatter().format(record)
+        logging.getLogger().handle(record)
+    output = configured_log_stream.getvalue()
+    assert key not in output
+    assert "Traceback" in output and "ConnectionError" in output and "RuntimeError" in output
+    assert "request failed" in output

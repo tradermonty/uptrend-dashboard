@@ -100,16 +100,19 @@ class RedactingFilter(logging.Filter):
         self.secrets = tuple(s for s in secrets if s)
 
     def filter(self, record: logging.LogRecord) -> bool:
-        record.msg = redact(record.msg, self.secrets)
-        args = record.args
-        if args is None or args == ():
-            pass
-        elif isinstance(args, dict):
-            record.args = {k: redact(v, self.secrets) for k, v in args.items()}
-        elif isinstance(args, tuple):
-            record.args = tuple(redact(a, self.secrets) for a in args)
-        else:
-            record.args = redact(args, self.secrets)
+        # Interpolate first: objects/nested values become text, and redacting
+        # auth=%s cannot destroy the template's placeholder correspondence.
+        record.msg = redact(record.getMessage(), self.secrets)
+        record.args = ()
+        if record.exc_info and not record.exc_text:
+            record.exc_text = logging.Formatter().formatException(record.exc_info)
+        if record.exc_text:
+            record.exc_text = redact(record.exc_text, self.secrets)
+        # Keep sanitized traceback frames but prevent any later formatter from
+        # regenerating exception text from the original secret-bearing objects.
+        record.exc_info = None
+        if record.stack_info:
+            record.stack_info = redact(record.stack_info, self.secrets)
         return True
 
 
@@ -140,7 +143,7 @@ def configure_logging(verbose: bool, secrets=()) -> None:
 class CollectorConfig:
     """Configuration for DataCollector."""
 
-    finviz_api_key: str
+    finviz_api_key: str = field(repr=False)
     base_url: str = "https://elite.finviz.com"
     max_retries: int = 5
     retry_delay: float = 2.0
