@@ -9,7 +9,13 @@ from datetime import date
 from dotenv import load_dotenv
 
 from src.constants import SECTORS, VALID_WORKSHEETS
-from src.data_collector import CollectorConfig, CollectScope, DataCollector, mask_secrets
+from src.data_collector import (
+    CollectorConfig,
+    CollectScope,
+    DataCollector,
+    configure_logging,
+    redact,
+)
 from src.db_client import DBClient
 
 logger = logging.getLogger(__name__)
@@ -32,15 +38,12 @@ def main():
     parser.add_argument("--verbose", action="store_true", help="Enable debug logging")
     args = parser.parse_args()
 
-    logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO,
-        format="%(asctime)s %(levelname)s: %(message)s",
-    )
-
     api_key = os.environ.get("FINVIZ_API_KEY")
     if not api_key:
         logger.error("FINVIZ_API_KEY environment variable is not set")
         sys.exit(1)
+
+    configure_logging(args.verbose, secrets=[api_key])
 
     # Mutual exclusion: --worksheet and --scope
     if args.worksheet and args.scope is not None:
@@ -75,7 +78,7 @@ def main():
                 if args.dry_run:
                     print("  (Dry run - no data written)")
             except Exception as exc:
-                logger.error("Failed to collect %s: %s", args.worksheet, mask_secrets(str(exc)))
+                logger.error("Failed to collect %s: %s", args.worksheet, redact(str(exc), [api_key]))
                 sys.exit(1)
         else:
             result = collector.collect_all(date=args.date, dry_run=args.dry_run, scope=scope)
