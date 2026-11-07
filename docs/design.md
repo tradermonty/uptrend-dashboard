@@ -14,13 +14,14 @@
 
 | Date | Version | Changes |
 |------|---------|---------|
-| 2026-10-14 | v5.2 | Preserve interior all-sector missing dates to reset regime candidates; retain leading warmup trimming and final partial-day exclusion. End-to-end regression verifies missing-day confirmation and nonlinear forward-return/sector-edge event dates. |
+| 2026-11-06 | v5.3 | Sector Dispersion regime stabilization made causal: `_stabilize_regime` replaced by `_confirm_regime` sequential state machine (no lookahead, prefix-invariant labels, transition emitted only on confirmation date). Interior all-sector NaN rows are preserved to reset candidates; leading and trailing all-NaN rows are trimmed before the final partial-day exclusion. Absent dates are not observations. One-time regime relabel covered by docs/corrections/2026-11-regime-relabel.md. |
+| 2026-10-14 | v5.2 | Logging boundary renders messages before redaction, sanitizes chained/cached tracebacks and stack text, and excludes the API credential from CollectorConfig repr. Boundary regressions cover numeric/mapping interpolation and nested objects. |
+| 2026-10-03 | v5.1 | P1 secret-leak fix: prevent Finviz API key leaking from HTTP debug logs and chained exceptions. Added `redact()`, `RedactingFilter` (handler-level), `configure_logging()`; `_raise_request_error()` raises sanitized `RequestException` with `from None`; `_make_request` uses `from None` on HTTPError paths; `collect.py` wires `configure_logging` with the API key |
 | 2026-02-08 | v1 | Initial version (Google Sheets based) |
 | 2026-02-08 | v2 | Migrated data store from Google Sheets to SQLite. Ported derived data calculations to Python. Added Excel import functionality |
 | 2026-02-08 | v2.1 | Removed signal logic (Long/Short Entry/Exit). Changed chart trend display to green/red/gray color coding |
 | 2026-02-08 | v2.2 | Code review fixes. Improved DB connection management, centralized constants, empty data handling, added logging, test improvements |
 | 2026-02-08 | v2.3 | Sector Comparison chart improvements. 10MA display, threshold lines, custom palette, latest value annotations, Y-axis % format, legend sorting |
-| 2026-10-03 | v5.1 | Sector Dispersion regime stabilization made causal: `_stabilize_regime` replaced by `_confirm_regime` sequential state machine (no lookahead, prefix-invariant labels, transition emitted only on confirmation date) |
 | 2026-04-11 | v5.0 | Sector Dispersion Analysis: cross-sectional dispersion indicator, regime classification, signal detection, forward return stats, new Dispersion Monitor page, CSV export |
 | 2026-04-11 | v4.4 | Code quality fixes: extracted `data_loader.py` (DIP fix), unified threshold constants, date validation, exit code gaps, CI concurrency guard |
 | 2026-02-18 | v4.3 | Default display period limit: date_input defaults to max 2 years via `default_start_date()`, `python-dateutil` dependency |
@@ -32,7 +33,7 @@
 | 2026-02-11 | v3.3 | Sector summary bar chart click → Sector Detail page navigation |
 | 2026-02-11 | v3.2 | Data validation hardening, secret masking, CI test workflow. DB CHECK constraints, Python-level count/total validation, import_excel row filtering, mask_secrets/safe_http_error, GitHub Actions pytest |
 
-### v5.1 Key Changes (Causal Regime Confirmation)
+### v5.3 Key Changes (Causal Regime Confirmation)
 
 - **Causal regime stabilization**: `_stabilize_regime()` (whole-run re-labelling with lookahead) replaced by `_confirm_regime()` — a left-to-right sequential confirmation state machine. A regime change is confirmed only on the `min_days`-th consecutive valid day; before that, rows keep the previous confirmed regime (absorbing short blips as noise reduction).
 - **No lookahead / prefix-invariant labels**: each row's regime depends only on observations up to that row, so appending future history never relabels an earlier row. This is the core defect fix for Issue #4.
@@ -40,6 +41,16 @@
 - **Initial regime**: the first non-NaN classification establishes the baseline immediately; it is never relabeled.
 - **Forward-return events**: composite `(regime, level_regime)` transition events now occur at the confirmation date rather than the run start, removing backdating in `calculate_forward_returns()` / `calculate_sector_edge()`.
 - **New tests**: `TestConfirmRegime`, `TestDispersionRegimePrefixInvariance`, `TestForwardReturnsConfirmationDate`.
+
+### v5.1 Key Changes (Secret Leak Prevention)
+
+- **`redact(text, secrets, mask="***")`**: Replaces `mask_secrets()`. Sanitizes literal secrets passed explicitly plus the `auth=` query param pattern. Type-safe: non-`str` input (e.g. `int`, `None`) is returned unchanged.
+- **`RedactingFilter(logging.Filter)`**: Handler-level redaction filter that interpolates `record.getMessage()` before redaction, clears args, sanitizes cached or freshly formatted chained exception text and stack text, and clears raw exc_info before emitting. Applied to HANDLERS (not the root logger) because a filter on the root LOGGER does not see records raised by child loggers such as urllib3.
+- **`configure_logging(verbose, secrets)`**: Replaces the inline `logging.basicConfig` in `collect.py`. Keeps the same format/level, and attaches a `RedactingFilter(secrets)` to every handler on the root logger.
+- **`DataCollector._raise_request_error(exc)`**: Re-raises a sanitized copy of the original `RequestException` subclass (`exc.__class__(redact(...))`) using `from None`, so the secret-bearing original is not chained into the printed traceback.
+- **`_make_request`**: `ConnectionError`/`Timeout` exhaustion and the `except requests.RequestException` fallback now go through `_raise_request_error`; retryable-exhausted and non-retryable `HTTPError` paths use `raise self._safe_http_error(exc) from None`. `_safe_http_error` became an instance method using `redact`.
+- **`collect.py`**: Reads `FINVIZ_API_KEY` before calling `configure_logging(args.verbose, secrets=[api_key])`; the except-branch error log uses `redact(str(exc), [api_key])`.
+- **Acceptance**: the Finviz API key never appears in any log record or formatted traceback under verbose success, timeout, connection error, HTTP 401, and exhausted 5xx; status/retry/worksheet diagnostics are preserved (redaction masks secrets, not context).
 
 ### v5.0 Key Changes (Sector Dispersion Analysis)
 
@@ -1136,11 +1147,11 @@ Implemented with TDD. Tests are written first, and implementation is written to 
 | test_calculate_indicators_empty_df | Empty DataFrame handling |
 | test_ratio_with_nan_count | NaN count fillna(0) handling |
 | test_ratio_with_nan_total | NaN total fillna(0) handling |
-| test_short_blip_absorbed | Short regime run absorbed (v5.1) |
-| test_confirmation_only_on_min_days | Transition emitted on min_days-th day (v5.1) |
-| test_two_day_candidate_not_confirmed_then_revert | 2-day candidate reverts without confirming (v5.1) |
-| test_blip_then_revert_to_previous | Candidate returns to confirmed regime (v5.1) |
-| test_retransition_to_previously_seen_regime | Same regime re-confirmed later (v5.1) |
+| test_short_blip_absorbed | Short regime run absorbed (v5.3) |
+| test_confirmation_only_on_min_days | Transition emitted on min_days-th day (v5.3) |
+| test_two_day_candidate_not_confirmed_then_revert | 2-day candidate reverts without confirming (v5.3) |
+| test_blip_then_revert_to_previous | Candidate returns to confirmed regime (v5.3) |
+| test_retransition_to_previously_seen_regime | Same regime re-confirmed later (v5.3) |
 | test_initial_baseline_is_first_observation | First observation is the baseline (v5.1) |
 | test_missing_observation_resets_candidate | NaN resets candidate run (v5.1) |
 | test_min_days_le_one_passthrough | min_days<=1 passthrough (v5.1) |
@@ -1150,9 +1161,9 @@ Implemented with TDD. Tests are written first, and implementation is written to 
 | test_prefix_invariance_randomized | Randomized prefix-invariance (v5.1) |
 | test_prefix_invariance_with_nan_randomized | Randomized prefix-invariance incl. NaN (v5.1) |
 | test_leading_nan_then_baseline | Leading NaN then baseline (v5.1) |
-| test_regime_prefix_invariant_across_truncation | calculate_sector_dispersion regime prefix-invariance (v5.1) |
-| test_no_event_on_blip_start | Short blip yields no forward-stat event (v5.1) |
-| test_event_date_is_confirmation_date | Forward-stat event date = confirmation date (v5.1) |
+| test_regime_prefix_invariant_across_truncation | calculate_sector_dispersion regime prefix-invariance (v5.3) |
+| test_no_event_on_blip_start | Short blip yields no forward-stat event (v5.3) |
+| test_event_date_is_confirmation_date | Forward-stat event date = confirmation date (v5.3) |
 
 **test_data_processor.py:**
 
@@ -1314,6 +1325,21 @@ Implemented with TDD. Tests are written first, and implementation is written to 
 | test_cli_scope_all_sector_partial_fail_exit2 | Sector partial fail → exit 2 (v4.0) |
 | test_cli_scope_all_industry_partial_fail_exit0 | Industry fail + sectors OK → exit 0 (v4.0) |
 | test_cli_scope_all_industry_all_fail_exit2 | All sectors OK + all industries failed → exit 2 (v4.0) |
+| test_redact_literal_secret | redact() masks explicit secret (v5.1) |
+| test_redact_auth_token | redact() masks auth= query value (v5.1) |
+| test_redact_keeps_plain_text | redact() leaves secret-free text unchanged (v5.1) |
+| test_redact_type_safe_for_non_string | redact() returns non-str input unchanged (v5.1) |
+| test_filter_scrubs_msg_and_args_tuple | RedactingFilter scrubs tuple-args record (v5.1) |
+| test_filter_scrubs_dict_args | RedactingFilter scrubs Mapping-args record (v5.1) |
+| test_filter_on_handler_catches_child_logger | Handler filter catches urllib3 child logger (v5.1) |
+| test_attaches_filter_to_existing_root_handlers | configure_logging wires filter to root handlers (v5.1) |
+| test_connection_error_leak | No key in logs/traceback on ConnectionError (v5.1) |
+| test_timeout_leak | No key in logs/traceback on Timeout (v5.1) |
+| test_401_leak | No key in logs/traceback on HTTP 401 (v5.1) |
+| test_exhausted_5xx_leak | No key in logs/traceback on exhausted 5xx (v5.1) |
+| test_uncaught_request_exception_leak | No key in traceback for uncaught RequestException (v5.1) |
+| test_successful_verbose_run_has_no_key | No key in verbose success logs (v5.1) |
+| test_diagnostics_retained | Status/retry diagnostics kept while key masked (v5.1) |
 
 **test_constants.py (v4.0):**
 
@@ -1427,8 +1453,24 @@ Dashboard data is updated in SQLite by one of the following methods:
 #### data_collector.py Design
 
 ```python
+def redact(text: typing.Any, secrets=(), mask="***") -> typing.Any:
+    """Sanitize literal secrets and auth= query params from text.
+    Non-str input is returned unchanged (type-safe). (v5.1)"""
+    ...
+
 def mask_secrets(text: str) -> str:
-    """Mask known secrets (auth= query params) from URLs and exception messages (v3.2)"""
+    """Backcompat wrapper around redact(text) (v3.2, now delegates to redact)."""
+    ...
+
+class RedactingFilter(logging.Filter):
+    """Handler-level filter that scrubs record.getMessage() and
+    str(record.args) before emission. (v5.1)"""
+    def __init__(self, secrets): ...
+    def filter(self, record) -> bool: ...
+
+def configure_logging(verbose: bool, secrets=()) -> None:
+    """Configure root logging (DEBUG if verbose else INFO) and attach a
+    RedactingFilter(secrets) to every root handler. (v5.1)"""
     ...
 
 class DataCollector:
@@ -1437,9 +1479,15 @@ class DataCollector:
     def __init__(self, db_client: DBClient, config: CollectorConfig):
         ...
 
+    @property
+    def _redaction_secrets(self) -> tuple:
+        """Tuple of secrets (e.g. API key) to redact when logging/raising."""
+        ...
+
     def collect_all(self, date=None, dry_run=False) -> Dict[str, Tuple[int, int]]:
         """Fetch data for full market + all 11 sectors and save to DB
-        dry_run=True skips DB writes (validation still runs)"""
+        dry_run=True skips DB writes (validation still runs)
+        (logs failures via redact(str(exc), self._redaction_secrets))"""
         ...
 
     def collect_worksheet(self, worksheet, date=None, dry_run=False) -> Tuple[int, int]:
@@ -1451,9 +1499,15 @@ class DataCollector:
         """Close the HTTP Session"""
         ...
 
-    @staticmethod
-    def _safe_http_error(exc) -> requests.HTTPError:
-        """Create HTTPError with sanitized message (no URL leakage) (v3.2)"""
+    def _safe_http_error(self, exc) -> requests.HTTPError:
+        """Create HTTPError with sanitized message (no URL leakage) via redact.
+        Instance method (v3.2 static, v5.1 instance)."""
+        ...
+
+    def _raise_request_error(self, exc) -> None:
+        """Re-raise a sanitized copy of a RequestException subclass.
+        Raises exc.__class__(redact(...)) using 'from None' so the
+        secret-bearing original is never chained. (v5.1)"""
         ...
 
     def _validate_counts(self, worksheet, count, total) -> None:
@@ -1464,6 +1518,12 @@ class DataCollector:
         """Fetch (uptrend_count, total_count) from Finviz API"""
         ...
 
+    def _make_request(self, url: str) -> pd.DataFrame:
+        """GET url with retry/backoff; ConnectionError/Timeout exhaustion and
+        non-HTTPError RequestException go through _raise_request_error;
+        HTTPError paths raise sanitized errors via 'from None'. (v5.1)"""
+        ...
+
     def _build_uptrend_url(self, sector: str = None) -> str:
         """Build uptrend screener URL"""
         ...
@@ -1472,6 +1532,14 @@ class DataCollector:
         """Build total screener URL"""
         ...
 ```
+
+**Logging & secret-leak policy (v5.1):**
+
+- All collection logs (progress, retries, HTTP status, failures) keep their diagnostics. Only secret material (the Finviz API key, or `auth=` query values) is scrubbed.
+- Redaction is enforced at two layers: (1) sanitized exception messages and (2) a handler-level `RedactingFilter` that also scrubs child-logger (urllib3) records.
+- A filter attached to the root LOGGER does **not** observe records from child loggers, so the filter is attached to HANDLERS on the root, which do see propagated child records.
+- `raise ... from None` suppresses the secret-bearing `__context__`/`__cause__` chain so the printed traceback never contains the key.
+- `collect.py` calls `configure_logging(args.verbose, secrets=[api_key])` after reading `FINVIZ_API_KEY`.
 
 **CollectorConfig:**
 
@@ -1727,6 +1795,10 @@ pytest tests/ -v
 python import_excel.py path/to/new_export.xlsx
 ```
 
-### v5.2 missing-observation integration
+### v5.3 missing-observation integration
 
 calculate_sector_dispersion trims only leading all-sector NaN warmup rows; interior all-sector NaN dates remain with missing regime/level_regime to reset confirmation. The existing final partial-day exclusion remains. TestDispersionMissingDateBoundary covers the public pipeline and both statistical consumers with nonlinear values; the uninterrupted confirmation-date test also uses nonlinear values.
+
+### v5.2 logging boundary regression coverage
+
+`test_config_repr_excludes_credential`, `test_configured_logging_renders_objects_and_templates`, and `test_configured_logging_sanitizes_chained_traceback` exercise the actual configure_logging wiring with synthetic credentials. CollectorConfig.finviz_api_key uses field(repr=False). Sanitized tracebacks retain diagnostic frames.
