@@ -14,6 +14,7 @@
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2026-11-06 | v5.4 | `RedactingFilter` no longer raises into the caller on a malformed log call: `_render_log_message()` falls back to a redacted location and template, and drops the arguments. `collect.py` configures logging before the missing-key check so that error keeps its format. |
 | 2026-10-14 | v5.2 | Logging boundary renders messages before redaction, sanitizes chained/cached tracebacks and stack text, and excludes the API credential from CollectorConfig repr. Boundary regressions cover numeric/mapping interpolation and nested objects. |
 | 2026-10-03 | v5.1 | P1 secret-leak fix: prevent Finviz API key leaking from HTTP debug logs and chained exceptions. Added `redact()`, `RedactingFilter` (handler-level), `configure_logging()`; `_raise_request_error()` raises sanitized `RequestException` with `from None`; `_make_request` uses `from None` on HTTPError paths; `collect.py` wires `configure_logging` with the API key |
 | 2026-02-08 | v1 | Initial version (Google Sheets based) |
@@ -1313,6 +1314,9 @@ Implemented with TDD. Tests are written first, and implementation is written to 
 | test_uncaught_request_exception_leak | No key in traceback for uncaught RequestException (v5.1) |
 | test_successful_verbose_run_has_no_key | No key in verbose success logs (v5.1) |
 | test_diagnostics_retained | Status/retry diagnostics kept while key masked (v5.1) |
+| test_malformed_log_call_does_not_raise_or_leak | Malformed log call neither raises nor leaks (v5.4) |
+| test_unformattable_message_object_does_not_raise | Message object with a raising `__str__` does not raise (v5.4) |
+| test_missing_api_key_error_uses_configured_format | Missing-key error keeps the configured log format (v5.4) |
 
 **test_constants.py (v4.0):**
 
@@ -1437,7 +1441,8 @@ def mask_secrets(text: str) -> str:
 
 class RedactingFilter(logging.Filter):
     """Handler-level filter that scrubs record.getMessage() and
-    str(record.args) before emission. (v5.1)"""
+    str(record.args) before emission. (v5.1) A malformed log call is rendered as a
+    redacted location and template rather than raising. (v5.4)"""
     def __init__(self, secrets): ...
     def filter(self, record) -> bool: ...
 

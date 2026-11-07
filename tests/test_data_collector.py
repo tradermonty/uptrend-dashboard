@@ -2,7 +2,11 @@
 
 import io
 import logging
+import os
+import subprocess
+import sys
 import traceback
+from pathlib import Path
 from unittest.mock import MagicMock, call
 
 import pandas as pd
@@ -956,3 +960,47 @@ def test_configured_logging_sanitizes_chained_traceback(configured_log_stream, c
     assert key not in output
     assert "Traceback" in output and "ConnectionError" in output and "RuntimeError" in output
     assert "request failed" in output
+
+
+class _RaisingRepr:
+    def __repr__(self):
+        raise ValueError("bad repr")
+
+
+@pytest.mark.parametrize(
+    "msg, args",
+    [
+        ("too many args", (1,)),
+        ("value=%d auth=BOUNDARY_SYNTHETIC_KEY", ("not-a-number",)),
+        ("object=%r", (_RaisingRepr(),)),
+    ],
+)
+def test_malformed_log_call_does_not_raise_or_leak(configured_log_stream, capsys, msg, args):
+    log = logging.getLogger("boundary.collector")
+    log.debug(msg, *args)
+    log.debug("still logging")
+    output = configured_log_stream.getvalue()
+    assert "BOUNDARY_SYNTHETIC_KEY" not in output
+    assert "test_data_collector.py" in output
+    assert "still logging" in output
+    assert "BOUNDARY_SYNTHETIC_KEY" not in capsys.readouterr().err
+
+
+def test_unformattable_message_object_does_not_raise(configured_log_stream):
+    class RaisingStr:
+        def __str__(self):
+            raise ValueError("bad str")
+
+    logging.getLogger("boundary.collector").debug(RaisingStr())
+    assert "RaisingStr" in configured_log_stream.getvalue()
+
+
+def test_missing_api_key_error_uses_configured_format():
+    repo_root = Path(__file__).resolve().parent.parent
+    env = {**os.environ, "FINVIZ_API_KEY": ""}
+    result = subprocess.run(
+        [sys.executable, "collect.py"],
+        cwd=repo_root, env=env, capture_output=True, text=True, timeout=120,
+    )
+    assert result.returncode == 1
+    assert "ERROR: FINVIZ_API_KEY environment variable is not set" in result.stderr

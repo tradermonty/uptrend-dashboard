@@ -39,11 +39,11 @@ def main():
     args = parser.parse_args()
 
     api_key = os.environ.get("FINVIZ_API_KEY")
+    configure_logging(args.verbose, secrets=[api_key])
+
     if not api_key:
         logger.error("FINVIZ_API_KEY environment variable is not set")
         sys.exit(1)
-
-    configure_logging(args.verbose, secrets=[api_key])
 
     # Mutual exclusion: --worksheet and --scope
     if args.worksheet and args.scope is not None:
