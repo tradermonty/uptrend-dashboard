@@ -21,26 +21,31 @@ and `level_regime` are unchanged on every row, and no dates are added or removed
 ## What changes for consumers
 
 - **Dashboard:** pages compute regimes when read, so they show the new labels once the merged code is deployed.
-- **`data/sector_dispersion.csv`:** this file is read through its raw URL, including by LLM workflows. It changes at
-  the first scheduled Collect Finviz Data run after merge. Until then, the CSV and the dashboard can disagree.
+- **`data/sector_dispersion.csv`:** this file is committed to a public repository, so anyone can read it through its
+  raw URL. The README does not list it, and external consumers are unknown. It changes at the first fully successful
+  Collect Finviz Data run after merge. Until then, the CSV and the dashboard can disagree.
 - **Forward-return and sector-edge statistics:** these are computed from regime transitions, so their values change.
 - **After this correction:** labels are prefix-invariant, so later runs add rows without relabeling earlier ones.
 
 ## How it is applied
 
 1. Merge PR #19. No CSV is edited by hand, and the PR does not include a regenerated CSV.
-2. The next scheduled run of `.github/workflows/collect-data.yml` runs `export_csv.py` and commits the new file.
+2. The next run of `.github/workflows/collect-data.yml` in which `collect.py` exits 0 runs `export_csv.py` and commits
+   the new file. A partial or failed collection stops the job before the export, which delays the relabel. To apply it
+   sooner, trigger the workflow manually with `workflow_dispatch`.
 
 ## Verification after the first run
 
 1. The commit changes `regime` on exactly the rows listed below, apart from rows newly appended by that run.
-2. Every other column on existing rows is unchanged.
+2. Every other column on existing rows is unchanged, comparing numeric columns with a tolerance of 1e-9 because
+   float output can differ in the last digits between platforms.
 3. On later runs, existing rows stay unchanged.
 
 ## Rollback
 
-Revert the merge commit of PR #19. The next scheduled run regenerates the CSV with the previous calculation. The earlier
-file also stays available in Git history.
+Revert the merge commit of PR #19. The next fully successful run regenerates the CSV with the previous calculation.
+If later commits edited the same part of `docs/design.md`, the revert needs that conflict resolved. The earlier file
+also stays available in Git history.
 
 ## Summary of label changes
 
