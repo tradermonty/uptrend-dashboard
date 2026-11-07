@@ -1003,6 +1003,46 @@ class TestForwardReturnsConfirmationDate:
 
 
 class TestDispersionMissingDateBoundary:
+    @staticmethod
+    def _sector_data(dates, sigma):
+        z = np.linspace(-1, 1, len(SECTORS))
+        z /= np.std(z)
+        sigma = np.asarray(sigma, dtype=float)
+        return {sector: pd.DataFrame({"date": dates, "ma_10": .4 + sigma * z[i]})
+                for i, sector in enumerate(SECTORS)}
+
+    @pytest.mark.parametrize("n_tail", [1, 2, 3])
+    def test_trailing_all_nan_rows_are_trimmed(self, n_tail):
+        dates = pd.bdate_range("2026-01-05", periods=10)
+        data = self._sector_data(dates, [.1] * (10 - n_tail) + [np.nan] * n_tail)
+        result = calculate_sector_dispersion(data)
+        last = result.iloc[-1]
+        assert last["date"] == dates[9 - n_tail]
+        assert last["dispersion"] == pytest.approx(.1)
+        assert last["regime"] == "normal"
+
+    def test_partial_row_before_trailing_gap_is_excluded(self):
+        dates = pd.bdate_range("2026-01-05", periods=10)
+        data = self._sector_data(dates, [.1] * 9 + [np.nan])
+        data[SECTORS[0]].loc[8, "ma_10"] = np.nan
+        result = calculate_sector_dispersion(data)
+        assert result.iloc[-1]["date"] == dates[7]
+        assert result.iloc[-1]["dispersion"] == pytest.approx(.1)
+
+    def test_absent_date_is_not_an_observation(self):
+        """Rows are observed sessions: a date with no row does not reset a run.
+
+        Absent dates cannot be told apart from market holidays without a trading
+        calendar, so the contract only resets on a row that exists with NaN.
+        """
+        dates = pd.bdate_range("2026-01-05", periods=6)
+        sigma = [.08, .14, .14, .14, .14, .14]
+        kept = [0, 1, 3, 4, 5]
+        data = self._sector_data(dates[kept], [sigma[i] for i in kept])
+        labels = calculate_sector_dispersion(data).set_index("date")["regime"]
+        assert labels.loc[dates[4]] == "diverged"
+        assert labels.loc[dates[3]] == "normal"
+
     def test_interior_missing_day_resets_confirmation_and_consumer_events(self):
         dates = pd.bdate_range("2026-01-05", periods=12)
         z = np.linspace(-1, 1, len(SECTORS))

@@ -100,7 +100,7 @@ left-to-right sequential state machine (replaces the prior lookahead `_stabilize
   new regime; before that, rows keep the previous confirmed regime (short blips are absorbed as noise).
 - **No lookahead / prefix-invariant**: each row's label depends only on observations up to that row, so
   appending future history never relabels an earlier row (Issue #4 fix).
-- **Missing observations**: Interior all-sector NaN dates are retained by the public calculation pipeline (leading warmup rows are trimmed; the final partial-day exclusion remains).
+- **Missing observations**: Interior all-sector NaN dates are retained by the public calculation pipeline. Leading and trailing all-NaN rows are trimmed, and the final partial-day exclusion remains. A date with no row at all is not an observation and does not reset a run, because it cannot be told apart from a market holiday without a trading calendar.
   A NaN day resets the in-progress candidate run, is emitted as NaN, and does not
   extend a run — a transition needs `min_days` consecutive valid days. (Old behavior treated a
   NaN-interrupted run as contiguous because it operated on `dropna()`; this is an intentional, conservative

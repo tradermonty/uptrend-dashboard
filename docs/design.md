@@ -5,8 +5,8 @@
 | Document Type | Software Design Document |
 | Project Name | uptrend-dashboard |
 | Created | 2026-02-08 |
-| Revised | 2026-10-14 |
-| Status | v5.1 Sector Dispersion Analysis |
+| Revised | 2026-11-06 |
+| Status | v5.3 Sector Dispersion Analysis |
 
 ---
 
@@ -37,9 +37,10 @@
 
 - **Causal regime stabilization**: `_stabilize_regime()` (whole-run re-labelling with lookahead) replaced by `_confirm_regime()` — a left-to-right sequential confirmation state machine. A regime change is confirmed only on the `min_days`-th consecutive valid day; before that, rows keep the previous confirmed regime (absorbing short blips as noise reduction).
 - **No lookahead / prefix-invariant labels**: each row's regime depends only on observations up to that row, so appending future history never relabels an earlier row. This is the core defect fix for Issue #4.
-- **Missing observations**: a NaN day resets the in-progress candidate run (a missing day provides no evidence), is emitted as NaN, and does not extend a run; it delays confirmation by requiring `min_days` consecutive valid days. (Old behavior counted a NaN-interrupted run as contiguous because it operated on `dropna()`; this is an intentional, conservative change.)
+- **Missing observations**: a NaN day resets the in-progress candidate run (a missing day provides no evidence), is emitted as NaN, and does not extend a run; it delays confirmation by requiring `min_days` consecutive valid days. (Old behavior counted a NaN-interrupted run as contiguous because it operated on `dropna()`; this is an intentional, conservative change.) A date with no row at all is not an observation and does not reset a run, because it cannot be told apart from a market holiday without a trading calendar.
 - **Initial regime**: the first non-NaN classification establishes the baseline immediately; it is never relabeled.
 - **Forward-return events**: composite `(regime, level_regime)` transition events now occur at the confirmation date rather than the run start, removing backdating in `calculate_forward_returns()` / `calculate_sector_edge()`.
+- **One-time history change**: regime labels in `data/sector_dispersion.csv` change once; see `docs/corrections/2026-11-regime-relabel.md`.
 - **New tests**: `TestConfirmRegime`, `TestDispersionRegimePrefixInvariance`, `TestForwardReturnsConfirmationDate`.
 
 ### v5.1 Key Changes (Secret Leak Prevention)
@@ -1152,18 +1153,21 @@ Implemented with TDD. Tests are written first, and implementation is written to 
 | test_two_day_candidate_not_confirmed_then_revert | 2-day candidate reverts without confirming (v5.3) |
 | test_blip_then_revert_to_previous | Candidate returns to confirmed regime (v5.3) |
 | test_retransition_to_previously_seen_regime | Same regime re-confirmed later (v5.3) |
-| test_initial_baseline_is_first_observation | First observation is the baseline (v5.1) |
-| test_missing_observation_resets_candidate | NaN resets candidate run (v5.1) |
-| test_min_days_le_one_passthrough | min_days<=1 passthrough (v5.1) |
-| test_empty_series_passthrough | Empty series passthrough (v5.1) |
-| test_all_nan_passthrough | All-NaN series passthrough (v5.1) |
-| test_prefix_invariance | Deterministic prefix-invariance (v5.1) |
-| test_prefix_invariance_randomized | Randomized prefix-invariance (v5.1) |
-| test_prefix_invariance_with_nan_randomized | Randomized prefix-invariance incl. NaN (v5.1) |
-| test_leading_nan_then_baseline | Leading NaN then baseline (v5.1) |
+| test_initial_baseline_is_first_observation | First observation is the baseline (v5.3) |
+| test_missing_observation_resets_candidate | NaN resets candidate run (v5.3) |
+| test_min_days_le_one_passthrough | min_days<=1 passthrough (v5.3) |
+| test_empty_series_passthrough | Empty series passthrough (v5.3) |
+| test_all_nan_passthrough | All-NaN series passthrough (v5.3) |
+| test_prefix_invariance | Deterministic prefix-invariance (v5.3) |
+| test_prefix_invariance_randomized | Randomized prefix-invariance (v5.3) |
+| test_prefix_invariance_with_nan_randomized | Randomized prefix-invariance incl. NaN (v5.3) |
+| test_leading_nan_then_baseline | Leading NaN then baseline (v5.3) |
 | test_regime_prefix_invariant_across_truncation | calculate_sector_dispersion regime prefix-invariance (v5.3) |
 | test_no_event_on_blip_start | Short blip yields no forward-stat event (v5.3) |
 | test_event_date_is_confirmation_date | Forward-stat event date = confirmation date (v5.3) |
+| test_trailing_all_nan_rows_are_trimmed | Trailing all-NaN rows never reach the output (v5.3) |
+| test_partial_row_before_trailing_gap_is_excluded | Partial row before a trailing gap stays excluded (v5.3) |
+| test_absent_date_is_not_an_observation | A date with no row does not reset a candidate run (v5.3) |
 
 **test_data_processor.py:**
 
@@ -1797,7 +1801,7 @@ python import_excel.py path/to/new_export.xlsx
 
 ### v5.3 missing-observation integration
 
-calculate_sector_dispersion trims only leading all-sector NaN warmup rows; interior all-sector NaN dates remain with missing regime/level_regime to reset confirmation. The existing final partial-day exclusion remains. TestDispersionMissingDateBoundary covers the public pipeline and both statistical consumers with nonlinear values; the uninterrupted confirmation-date test also uses nonlinear values.
+calculate_sector_dispersion trims leading and trailing all-sector NaN rows; interior all-sector NaN dates remain with missing regime/level_regime to reset confirmation. The existing final partial-day exclusion remains. TestDispersionMissingDateBoundary covers the public pipeline and both statistical consumers with nonlinear values; the uninterrupted confirmation-date test also uses nonlinear values. After an interior NaN row, dispersion_ma10 is NaN for the following 9 rows and dispersion_velocity is NaN again 3 rows later. Dates with no row are not observations and do not reset a run.
 
 ### v5.2 logging boundary regression coverage
 

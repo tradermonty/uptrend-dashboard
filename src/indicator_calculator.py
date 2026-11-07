@@ -166,7 +166,9 @@ def _confirm_regime(regime: pd.Series, min_days: int) -> pd.Series:
 
     Missing (NaN) observations reset the in-progress candidate run (a missing
     day provides no evidence), are emitted as NaN, and do not extend a run;
-    the current confirmed regime is retained.
+    the current confirmed regime is retained. Rows are observed sessions: a date
+    with no row at all is not an observation and does not reset a run, because it
+    cannot be told apart from a market holiday without a trading calendar.
 
     Args:
         regime: Regime label series, indexed ascending by date.
@@ -258,9 +260,10 @@ def calculate_sector_dispersion(
         return pd.DataFrame(columns=output_cols)
 
     matrix = pd.DataFrame(aligned)
-    # Trim leading warmup only. Interior all-sector missing dates must reach
-    # confirmation as NaN to reset a candidate run across the gap.
-    matrix = matrix.loc[matrix.notna().any(axis=1).cummax()]
+    # Trim leading warmup and trailing all-NaN rows. Interior all-sector missing
+    # dates must reach confirmation as NaN to reset a candidate run across the gap.
+    has_data = matrix.notna().any(axis=1)
+    matrix = matrix.loc[has_data.cummax() & has_data[::-1].cummax()[::-1]]
 
     # Drop the last row if not all sectors reported (partial day data)
     n_sectors = len(aligned)
