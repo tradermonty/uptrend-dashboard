@@ -5,8 +5,8 @@
 | Document Type | Software Design Document |
 | Project Name | uptrend-dashboard |
 | Created | 2026-02-08 |
-| Revised | 2026-04-11 |
-| Status | v5.0 Sector Dispersion Analysis |
+| Revised | 2026-11-06 |
+| Status | v5.3 Sector Dispersion Analysis |
 
 ---
 
@@ -14,7 +14,8 @@
 
 | Date | Version | Changes |
 |------|---------|---------|
-| 2026-11-06 | v5.4 | `RedactingFilter` no longer raises into the caller on a malformed log call: `_render_log_message()` falls back to a redacted location and template, and drops the arguments. `collect.py` configures logging before the missing-key check so that error keeps its format. |
+| 2026-11-06 | v5.4 | `RedactingFilter` no longer raises into the caller on a malformed log call: `_render_log_message()` falls back to a redacted location and template, and drops the arguments. Malformed `exc_info` is replaced by a fixed placeholder through `_render_exception_text()`. `collect.py` configures logging before the missing-key check so that error keeps its format. |
+| 2026-11-06 | v5.3 | Sector Dispersion regime stabilization made causal: `_stabilize_regime` replaced by `_confirm_regime` sequential state machine (no lookahead, prefix-invariant labels, transition emitted only on confirmation date). Interior all-sector NaN rows are preserved to reset candidates; leading and trailing all-NaN rows are trimmed before the final partial-day exclusion. Absent dates are not observations. One-time regime relabel covered by docs/corrections/2026-11-regime-relabel.md. |
 | 2026-10-14 | v5.2 | Logging boundary renders messages before redaction, sanitizes chained/cached tracebacks and stack text, and excludes the API credential from CollectorConfig repr. Boundary regressions cover numeric/mapping interpolation and nested objects. |
 | 2026-10-03 | v5.1 | P1 secret-leak fix: prevent Finviz API key leaking from HTTP debug logs and chained exceptions. Added `redact()`, `RedactingFilter` (handler-level), `configure_logging()`; `_raise_request_error()` raises sanitized `RequestException` with `from None`; `_make_request` uses `from None` on HTTPError paths; `collect.py` wires `configure_logging` with the API key |
 | 2026-02-08 | v1 | Initial version (Google Sheets based) |
@@ -32,6 +33,16 @@
 | 2026-02-14 | v3.4 | CSV download buttons on main page for LLM data analysis |
 | 2026-02-11 | v3.3 | Sector summary bar chart click → Sector Detail page navigation |
 | 2026-02-11 | v3.2 | Data validation hardening, secret masking, CI test workflow. DB CHECK constraints, Python-level count/total validation, import_excel row filtering, mask_secrets/safe_http_error, GitHub Actions pytest |
+
+### v5.3 Key Changes (Causal Regime Confirmation)
+
+- **Causal regime stabilization**: `_stabilize_regime()` (whole-run re-labelling with lookahead) replaced by `_confirm_regime()` — a left-to-right sequential confirmation state machine. A regime change is confirmed only on the `min_days`-th consecutive valid day; before that, rows keep the previous confirmed regime (absorbing short blips as noise reduction).
+- **No lookahead / prefix-invariant labels**: each row's regime depends only on observations up to that row, so appending future history never relabels an earlier row. This is the core defect fix for Issue #4.
+- **Missing observations**: a NaN day resets the in-progress candidate run (a missing day provides no evidence), is emitted as NaN, and does not extend a run; it delays confirmation by requiring `min_days` consecutive valid days. (Old behavior counted a NaN-interrupted run as contiguous because it operated on `dropna()`; this is an intentional, conservative change.) A date with no row at all is not an observation and does not reset a run, because it cannot be told apart from a market holiday without a trading calendar.
+- **Initial regime**: the first non-NaN classification establishes the baseline immediately; it is never relabeled.
+- **Forward-return events**: composite `(regime, level_regime)` transition events now occur at the confirmation date rather than the run start, removing backdating in `calculate_forward_returns()` / `calculate_sector_edge()`.
+- **One-time history change**: regime labels in `data/sector_dispersion.csv` change once; see `docs/corrections/2026-11-regime-relabel.md`.
+- **New tests**: `TestConfirmRegime`, `TestDispersionRegimePrefixInvariance`, `TestForwardReturnsConfirmationDate`.
 
 ### v5.1 Key Changes (Secret Leak Prevention)
 
@@ -1138,6 +1149,26 @@ Implemented with TDD. Tests are written first, and implementation is written to 
 | test_calculate_indicators_empty_df | Empty DataFrame handling |
 | test_ratio_with_nan_count | NaN count fillna(0) handling |
 | test_ratio_with_nan_total | NaN total fillna(0) handling |
+| test_short_blip_absorbed | Short regime run absorbed (v5.3) |
+| test_confirmation_only_on_min_days | Transition emitted on min_days-th day (v5.3) |
+| test_two_day_candidate_not_confirmed_then_revert | 2-day candidate reverts without confirming (v5.3) |
+| test_blip_then_revert_to_previous | Candidate returns to confirmed regime (v5.3) |
+| test_retransition_to_previously_seen_regime | Same regime re-confirmed later (v5.3) |
+| test_initial_baseline_is_first_observation | First observation is the baseline (v5.3) |
+| test_missing_observation_resets_candidate | NaN resets candidate run (v5.3) |
+| test_min_days_le_one_passthrough | min_days<=1 passthrough (v5.3) |
+| test_empty_series_passthrough | Empty series passthrough (v5.3) |
+| test_all_nan_passthrough | All-NaN series passthrough (v5.3) |
+| test_prefix_invariance | Deterministic prefix-invariance (v5.3) |
+| test_prefix_invariance_randomized | Randomized prefix-invariance (v5.3) |
+| test_prefix_invariance_with_nan_randomized | Randomized prefix-invariance incl. NaN (v5.3) |
+| test_leading_nan_then_baseline | Leading NaN then baseline (v5.3) |
+| test_regime_prefix_invariant_across_truncation | calculate_sector_dispersion regime prefix-invariance (v5.3) |
+| test_no_event_on_blip_start | Short blip yields no forward-stat event (v5.3) |
+| test_event_date_is_confirmation_date | Forward-stat event date = confirmation date (v5.3) |
+| test_trailing_all_nan_rows_are_trimmed | Trailing all-NaN rows never reach the output (v5.3) |
+| test_partial_row_before_trailing_gap_is_excluded | Partial row before a trailing gap stays excluded (v5.3) |
+| test_absent_date_is_not_an_observation | A date with no row does not reset a candidate run (v5.3) |
 
 **test_data_processor.py:**
 
@@ -1315,6 +1346,7 @@ Implemented with TDD. Tests are written first, and implementation is written to 
 | test_successful_verbose_run_has_no_key | No key in verbose success logs (v5.1) |
 | test_diagnostics_retained | Status/retry diagnostics kept while key masked (v5.1) |
 | test_malformed_log_call_does_not_raise_or_leak | Malformed log call neither raises nor leaks (v5.4) |
+| test_malformed_exc_info_does_not_raise | Malformed exc_info neither raises nor drops the message (v5.4) |
 | test_unformattable_message_object_does_not_raise | Message object with a raising `__str__` does not raise (v5.4) |
 | test_missing_api_key_error_uses_configured_format | Missing-key error keeps the configured log format (v5.4) |
 
@@ -1772,6 +1804,10 @@ pytest tests/ -v
 # Import new Excel file (existing data is overwritten via UPSERT)
 python import_excel.py path/to/new_export.xlsx
 ```
+
+### v5.3 missing-observation integration
+
+calculate_sector_dispersion trims leading and trailing all-sector NaN rows; interior all-sector NaN dates remain with missing regime/level_regime to reset confirmation. The existing final partial-day exclusion remains. TestDispersionMissingDateBoundary covers the public pipeline and both statistical consumers with nonlinear values; the uninterrupted confirmation-date test also uses nonlinear values. After an interior NaN row, dispersion_ma10 is NaN for the following 9 rows and dispersion_velocity is NaN again 3 rows later. Dates with no row are not observations and do not reset a run.
 
 ### v5.2 logging boundary regression coverage
 

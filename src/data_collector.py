@@ -99,6 +99,14 @@ def _render_log_message(record: logging.LogRecord) -> str:
         return f"Unformattable log record at {record.pathname}:{record.lineno}: {template}"
 
 
+def _render_exception_text(record: logging.LogRecord) -> str:
+    """Format a record's exc_info without ever raising into the logging caller."""
+    try:
+        return logging.Formatter().formatException(record.exc_info)
+    except Exception:
+        return "Unformattable exception info"
+
+
 class RedactingFilter(logging.Filter):
     """Log filter that removes secret values before a record is emitted.
 
@@ -119,7 +127,7 @@ class RedactingFilter(logging.Filter):
         record.msg = redact(_render_log_message(record), self.secrets)
         record.args = ()
         if record.exc_info and not record.exc_text:
-            record.exc_text = logging.Formatter().formatException(record.exc_info)
+            record.exc_text = _render_exception_text(record)
         if record.exc_text:
             record.exc_text = redact(record.exc_text, self.secrets)
         # Keep sanitized traceback frames but prevent any later formatter from

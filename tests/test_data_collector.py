@@ -986,6 +986,16 @@ def test_malformed_log_call_does_not_raise_or_leak(configured_log_stream, capsys
     assert "BOUNDARY_SYNTHETIC_KEY" not in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("bad_exc_info", [("a", "b", "c"), (1, 2, 3), (ValueError, ValueError("x"), "tb")])
+def test_malformed_exc_info_does_not_raise(configured_log_stream, bad_exc_info):
+    log = logging.getLogger("boundary.collector")
+    log.debug("message kept auth=BOUNDARY_SYNTHETIC_KEY", exc_info=bad_exc_info)
+    output = configured_log_stream.getvalue()
+    assert "message kept" in output
+    assert "Unformattable exception info" in output
+    assert "BOUNDARY_SYNTHETIC_KEY" not in output
+
+
 def test_unformattable_message_object_does_not_raise(configured_log_stream):
     class RaisingStr:
         def __str__(self):
