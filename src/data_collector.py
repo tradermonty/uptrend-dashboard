@@ -85,6 +85,28 @@ def mask_secrets(text: str) -> str:
     return redact(text)
 
 
+def _render_log_message(record: logging.LogRecord) -> str:
+    """Render a record's message without ever raising into the logging caller.
+
+    Filters run outside the error handling in ``Handler.emit``, so a malformed
+    log call would otherwise propagate into the application. The arguments are
+    dropped on failure because ``Handler.handleError`` would print them raw.
+    """
+    try:
+        return record.getMessage()
+    except Exception:
+        template = record.msg if isinstance(record.msg, str) else type(record.msg).__name__
+        return f"Unformattable log record at {record.pathname}:{record.lineno}: {template}"
+
+
+def _render_exception_text(record: logging.LogRecord) -> str:
+    """Format a record's exc_info without ever raising into the logging caller."""
+    try:
+        return logging.Formatter().formatException(record.exc_info)
+    except Exception:
+        return "Unformattable exception info"
+
+
 class RedactingFilter(logging.Filter):
     """Log filter that removes secret values before a record is emitted.
 
@@ -102,10 +124,10 @@ class RedactingFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         # Interpolate first: objects/nested values become text, and redacting
         # auth=%s cannot destroy the template's placeholder correspondence.
-        record.msg = redact(record.getMessage(), self.secrets)
+        record.msg = redact(_render_log_message(record), self.secrets)
         record.args = ()
         if record.exc_info and not record.exc_text:
-            record.exc_text = logging.Formatter().formatException(record.exc_info)
+            record.exc_text = _render_exception_text(record)
         if record.exc_text:
             record.exc_text = redact(record.exc_text, self.secrets)
         # Keep sanitized traceback frames but prevent any later formatter from
