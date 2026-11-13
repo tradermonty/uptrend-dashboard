@@ -1,5 +1,6 @@
 """Finviz Elite CSV-based data collector for uptrend dashboard."""
 
+import csv
 import io
 import logging
 import random
@@ -8,7 +9,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import date
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, NoReturn, Optional, Tuple
 
 import pandas as pd
 import requests
@@ -161,6 +162,71 @@ def configure_logging(verbose: bool, secrets=()) -> None:
     root.addFilter(redacting)
 
 
+class InvalidFinvizResponse(ValueError):
+    """A Finviz export body that does not satisfy the CSV contract.
+
+    Subclasses ValueError so ``collect_all`` records it as a worksheet failure.
+    Messages carry only the reason and sizes, never body text or the URL.
+    """
+
+
+def _reject(reason: str) -> NoReturn:
+    raise InvalidFinvizResponse(f"invalid Finviz export: {reason}")
+
+
+def _has_bad_ticker_chars(ticker: str) -> bool:
+    return any(ch.isspace() or not ch.isprintable() for ch in ticker)
+
+
+def parse_finviz_export(content: bytes) -> pd.DataFrame:
+    """Parse a Finviz screener export, enforcing the documented CSV contract.
+
+    The first non-empty row is the header and must contain exactly one
+    ``Ticker`` column. Every data row must have the header's field count and a
+    unique, non-blank ticker without whitespace or control characters. A
+    header-only body is a valid zero-result export. All values stay strings,
+    so tickers such as ``NA`` are not coerced to missing values.
+    See docs/design.md "Finviz CSV response contract (v5.5)".
+    """
+    try:
+        text = content.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise InvalidFinvizResponse(
+            f"invalid Finviz export: body is not UTF-8 ({len(content)} bytes)"
+        ) from None
+    stripped = text.strip()
+    if not stripped:
+        _reject(f"empty body ({len(content)} bytes)")
+    if stripped.startswith("<"):
+        _reject(f"markup instead of CSV ({len(content)} bytes)")
+
+    try:
+        rows = [row for row in csv.reader(io.StringIO(text, newline=""), strict=True) if row]
+    except csv.Error as exc:
+        raise InvalidFinvizResponse(f"invalid Finviz export: CSV parse error ({exc})") from None
+
+    header = [name.strip() for name in rows[0]]
+    ticker_cols = [i for i, name in enumerate(header) if name.casefold() == "ticker"]
+    if len(ticker_cols) != 1:
+        _reject(f"expected exactly one Ticker column, found {len(ticker_cols)} "
+                f"among {len(header)} header columns")
+    ticker_col = ticker_cols[0]
+
+    data = rows[1:]
+    seen = set()
+    for index, row in enumerate(data, start=1):
+        if len(row) != len(header):
+            _reject(f"data row {index} has {len(row)} fields, header has {len(header)}")
+        ticker = row[ticker_col]
+        if not ticker or _has_bad_ticker_chars(ticker):
+            _reject(f"data row {index} has a blank or malformed ticker")
+        if ticker in seen:
+            _reject(f"data row {index} repeats a ticker")
+        seen.add(ticker)
+
+    return pd.DataFrame(data, columns=header, dtype=str)
+
+
 @dataclass
 class CollectorConfig:
     """Configuration for DataCollector."""
@@ -224,17 +290,17 @@ class DataCollector:
         raise exc.__class__(redact(str(exc), self._redaction_secrets)) from None
 
     def _make_request(self, url: str) -> pd.DataFrame:
-        """Fetch CSV from Finviz with exponential backoff retry + jitter."""
+        """Fetch CSV from Finviz with exponential backoff retry + jitter.
+
+        A 200 body is validated by ``parse_finviz_export``; an invalid body
+        raises ``InvalidFinvizResponse`` and is not retried.
+        """
         delay = self._config.retry_delay
         for attempt in range(1, self._config.max_retries + 1):
             try:
                 resp = self._session.get(url, timeout=self._config.http_timeout)
                 resp.raise_for_status()
-                try:
-                    return pd.read_csv(io.BytesIO(resp.content))
-                except pd.errors.EmptyDataError:
-                    logger.warning("Empty CSV body received")
-                    return pd.DataFrame()
+                return parse_finviz_export(resp.content)
             except (requests.ConnectionError, requests.Timeout) as exc:
                 logger.warning(
                     "Request failed (attempt %d/%d): %s",
@@ -267,11 +333,18 @@ class DataCollector:
         uptrend_url = self._build_uptrend_url(sector)
         total_url = self._build_total_url(sector)
 
-        uptrend_df = self._make_request(uptrend_url)
+        uptrend_df = self._fetch_export("uptrend", uptrend_url)
         time.sleep(self._config.request_interval)
-        total_df = self._make_request(total_url)
+        total_df = self._fetch_export("total", total_url)
 
         return len(uptrend_df), len(total_df)
+
+    def _fetch_export(self, label: str, url: str) -> pd.DataFrame:
+        """Fetch one export, naming which request failed the contract."""
+        try:
+            return self._make_request(url)
+        except InvalidFinvizResponse as exc:
+            raise InvalidFinvizResponse(f"{label} response: {exc}") from None
 
     def _validate_counts(self, worksheet: str, count: int, total: int) -> None:
         """Validate count and total values before DB write."""
@@ -354,7 +427,7 @@ class DataCollector:
                 result.succeeded[worksheet] = self.collect_worksheet(
                     worksheet, date, dry_run=dry_run,
                 )
-            except (requests.RequestException, ValueError, pd.errors.EmptyDataError) as exc:
+            except (requests.RequestException, ValueError) as exc:
                 logger.error(
                     "Failed to collect %s: %s", worksheet,
                     redact(str(exc), self._redaction_secrets),

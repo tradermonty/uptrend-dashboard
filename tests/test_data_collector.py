@@ -13,6 +13,7 @@ import pandas as pd
 import pytest
 import requests
 
+import src.data_collector as dc_module
 from src.data_collector import (
     CollectorConfig,
     CollectResult,
@@ -197,16 +198,15 @@ class TestFetchStockCount:
         assert count == 3
         assert total == 3
 
-    def test_make_request_empty_csv_body(self, collector, mocker):
-        """Fix 2: 200 + empty body should return empty DataFrame."""
+    def test_make_request_empty_csv_body_rejected(self, collector, mocker):
+        """v5.5: 200 + empty body is not a zero-result export (that is header-only)."""
         resp = MagicMock(spec=requests.Response)
         resp.status_code = 200
         resp.content = b""
         resp.raise_for_status = MagicMock()
         mocker.patch.object(collector._session, "get", return_value=resp)
-        result = collector._make_request("http://example.com")
-        assert isinstance(result, pd.DataFrame)
-        assert len(result) == 0
+        with pytest.raises(dc_module.InvalidFinvizResponse):
+            collector._make_request("http://example.com")
 
     def test_make_request_retries_on_500(self, collector, mocker):
         """Fix 3: 5xx errors should trigger retry."""
@@ -1014,3 +1014,268 @@ def test_missing_api_key_error_uses_configured_format():
     )
     assert result.returncode == 1
     assert "ERROR: FINVIZ_API_KEY environment variable is not set" in result.stderr
+
+
+# ---------------------------------------------------------------------------
+# Issue #2 A02: Finviz CSV response contract (v5.5)
+# ---------------------------------------------------------------------------
+
+HEADER = "No.,Ticker,Company,Sector"
+VALID_ROWS = "1,AAPL,Apple Inc.,Technology\n2,MSFT,Microsoft,Technology\n"
+
+
+def _parse(body):
+    if isinstance(body, str):
+        body = body.encode("utf-8")
+    return dc_module.parse_finviz_export(body)
+
+
+def _assert_invalid(body):
+    with pytest.raises(dc_module.InvalidFinvizResponse):
+        _parse(body)
+
+
+class TestFinvizResponseContract:
+    """A body is counted only if it satisfies the documented export contract."""
+
+    def test_invalid_response_is_value_error(self):
+        # collect_all classifies ValueError as a worksheet failure.
+        assert issubclass(dc_module.InvalidFinvizResponse, ValueError)
+
+    def test_plain_error_text_rejected(self):
+        _assert_invalid("error\nsubscription expired\n")
+
+    @pytest.mark.parametrize("body", [
+        "<!DOCTYPE html><html><body>Login</body></html>\n",
+        "  \n<html>\n<head></head>\n</html>\n",
+        "\ufeff<html><body>Please log in</body></html>",
+    ])
+    def test_markup_rejected(self, body):
+        _assert_invalid(body)
+
+    @pytest.mark.parametrize("body", [
+        "<html>,Ticker\n1,AAPL\n",
+        "  <p>No.,Ticker,Company</p>\n",
+    ])
+    def test_markup_with_ticker_header_rejected(self, body):
+        # Rule 3 on its own: these bodies would satisfy the Ticker rule.
+        _assert_invalid(body)
+
+    def test_bom_before_ticker_column_is_stripped(self):
+        df = _parse("\ufeffTicker,Company\nAAPL,Apple\n")
+        assert df["Ticker"].tolist() == ["AAPL"]
+
+    def test_header_names_are_stripped(self):
+        df = _parse('"No."," Ticker ",Company\n1,AAPL,x\n')
+        assert df["Ticker"].tolist() == ["AAPL"]
+
+    @pytest.mark.parametrize("body", ["", "   \n\r\n\t"])
+    def test_empty_body_rejected(self, body):
+        _assert_invalid(body)
+
+    def test_non_utf8_rejected(self):
+        with pytest.raises(dc_module.InvalidFinvizResponse):
+            dc_module.parse_finviz_export(
+                (HEADER + "\n1,ABC,Soci\xe9t\xe9,Industrials\n").encode("latin-1")
+            )
+
+    def test_strict_quoting_failure_rejected(self):
+        _assert_invalid(HEADER + '\n1,LOW,"Lowe"s,Consumer Cyclical\n')
+
+    @pytest.mark.parametrize("rows", [
+        "1,AAPL,Apple Inc.,Technology,EXTRA\n2,MSFT,Microsoft,Technology\n",
+        "1,AAPL,Apple Inc.,Technology\n2,MSFT,Microsoft,Technology,EXTRA\n",
+        "1,AAPL,Apple Inc.,Technology\n2,MSFT,Microsoft\n",
+        "1,AAPL,Apple Inc.,Technology\n   \n",
+    ])
+    def test_field_count_mismatch_rejected(self, rows):
+        _assert_invalid(HEADER + "\n" + rows)
+
+    def test_two_ticker_columns_rejected(self):
+        _assert_invalid("No.,Ticker,ticker\n1,AAPL,MSFT\n")
+
+    def test_missing_ticker_column_rejected(self):
+        _assert_invalid("No.,Symbol,Company\n1,AAPL,Apple\n")
+
+    def test_other_duplicate_column_names_allowed(self):
+        df = _parse("No.,Ticker,Price,Price\n1,AAPL,10,11\n")
+        assert len(df) == 1
+
+    @pytest.mark.parametrize("ticker", ["", " AAPL", "AAPL ", "AA PL", "AA\x00PL", "AA\tPL"])
+    def test_bad_ticker_value_rejected(self, ticker):
+        _assert_invalid(f"{HEADER}\n1,{ticker},Apple Inc.,Technology\n")
+
+    def test_duplicate_tickers_rejected(self):
+        _assert_invalid(HEADER + "\n1,AAPL,Apple,Technology\n2,AAPL,Apple,Technology\n")
+
+    def test_header_only_is_zero_rows(self):
+        df = _parse(HEADER + "\n")
+        assert len(df) == 0
+        assert "Ticker" in df.columns
+
+    def test_header_only_without_trailing_newline(self):
+        assert len(_parse(HEADER)) == 0
+
+    def test_valid_export_counts_rows(self):
+        assert len(_parse(HEADER + "\n" + VALID_ROWS)) == 2
+
+    def test_quoted_header_and_bom(self):
+        body = '\ufeff"No.","Ticker","Company","Sector"\n"1","AAPL","Apple Inc.","Technology"\n'
+        df = _parse(body)
+        assert df["Ticker"].tolist() == ["AAPL"]
+
+    def test_na_like_tickers_kept_as_strings(self):
+        body = HEADER + "\n1,NA,Nano Labs,Technology\n2,NULL,x,y\n3,None,x,y\n4,BRK-B,Berkshire,Financial\n"
+        df = _parse(body)
+        assert df["Ticker"].tolist() == ["NA", "NULL", "None", "BRK-B"]
+
+    def test_crlf_and_interior_empty_line(self):
+        body = HEADER + "\r\n1,AAPL,Apple,Technology\r\n\r\n2,MSFT,Microsoft,Technology\r\n"
+        assert len(_parse(body)) == 2
+
+    def test_leading_empty_lines_before_header(self):
+        assert len(_parse("\n\n" + HEADER + "\n" + VALID_ROWS)) == 2
+
+    def test_quoted_fields_with_comma_quote_and_newline(self):
+        body = (
+            HEADER + "\n"
+            '1,LOW,"Lowe""s Companies, Inc.",Consumer Cyclical\n'
+            '2,ABC,"Line1\nLine2",Industrials\n'
+        )
+        df = _parse(body)
+        assert df["Ticker"].tolist() == ["LOW", "ABC"]
+
+    def test_make_request_uses_contract(self, db_client, mocker):
+        collector = DataCollector(db_client, CollectorConfig(
+            finviz_api_key="k", max_retries=1, retry_delay=0.0, request_interval=0.0,
+        ))
+        mocker.patch.object(collector._session, "get",
+                            return_value=_csv_response("error\nsubscription expired\n"))
+        with pytest.raises(dc_module.InvalidFinvizResponse):
+            collector._make_request("http://example.com")
+
+    def test_invalid_body_is_not_retried(self, db_client, mocker):
+        collector = DataCollector(db_client, CollectorConfig(
+            finviz_api_key="k", max_retries=3, retry_delay=0.0, request_interval=0.0,
+        ))
+        get = mocker.patch.object(collector._session, "get",
+                                  return_value=_csv_response("<html>maintenance</html>"))
+        sleep = mocker.patch("src.data_collector.time.sleep")
+        with pytest.raises(dc_module.InvalidFinvizResponse):
+            collector._make_request("http://example.com")
+        assert get.call_count == 1
+        sleep.assert_not_called()
+
+    def test_message_reports_reason_without_body(self):
+        with pytest.raises(dc_module.InvalidFinvizResponse) as excinfo:
+            _parse("error SECRETBODY auth=LEAKKEY\nsubscription expired SECRETBODY\n")
+        assert "SECRETBODY" not in str(excinfo.value)
+        assert "LEAKKEY" not in str(excinfo.value)
+        assert "ticker" in str(excinfo.value).lower()
+
+    @pytest.mark.parametrize("body", [
+        HEADER + "\n1,SECRETBODY,auth=LEAKKEY,x\n2,SECRETBODY,auth=LEAKKEY,x\n",  # duplicate
+        HEADER + "\n1,AAPL,SECRETBODY auth=LEAKKEY,x,extra\n",                  # ragged row
+        HEADER + '\n1,AAPL,"SECRETBODY"auth=LEAKKEY,x\n',                        # csv.Error
+        HEADER + "\n1,SECRET BODY,auth=LEAKKEY,x\n",                             # malformed ticker
+        "Ticker,SECRETBODY auth=LEAKKEY,Ticker\n",                               # two ticker columns
+    ])
+    def test_messages_never_echo_body_text(self, body):
+        with pytest.raises(dc_module.InvalidFinvizResponse) as excinfo:
+            _parse(body)
+        message = str(excinfo.value)
+        assert "SECRET" not in message and "LEAKKEY" not in message
+
+
+class TestInvalidResponseCollection:
+    """Invalid bodies never become stored counts."""
+
+    KEY = "A02_SYNTHETIC_KEY"
+
+    @pytest.fixture
+    def collector(self, db_client):
+        return DataCollector(db_client, CollectorConfig(
+            finviz_api_key=self.KEY, max_retries=1, retry_delay=0.0, request_interval=0.0,
+        ))
+
+    def test_issue_body_for_all_writes_nothing(self, collector, db_client, mocker):
+        mocker.patch.object(collector._session, "get",
+                            return_value=_csv_response("error\nsubscription expired\n"))
+        result = collector.collect_all(date="2026-11-13", scope=CollectScope.SECTORS)
+        assert "all" in result.failed
+        assert result.succeeded == {}
+        assert db_client.fetch_raw_data("all").empty
+
+    def test_invalid_total_response_writes_nothing(self, collector, db_client, mocker):
+        mocker.patch.object(collector._session, "get", side_effect=[
+            _csv_response(SAMPLE_CSV), _csv_response("<html>maintenance</html>"),
+        ])
+        with pytest.raises(dc_module.InvalidFinvizResponse) as excinfo:
+            collector.collect_worksheet("all", date="2026-11-13")
+        assert "total" in str(excinfo.value)
+        assert db_client.fetch_raw_data("all").empty
+
+    def test_invalid_uptrend_response_names_request(self, collector, mocker):
+        mocker.patch.object(collector._session, "get",
+                            return_value=_csv_response("<html>maintenance</html>"))
+        with pytest.raises(dc_module.InvalidFinvizResponse) as excinfo:
+            collector.collect_worksheet("all", date="2026-11-13")
+        assert "uptrend" in str(excinfo.value)
+
+    def test_one_invalid_industry_fails_only_that_worksheet(self, collector, db_client, mocker):
+        bad = "ind_aluminum"
+
+        def fake_get(url, timeout):
+            if bad in url:
+                return _csv_response(HEADER + '\n1,AA,"Alcoa"x,Basic Materials\n')
+            return _csv_response(SAMPLE_CSV)
+
+        mocker.patch.object(collector._session, "get", side_effect=fake_get)
+        result = collector.collect_all(date="2026-11-13", scope=CollectScope.INDUSTRIES)
+        assert result.failed == [bad]
+        assert len(result.succeeded) == len(dc_module.INDUSTRIES) - 1
+        assert db_client.fetch_raw_data(bad).empty
+        assert not db_client.fetch_raw_data("ind_copper").empty
+
+    @pytest.mark.parametrize("body_template", [
+        "<html>Session expired for /export.ashx?auth={key} BODYTEXT</html>",
+        HEADER + "\n1,BODYTEXT,auth={key},x\n2,BODYTEXT,auth={key},x\n",
+        HEADER + "\n1,AAPL,BODYTEXT auth={key},x,extra\n",
+    ])
+    def test_no_key_or_body_in_exception_or_logs(self, collector, caplog, mocker, body_template):
+        # No RedactingFilter here: the raw records must already be free of body text.
+        caplog.set_level(logging.DEBUG)
+        body = body_template.format(key=self.KEY)
+        mocker.patch.object(collector._session, "get", return_value=_csv_response(body))
+        with pytest.raises(dc_module.InvalidFinvizResponse) as excinfo:
+            collector.collect_worksheet("all", date="2026-11-13")
+        exc = excinfo.value
+        tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+        assert self.KEY not in tb and "BODYTEXT" not in tb
+        assert exc.__cause__ is None and exc.__suppress_context__
+
+        collector.collect_all(date="2026-11-13", scope=CollectScope.SECTORS)
+        assert "Failed to collect all" in caplog.text
+        assert self.KEY not in caplog.text and "BODYTEXT" not in caplog.text
+
+
+def test_cli_invalid_sector_body_exits_2(tmp_db, mocker):
+    """An invalid body for one sector under --scope all exits 2 and keeps others."""
+    mocker.patch("sys.argv", ["collect.py", "--db", tmp_db, "--scope", "all", "--date", "2026-11-13"])
+    mocker.patch.dict("os.environ", {"FINVIZ_API_KEY": "test_key"})
+    mocker.patch("src.data_collector.time.sleep")
+
+    def fake_get(self, url, timeout):
+        if "sec_technology" in url:
+            return _csv_response("error\nsubscription expired\n")
+        return _csv_response(SAMPLE_CSV)
+
+    mocker.patch("requests.Session.get", fake_get)
+    from collect import main
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+    assert exc_info.value.code == 2
+    from src.db_client import DBClient
+    db = DBClient(tmp_db)
+    assert db.fetch_raw_data("sec_technology").empty
+    assert not db.fetch_raw_data("sec_energy").empty
