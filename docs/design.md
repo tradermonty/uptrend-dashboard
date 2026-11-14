@@ -5,8 +5,8 @@
 | Document Type | Software Design Document |
 | Project Name | uptrend-dashboard |
 | Created | 2026-02-08 |
-| Revised | 2026-11-06 |
-| Status | v5.3 Sector Dispersion Analysis |
+| Revised | 2026-11-13 |
+| Status | v5.5 Finviz response contract |
 
 ---
 
@@ -14,6 +14,7 @@
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2026-11-13 | v5.5 | Finviz CSV response contract (Issue #2): `parse_finviz_export()` validates every 200 body before rows are counted; `InvalidFinvizResponse` (a ValueError) makes malformed, HTML/error, empty, ragged, duplicate-ticker and missing-ticker bodies a worksheet failure, so they can no longer be stored as counts. Header-only bodies remain valid zero-result exports. Parsed with the `csv` module so tickers such as `NA` stay strings. No published data changes. |
 | 2026-11-06 | v5.4 | `RedactingFilter` no longer raises into the caller on a malformed log call: `_render_log_message()` falls back to a redacted location and template, and drops the arguments. Malformed `exc_info` is replaced by a fixed placeholder through `_render_exception_text()`. `collect.py` configures logging before the missing-key check so that error keeps its format. |
 | 2026-11-06 | v5.3 | Sector Dispersion regime stabilization made causal: `_stabilize_regime` replaced by `_confirm_regime` sequential state machine (no lookahead, prefix-invariant labels, transition emitted only on confirmation date). Interior all-sector NaN rows are preserved to reset candidates; leading and trailing all-NaN rows are trimmed before the final partial-day exclusion. Absent dates are not observations. One-time regime relabel covered by docs/corrections/2026-11-regime-relabel.md. |
 | 2026-10-14 | v5.2 | Logging boundary renders messages before redaction, sanitizes chained/cached tracebacks and stack text, and excludes the API credential from CollectorConfig repr. Boundary regressions cover numeric/mapping interpolation and nested objects. |
@@ -33,6 +34,17 @@
 | 2026-02-14 | v3.4 | CSV download buttons on main page for LLM data analysis |
 | 2026-02-11 | v3.3 | Sector summary bar chart click → Sector Detail page navigation |
 | 2026-02-11 | v3.2 | Data validation hardening, secret masking, CI test workflow. DB CHECK constraints, Python-level count/total validation, import_excel row filtering, mask_secrets/safe_http_error, GitHub Actions pytest |
+
+### v5.5 Key Changes (Finviz Response Contract)
+
+- **Defect fixed (Issue #2)**: `_make_request` returned any pandas-readable body and `_fetch_stock_count` counted its rows, so an HTTP 200 body `error\nsubscription expired\n` was stored as count=1, total=1.
+- **`parse_finviz_export(content: bytes) -> DataFrame`**: enforces the contract in section 10.4 "Finviz CSV response contract (v5.5)". Uses `csv.reader(strict=True)` instead of `pd.read_csv`, because `read_csv` turns real tickers `NA`/`NULL`/`None` into NaN, silently shifts columns when the first data row has an extra field, and fills short rows. All values are kept as strings.
+- **`InvalidFinvizResponse(ValueError)`**: raised for any contract violation; `_fetch_export()` (called by `_fetch_stock_count`) re-raises it as `uptrend response: ...` / `total response: ...` with `from None`. Messages carry reasons, row numbers and sizes only, never body text, header names or the URL.
+- **Not retried**: an invalid body is a content error. None has been observed in production. A scheduled run that fails because of one can be recovered the same day with a `workflow_dispatch` re-run; earlier days cannot be refetched because `--date` only labels the current snapshot (Issue #3).
+- **Classification change**: a 200 empty body used to become an empty DataFrame (`(0, 0)`, skipped as success for `ind_*`). It is now a failure and counts toward `INDUSTRY_FAIL_TOLERANCE`. A real zero-result export is header-only (333 bytes), never empty.
+- **Evidence**: collection logs 2026-11-11..13 show 0 empty bodies and 38-42 zero-result responses of exactly 333 bytes per run. A read-only probe on 2026-11-13 found 18 columns, one `Ticker` column, consistent field counts, unique tickers and only `-` as a non-alphanumeric ticker character in the `all` total export (2756 rows).
+- **Exception scope**: `collect_all()` catches `RequestException` and `ValueError` (which includes `InvalidFinvizResponse`); the separate `EmptyDataError` entry was removed with the `read_csv` call that raised it.
+- **No published data changes**: existing DB rows and CSVs are untouched.
 
 ### v5.3 Key Changes (Causal Regime Confirmation)
 
@@ -1290,7 +1302,7 @@ Implemented with TDD. Tests are written first, and implementation is written to 
 | test_multi_sector_pipeline | Multiple sectors → DB → calculation → summary → summary chart |
 | test_empty_db_pipeline | Graceful handling of full pipeline with empty DB |
 
-**test_data_collector.py (Phase 3 + v3.1 code review fixes + v3.2 secret masking):**
+**test_data_collector.py (Phase 3 + v3.1 code review fixes + v3.2 secret masking + v5.5 response contract):**
 
 | Test | Description |
 |------|-------------|
@@ -1304,7 +1316,10 @@ Implemented with TDD. Tests are written first, and implementation is written to 
 | test_fetch_stock_count_success | Stock count from successful response |
 | test_fetch_stock_count_retry | Retry logic |
 | test_fetch_stock_count_zero | Zero-count response |
-| test_make_request_empty_csv_body | 200 + empty body → empty DataFrame (v3.1) |
+| test_make_request_empty_csv_body_rejected | 200 + empty body → InvalidFinvizResponse (v3.1, changed in v5.5) |
+| TestFinvizResponseContract | `InvalidFinvizResponse` is a ValueError. Invalid: plain error text, HTML/BOM markup, markup with a Ticker header, empty/whitespace, non-UTF-8, strict-quoting failure, extra/short/whitespace-only rows, two Ticker columns, missing Ticker, blank/whitespace/control-char tickers, duplicate tickers. Valid: header-only (0 rows, with or without trailing newline), quoted header, BOM before `No.` and before `Ticker`, header names stripped, `NA`/`NULL`/`None`/`BRK-B` tickers kept as strings, CRLF, leading and interior empty lines, quoted comma/quote/newline, other duplicate columns. `_make_request` applies the contract; an invalid body is not retried (1 GET, no sleep); no message echoes body text or key for any violation path (v5.5) |
+| TestInvalidResponseCollection | Issue body for `all` writes nothing; invalid total (second) response writes nothing and names `total`; invalid uptrend response names `uptrend`; one invalid industry fails only that worksheet; key and body text absent from exception, traceback and unfiltered log records for markup, duplicate-ticker and ragged-row bodies (v5.5) |
+| test_cli_invalid_sector_body_exits_2 | Invalid body for `sec_technology` under `--scope all` → exit 2, other sectors persisted (v5.5) |
 | test_make_request_retries_on_500 | Retry on 5xx error (v3.1) |
 | test_make_request_jitter_applied | Jitter included in retry delay (v3.1) |
 | test_session_closed | close() calls Session.close() (v3.1) |
@@ -1531,7 +1546,14 @@ class DataCollector:
     def _make_request(self, url: str) -> pd.DataFrame:
         """GET url with retry/backoff; ConnectionError/Timeout exhaustion and
         non-HTTPError RequestException go through _raise_request_error;
-        HTTPError paths raise sanitized errors via 'from None'. (v5.1)"""
+        HTTPError paths raise sanitized errors via 'from None'. (v5.1)
+        A 200 body is validated by parse_finviz_export(); an invalid body
+        raises InvalidFinvizResponse and is not retried. (v5.5)"""
+        ...
+
+    def _fetch_export(self, label: str, url: str) -> pd.DataFrame:
+        """_make_request() that prefixes InvalidFinvizResponse with
+        'uptrend response:' or 'total response:'. (v5.5)"""
         ...
 
     def _build_uptrend_url(self, sector: str = None) -> str:
@@ -1541,6 +1563,16 @@ class DataCollector:
     def _build_total_url(self, sector: str = None) -> str:
         """Build total screener URL"""
         ...
+
+
+# Module level (v5.5)
+class InvalidFinvizResponse(ValueError):
+    """Finviz export body that violates the CSV response contract"""
+    ...
+
+def parse_finviz_export(content: bytes) -> pd.DataFrame:
+    """Validate and parse a Finviz export body (all values as str)"""
+    ...
 ```
 
 **Logging & secret-leak policy (v5.1):**
@@ -1588,8 +1620,8 @@ collect.py (CLI)
   │ DataCollector.collect_all()
   │
   ├── _fetch_stock_count(sector=None)        → all count, total
-  │     ├── GET uptrend URL → len(CSV) = uptrend_count
-  │     └── GET total URL   → len(CSV) = total_count
+  │     ├── GET uptrend URL → rows of validated export = uptrend_count (v5.5)
+  │     └── GET total URL   → rows of validated export = total_count
   │
   ├── _fetch_stock_count(sector="sec_basicmaterials") → count, total
   │     :  (API calls at 1-sec intervals)
@@ -1635,14 +1667,16 @@ python collect.py --verbose
 
 **CollectResult dataclass (v4.0):** Return value of `collect_all()`. Contains `succeeded` dict and `failed` list, with properties for sector/industry split (`sector_succeeded`, `industry_succeeded`, `sector_failed`, `industry_failed`).
 
-**Exit codes (v4.0):**
+**Exit codes (v4.0, corrected in v5.5 to match `collect.py`):**
 
 | Scope | Code 0 | Code 1 | Code 2 |
 |-------|--------|--------|--------|
-| `--scope all` | All sectors succeeded (industry failures = warning) | All sectors failed | Partial sector failure, or all industries failed (sectors OK) |
+| `--scope all` | All sectors succeeded and industry failure ratio < `INDUSTRY_FAIL_TOLERANCE` (5%; failures logged as warning) | All sectors failed | Partial sector failure, all industries failed, or industry failure ratio ≥ 5% |
 | `--scope sectors` | All 12 succeeded | All failed | Partial failure |
-| `--scope industries` | Any succeeded | All failed | — |
+| `--scope industries` | Any succeeded and failure ratio < 5% | All failed | Failure ratio ≥ 5% |
 | `--worksheet` | Success | Failure | — |
+
+In scope mode (no `--worksheet`), `--dry-run` skips exit-code evaluation: the run exits 0 even when worksheets fail, so check the `Worksheets failed` line and `ERROR` log lines instead. `--worksheet` still exits 1 on failure, with or without `--dry-run`.
 
 **Scheduled execution (cron example):**
 
@@ -1680,14 +1714,33 @@ stocktrading uses Alpaca API's calendar, but to avoid Alpaca dependency in uptre
 |---------------|---------|
 | Retry targets | 429, 500, 502, 503, 504, ConnectionError, Timeout |
 | Backoff | Exponential backoff (2s → 4s → 8s …) + jitter (`delay * 0~25%`) |
-| EmptyDataError | 200 + empty body → return empty DataFrame (prevent crash) |
+| Response contract | 200 body must satisfy the Finviz CSV response contract (below); otherwise `InvalidFinvizResponse`, not retried (v5.5; replaces the v3.1 empty-body → empty DataFrame rule) |
 | Data validation | `_validate_counts()`: validates negative values, count > total |
-| Exception scope | `collect_all()` catches only `RequestException`, `ValueError`, `EmptyDataError` |
+| Exception scope | `collect_all()` catches only `RequestException` and `ValueError` (includes `InvalidFinvizResponse`) (v5.5) |
 | Secret masking | `mask_secrets()` sanitizes `auth=` params in all logged exceptions (v3.2) |
 | HTTP error sanitization | `_safe_http_error()` replaces HTTPError with URL-free message (v3.2) |
 | Session management | `close()` method ensures `requests.Session` is properly closed |
 
-**Test Plan (36 tests: Phase 3 initial 20 + v3.1 additional 12 + v3.2 additional 4):**
+**Finviz CSV response contract (v5.5):**
+
+A 200 body is a valid Finviz screener export only if all of these hold, checked in order by `parse_finviz_export()`:
+
+| # | Rule | Violation |
+|---|------|-----------|
+| 1 | Decodes as `utf-8-sig` (a BOM is accepted) | Not UTF-8 |
+| 2 | Non-empty after stripping whitespace | Empty body |
+| 3 | First non-whitespace character is not `<` | HTML login/error page |
+| 4 | `csv.reader(strict=True)` parses it; fields over the default 131072-character limit fail here | CSV parse error |
+| 5 | The header is the first non-empty row and has exactly one column named `Ticker` (stripped, case-insensitive). Other duplicate column names are allowed | Missing or ambiguous ticker column |
+| 6 | Empty lines are ignored anywhere; every other row has the header's field count | Extra, missing or whitespace-only row |
+| 7 | Every ticker is non-empty and contains no whitespace or non-printable characters (`str.isspace()` / `str.isprintable()`, which also covers control, format and zero-width characters) | Blank or malformed ticker |
+| 8 | Tickers are unique | Repeated ticker |
+
+A header-only body that satisfies rules 1-5 is a valid zero-result export (0 rows). Error messages name the rule, the 1-based data-row number and sizes, never body text, header names or the URL.
+
+Known limitation: a body that has a `Ticker` header and ticker-like rows (for example `Ticker\nerror\n`) cannot be told apart from a real export without a symbol list. No ticker pattern is enforced, because a wrong pattern would fail `all` every day. Requiring the `No.` column to run 1..N would narrow this but has not been verified on real data.
+
+**Test Plan (36 tests: Phase 3 initial 20 + v3.1 additional 12 + v3.2 additional 4; v5.5 contract tests are listed in section 9.2):**
 
 See test_data_collector.py section in "9.2 Test List" above.
 
