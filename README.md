@@ -78,6 +78,8 @@ python export_csv.py --verbose
 streamlit run app.py
 ```
 
+Development containers launch with CORS and XSRF protections enabled. Keep forwarded port 8501 private and use the [protected-preview setup and verification guide](docs/operations/protected-preview.md) if a preview connection needs diagnosis.
+
 ### Run Tests
 
 ```bash
