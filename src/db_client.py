@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from datetime import datetime as _datetime
 from typing import Dict, List, Optional, Tuple
 
+import numpy as np
 import pandas as pd
 
 from src.constants import VALID_WORKSHEETS
@@ -67,14 +68,21 @@ class DBClient:
 
     @staticmethod
     def _coerce_whole_number(value, field_name: str) -> int:
-        """Coerce integer-like values to int, rejecting non-integers."""
-        if isinstance(value, bool):
+        """Return an exact native int suitable for a signed SQLite INTEGER."""
+        if isinstance(value, (bool, np.bool_)):
             raise ValueError(f"{field_name} must be an integer, got bool")
+        # NumPy durations are registered as Integral, but units are not counts.
+        if isinstance(value, np.timedelta64):
+            raise ValueError(f"{field_name} must be an integer, got a duration")
         if isinstance(value, numbers.Integral):
-            return value
-        if isinstance(value, float) and value.is_integer():
-            return int(value)
-        raise ValueError(f"{field_name} must be an integer, got {value!r}")
+            normalized = int(value)
+        elif isinstance(value, (float, np.floating)) and np.isfinite(value) and value == np.trunc(value):
+            normalized = int(value)
+        else:
+            raise ValueError(f"{field_name} must be an integer, got {value!r}")
+        if not -(2**63) <= normalized <= 2**63 - 1:
+            raise ValueError(f"{field_name} is outside SQLite's signed 64-bit integer range")
+        return normalized
 
     def _validate_counts(self, count, total) -> Tuple[int, int]:
         """Validate count/total values and return coerced ints."""
@@ -104,6 +112,10 @@ class DBClient:
         if missing:
             raise ValueError(f"DataFrame missing required columns: {sorted(missing)}")
 
+        duplicate = required_columns & set(df.columns[df.columns.duplicated()])
+        if duplicate:
+            raise ValueError(f"DataFrame has duplicate required columns: {sorted(duplicate)}")
+
         invalid = set(df["worksheet"].unique()) - set(VALID_WORKSHEETS)
         if invalid:
             raise ValueError(f"Invalid worksheet(s): {invalid}. Must be one of {VALID_WORKSHEETS}")
@@ -118,36 +130,17 @@ class DBClient:
         if not bad_dates.empty:
             raise ValueError(f"date column contains invalid dates: {bad_dates.tolist()[:5]}")
 
-        counts = pd.to_numeric(df["count"], errors="coerce")
-        totals = pd.to_numeric(df["total"], errors="coerce")
-
-        if counts.isna().any() or totals.isna().any():
-            raise ValueError("count/total contain non-numeric values")
-
-        non_integer_mask = (counts % 1 != 0) | (totals % 1 != 0)
-        if non_integer_mask.any():
-            bad_rows = non_integer_mask[non_integer_mask].index.tolist()
-            raise ValueError(f"count/total must be integers (bad rows: {bad_rows})")
-
-        negative_mask = (counts < 0) | (totals < 0)
-        if negative_mask.any():
-            bad_rows = negative_mask[negative_mask].index.tolist()
-            raise ValueError(f"count/total must be non-negative (bad rows: {bad_rows})")
-
-        exceeds_mask = counts > totals
-        if exceeds_mask.any():
-            bad_rows = exceeds_mask[exceeds_mask].index.tolist()
-            raise ValueError(f"count cannot exceed total (bad rows: {bad_rows})")
-
-        rows = [
-            (
-                str(row["date"]),
-                str(row["worksheet"]),
-                int(counts.loc[idx]),
-                int(totals.loc[idx]),
-            )
-            for idx, row in df.iterrows()
-        ]
+        # Validate actual scalar values positionally, without pandas numeric
+        # coercion or index-label lookup. This preserves large integer precision
+        # and leaves all existing rows untouched if any later row is invalid.
+        rows = []
+        values = df[["date", "worksheet", "count", "total"]].itertuples(index=False, name=None)
+        for position, (day, worksheet, count, total) in enumerate(values):
+            try:
+                count, total = self._validate_counts(count, total)
+            except ValueError as exc:
+                raise ValueError(f"Invalid count/total at row position {position}: {exc}") from None
+            rows.append((str(day), str(worksheet), count, total))
         with self._connection() as conn:
             conn.executemany(
                 "INSERT OR REPLACE INTO uptrend_raw (date, worksheet, count, total) VALUES (?, ?, ?, ?)",

@@ -481,7 +481,7 @@ Centrally manages constants used across all modules.
 | `__init__` | `(db_path: str = "data/uptrend.db")` | DB connection, automatic table creation |
 | `_connection` | `() -> ContextManager` | DB connection context manager (auto commit/rollback/close) |
 | `_init_tables` | `() -> None` | Execute CREATE TABLE IF NOT EXISTS |
-| `_coerce_whole_number` | `(value, field_name) -> int` | Static. Coerce int-like values to int; reject bool, non-integer float (v3.2) |
+| `_coerce_whole_number` | `(value, field_name) -> int` | Static. Exact native signed-64-bit int from typed Python/NumPy integer or finite whole float; reject bool/missing/unsupported/out-of-range input (Issue #7) |
 | `_validate_counts` | `(count, total) -> Tuple[int, int]` | Coerce + validate non-negative, count <= total (v3.2) |
 | `upsert_raw_data` | `(date, worksheet, count, total) -> None` | Single row UPSERT with worksheet + count/total validation |
 | `upsert_bulk` | `(df: DataFrame) -> None` | DataFrame bulk UPSERT with comprehensive validation (v3.2) |
@@ -490,18 +490,28 @@ Centrally manages constants used across all modules.
 | `get_worksheets` | `() -> List[str]` | List of registered category names |
 | `get_date_range` | `(worksheet: str) -> Tuple[str, str]` | Date range for specified category |
 
-**Count/Total Validation (v3.2):**
+**DB validation revision history:**
 
-`upsert_raw_data` applies `_validate_counts()` which coerces types via `_coerce_whole_number()` and validates business rules. `upsert_bulk` performs equivalent validation at the DataFrame level before DB write:
+| Date | Change |
+|------|--------|
+| 2026-11-14 | Issue #7: shared scalar/bulk native-integer validation, exact signed-64-bit bounds, positional binding, duplicate required-column rejection, and atomicity regressions. No historical data/schema rewrite. |
+
+**Count/Total Validation (Issue #7):**
+
+Both `upsert_raw_data()` and `upsert_bulk()` apply `_validate_counts()` / `_coerce_whole_number()` before writing. Integral Python/NumPy scalars become native Python `int`; finite whole-valued Python/NumPy floats are converted only after checking that they have no fractional part. Normalized integers must fit SQLite's signed 64-bit range, then satisfy `0 <= count <= total`. There is no blanket `pd.to_numeric` or float conversion.
 
 | Check | `upsert_raw_data` | `upsert_bulk` |
 |-------|-------------------|---------------|
-| Missing columns | N/A | `required_columns - set(df.columns)` |
-| Bool rejection | `isinstance(value, bool)` → ValueError | N/A (pandas converts) |
-| Non-numeric | `_coerce_whole_number` type check | `pd.to_numeric(errors="coerce")` + NaN check |
-| Non-integer | `float.is_integer()` check | `counts % 1 != 0` mask |
-| Negative | `count_i < 0` check | `counts < 0` mask |
-| count > total | `count_i > total_i` check | `counts > totals` mask |
+| Missing/duplicate required columns | N/A | Reject missing or duplicated `date`, `worksheet`, `count`, `total` names |
+| Bool rejection | Python/NumPy bool -> ValueError | Same scalar validator, preserving original scalar types |
+| Unsupported/missing values | Reject strings (including numeric strings), Decimal/Fraction/complex/duration, None/NA/NaN/infinities | Same scalar validator; no automatic text-to-number conversion |
+| Whole numeric values | Typed integer or finite whole float -> native Python int | Same scalar validator; preserve exact large integers |
+| SQLite bounds | Reject outside `[-2**63, 2**63-1]` before binding | Same scalar validator before the transaction |
+| Negative/count > total | ValueError | Same business rules, with zero-based row position in diagnostics |
+| Row binding | Single native tuple | `itertuples(index=False, name=None)` over required columns; independent of row labels |
+| Batch safety | Existing UPSERT transaction | Validate every tuple first, then one transactional `executemany`; rollback SQL failures |
+
+Duplicate/non-default/MultiIndex row labels are supported without mutating the caller's frame. Duplicate primary keys retain ordered last-row-wins UPSERT behavior. SQLite INTEGER type/exactness, nullable inputs, invalid final-row preflight and trigger-induced SQL rollback are verified in `tests/test_db_integer_binding.py`; importer/exporter/integration suites cover existing producers. See [typed inputs and operational boundaries](operations/sqlite-integer-inputs.md) for the intentional bulk numeric-string compatibility change, caller-side precision precautions and the exclusion of historical BLOB repair/schema migration.
 
 **DB Connection Management Pattern (v2.2):**
 
