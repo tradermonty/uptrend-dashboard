@@ -14,8 +14,9 @@
 
 | Date | Version | Changes |
 |------|---------|---------|
-| 2026-11-14 | Issue #13 | Comparison date bounds use the union of all selected dated series; shared comparison filter reports per-series coverage, missing/disjoint data and empty/incomplete ranges. Stable page-specific date state resets on selected-set/bounds changes; no stored data changes. |
 | 2026-11-14 | v5.6 | Issue #5: require finite observations from all 11 configured sectors before dispersion statistics/regimes; retain diagnostic dates and export coverage; suppress current signals/advice on incomplete latest observations; preserve chart gaps. Published data is not regenerated in this change. |
+| 2026-11-14 | Issue #13 | Comparison date bounds use the union of all selected dated series; shared comparison filter reports per-series coverage, missing/disjoint data and empty/incomplete ranges. Stable page-specific date state resets on selected-set/bounds changes; no stored data changes. |
+| 2026-11-14 | Issue #9 | Collection and Excel dry-run never initialize or open the target DB; strict preview exit statuses expose any worksheet failure; normal persistence and live industry tolerance remain unchanged. |
 | 2026-11-13 | v5.5 | Finviz CSV response contract (Issue #2): `parse_finviz_export()` validates every 200 body before rows are counted; `InvalidFinvizResponse` (a ValueError) makes malformed, HTML/error, empty, ragged, duplicate-ticker and missing-ticker bodies a worksheet failure, so they can no longer be stored as counts. Header-only bodies remain valid zero-result exports. Parsed with the `csv` module so tickers such as `NA` stay strings. No published data changes. |
 | 2026-11-14 | v5.5.1 | Issue #3: New York/XNYS after-close session assertions, fatal per-GET/retry/session-boundary validation, workflow origin evidence and publication gates, read-only date audit and historical-source recovery runbook. No published data changes. |
 | 2026-11-06 | v5.4 | `RedactingFilter` no longer raises into the caller on a malformed log call: `_render_log_message()` falls back to a redacted location and template, and drops the arguments. Malformed `exc_info` is replaced by a fixed placeholder through `_render_exception_text()`. `collect.py` configures logging before the missing-key check so that error keeps its format. |
@@ -765,7 +766,7 @@ python import_excel.py data/export.xlsx --sheet all --sheet sec_technology
 # Specify DB path
 python import_excel.py data/export.xlsx --db data/uptrend.db
 
-# Dry run (shows counts without INSERT)
+# Dry run (shows counts without opening or creating the target DB)
 python import_excel.py data/export.xlsx --dry-run
 ```
 
@@ -783,8 +784,9 @@ python import_excel.py data/export.xlsx --dry-run
    e. Drop non-integer Count/Total rows (e.g., 1.5) with warning (v3.2)
    f. Drop logically invalid rows (negative, count > total) with warning (v3.2)
 
-3. Bulk write to SQLite with db_client.upsert_bulk(df)
+3. In a real import, initialize DBClient and bulk write with db_client.upsert_bulk(df)
    → INSERT OR REPLACE overwrites existing data
+   → Dry-run skips DBClient construction entirely and returns the same filtered counts
 
 4. Display result report:
    - Import row count per sheet
@@ -1721,7 +1723,9 @@ python collect.py --verbose
 | `--scope industries` | Any succeeded and failure ratio < 5% | All failed | Failure ratio ≥ 5% |
 | `--worksheet` | Success | Failure | — |
 
-In scope mode (no `--worksheet`), `--dry-run` skips exit-code evaluation: the run exits 0 even when worksheets fail, so check the `Worksheets failed` line and `ERROR` log lines instead. `--worksheet` still exits 1 on failure, with or without `--dry-run`.
+Issue #9: the table above applies to live collection. Bulk `--dry-run` is strict: 0 when every attempted worksheet succeeds, 1 when all fail, and 2 on any partial failure, including industry failures below the live 5% tolerance. Setup and single-worksheet failures return 1. HTTP resources close through the existing `finally` block.
+
+Collection preview supplies a private fail-closed `_DryRunDB` stand-in instead of constructing DBClient; its `upsert_raw_data()` raises if persistence is accidentally attempted. Excel preview skips DBClient construction. Neither preview opens, validates, initializes, migrates or writes its target DB, including absent nested paths and existing legacy databases. Collection still fetches/validates Finviz data, and Excel still reads and filters its workbook. A successful preview does not prove that a later database write will succeed. See [dry-run.md](operations/dry-run.md).
 
 **Scheduled execution (cron example):**
 
@@ -1913,3 +1917,6 @@ The v5.3 missing-observation behavior is superseded by v5.6: all observed dates 
 Page keys are `sector_comparison_dates` and `industry_comparison_dates`; each has a companion `_context` state containing the sorted selected set and union bounds. A changed context or absent widget state initializes the existing configured two-year `default_start_date()` window. Ordinary reruns and reordered selections retain manual dates. No dated observations, incomplete input, or an empty filtered range produces a meaningful message and stops chart construction. The observed-coverage table has `Series`, `Observations`, `First observed`, and `Last observed` columns, including zero-count unavailable selections; endpoints do not imply continuous coverage. Series lacking range observations are omitted from chart input, and absence of a date shared by all selections is reported. Existing smoothed/raw display behavior remains unchanged.
 
 Regression coverage: `tests/test_comparison_filters.py` covers union/order invariance, missing/empty/NaT datasets, disjoint histories, real sector and both industry comparison modes, latest chart input, manual/partial/empty ranges, reordered selections, changed selection/bounds and coverage messages. Operational policy: [comparison-date-ranges.md](operations/comparison-date-ranges.md).
+### Issue #9 dry-run regression coverage
+
+`tests/test_dry_run_filesystem.py` verifies absent, nested, legacy and non-SQLite targets remain unchanged in preview, using byte and directory snapshots. Existing SQLite bytes include schema, rows and index metadata. Mocked HTTP exercises actual single/bulk collection in all scopes on success, partial failure and total failure; mocked Excel input exercises valid filtered counts and parse errors. Tests assert DBClient is never constructed in previews, accidental writes fail closed, setup failures leave targets alone, HTTP sessions close, real collection/import still persist, and live industry tolerance differs intentionally from strict preview failure reporting. No API access or published data is used.

@@ -30,7 +30,7 @@ def import_excel(
         Dict mapping sheet name to number of imported rows.
     """
     all_sheets = pd.read_excel(filepath, sheet_name=None, engine="openpyxl")
-    client = DBClient(db_path)
+    client = None if dry_run else DBClient(db_path)
     result = {}
 
     for sheet_name, df in all_sheets.items():

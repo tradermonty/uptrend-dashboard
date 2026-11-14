@@ -25,6 +25,13 @@ logger = logging.getLogger(__name__)
 INDUSTRY_FAIL_TOLERANCE = 0.05  # 5% まで許容
 
 
+class _DryRunDB:
+    """Fail closed if preview collection accidentally attempts persistence."""
+
+    def upsert_raw_data(self, *args, **kwargs):
+        raise RuntimeError("Database writes are disabled during dry-run")
+
+
 def main():
     load_dotenv()
 
@@ -65,7 +72,7 @@ def main():
 
     scope = CollectScope(args.scope) if args.scope else CollectScope.ALL
     config = CollectorConfig(finviz_api_key=api_key)
-    db_client = DBClient(args.db)
+    db_client = _DryRunDB() if args.dry_run else DBClient(args.db)
     collector = DataCollector(db_client=db_client, config=config)
 
     try:
@@ -107,7 +114,11 @@ def main():
                     failed_preview,
                 )
 
-            # Exit code (skip for dry-run)
+            # Preview is a strict validation gate, independent of live tolerance.
+            if args.dry_run and result.failed:
+                sys.exit(2 if result.succeeded else 1)
+
+            # Live collection retains its existing industry-failure tolerance.
             if not args.dry_run:
                 if scope == CollectScope.ALL:
                     # Sector は tier 1 データなので失敗は即 exit 2
