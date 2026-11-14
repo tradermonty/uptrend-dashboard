@@ -1841,6 +1841,10 @@ python import_excel.py path/to/export.xlsx
 
 ### 12.2 Start Dashboard
 
+**Development-preview revision (2026-11-14, Issue #17):** `.devcontainer/devcontainer.json` explicitly starts `streamlit run app.py --server.enableCORS true --server.enableXsrfProtection true`. The app entrypoint, port 8501 and `openPreview` forwarding are unchanged. Both protection flags remain explicitly enabled; the repository supplies no disabling override. Per-user reverse-proxy host configuration must use an exact verified address and does not alter shared defaults or forwarded-port visibility.
+
+`tests/test_devcontainer_security.py` validates the actual command and starts a loopback-only synthetic app. It verifies effective flags, HTML/WebSocket execution, exact forwarded Host/Origin compatibility, unrelated-Origin rejection and differential missing/valid-XSRF upload behavior. The tests use no real DB, user credentials, external API or additional client package. Process/socket cleanup and waits are bounded. Local proxy simulation is distinct from actual hosted Codespaces acceptance; see [protected preview operations](operations/protected-preview.md) for private forwarding, hostname diagnosis, hosted verification steps and evidence limits. Existing DB/CSV/application behavior is untouched.
+
 ```bash
 streamlit run app.py
 ```
