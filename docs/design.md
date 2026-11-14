@@ -122,7 +122,7 @@
 - **`_key` column**: Added internal worksheet key column to `build_sector_summary()` output for chart `customdata` mapping (hidden from `st.dataframe` display)
 - **`customdata` on bar trace**: `build_sector_summary_chart()` passes `_key` values as `customdata` on the `go.Bar` trace
 - **`on_select` event**: `app.py` uses `st.plotly_chart(on_select="rerun")` and `st.dataframe(on_select="rerun", selection_mode="single-row")` to capture click events, sets `st.session_state["selected_sector"]`, and calls `st.switch_page()`
-- **Sector Detail pre-selection**: `pages/1_Sector_Detail.py` reads `st.session_state.pop("selected_sector")` to set `st.selectbox` default index
+- **Sector Detail pre-selection**: `pages/1_Sector_Detail.py` applies a validated `selected_sector` intent to canonical widget state before creating the selector and consumes it only after the requested sector is selected (Issue #12).
 - **Streamlit version**: Bumped minimum to `>=1.35.0` for `on_select` parameter support
 - **Tests**: 114 tests (added `test_sector_summary_chart_customdata`)
 
@@ -819,6 +819,14 @@ Screen layout is unchanged from v1. Only the data source changes; UI remains the
 
 ### 5.2 Sector Detail Page (pages/1_Sector_Detail.py)
 
+**Detail navigation revision history:**
+
+| Date | Change |
+|------|--------|
+| 2026-11-14 | Issue #12: resolve drilldown intent before canonical detail selectors; preserve manual choices on ordinary reruns; consume only applied valid targets; warn explicitly for invalid targets. No data changes. |
+
+`selected_sector` remains the overview chart/table intent payload. The destination validates it against `SECTORS`, assigns the canonical key to page-specific `sector_detail_sector`, then constructs `Select Sector` with `format_func=get_sector_display_name`. Only an applied target is removed. A valid target without data is selected and named by the existing no-data warning. Invalid payloads are discarded with a warning and do not replace a valid manual choice; stale widget values recover before construction.
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ Sector Detail                                               │
@@ -880,6 +888,12 @@ Screen layout is unchanged from v1. Only the data source changes; UI remains the
 v2.3 revision: Display mode radio buttons, 10MA/Raw toggle, threshold dashed lines, latest value annotations, Y-axis % format, legend sorting (latest value descending).
 
 ### 5.4 Industry Detail Page (pages/3_Industry_Detail.py, v4.0)
+
+Issue #12: the destination inspects `selected_industry` **before either selector exists**. A valid configured target sets `industry_detail_sector_filter` to its configured parent (or `None` for All Sectors if no parent exists) and `industry_detail_industry` to the canonical industry key. Both widgets use canonical option values with display-name formatting. `None` is the explicit All Sectors value. The pending target is consumed only after industry and parent context have applied. Thus a previous Healthcare filter cannot hide Semiconductors or consume its intent while displaying Biotechnology.
+
+Without a target, valid manual filter/industry state persists; changing to a filter excluding the prior industry selects the first industry in display-name sort order. Invalid pending targets warn and are discarded while keeping valid manual state. Configured targets without data remain selected and produce a warning naming that exact target. Caption, metrics, chart and download all use the same canonical selection. Overview, Sector Detail and Heatmap producers retain their existing intent keys; no speculative source-event changes are required.
+
+`tests/test_detail_navigation.py` uses real registered page navigation and synthetic loaders. It covers pending intents over existing widgets, repeated cross-sector and same-target requests, manual filters/All Sectors, invalid/stale state, missing/empty data, and overview/sector/heatmap chart/table routes to previously visited pages. Event-only source simulation is used where AppTest cannot send Plotly/dataframe selections; destination selectors remain real. See [the navigation operating note](operations/detail-navigation.md).
 
 ```
 ┌─────────────────────────────────────────────────────────────┐

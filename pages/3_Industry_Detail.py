@@ -45,34 +45,46 @@ def load_data():
 
 all_data = load_data()
 
-# Two-stage selector: Sector filter → Industry select
-sector_display_names = {get_sector_display_name(s): s for s in SECTORS}
-sector_filter_options = ["All Sectors"] + list(sector_display_names.keys())
-selected_sector_display = st.selectbox("Filter by Sector", sector_filter_options)
+# Navigation intent is separate from persistent, page-specific widget state.
+# Apply the parent context before creating either widget; changing only index
+# cannot override an existing selectbox or a filter hiding the requested target.
+pending = st.session_state.get("selected_industry")
+valid_target = isinstance(pending, str) and pending in INDUSTRIES
+if "selected_industry" in st.session_state:
+    if valid_target:
+        target_parent = get_sector_for_industry(pending)
+        st.session_state["industry_detail_sector_filter"] = target_parent if target_parent in SECTORS else None
+        st.session_state["industry_detail_industry"] = pending
+    else:
+        st.session_state.pop("selected_industry")
+        st.warning("Invalid industry navigation target. Choose an industry below.")
 
-if selected_sector_display == "All Sectors":
-    available_industries = INDUSTRIES
-else:
-    sector_key = sector_display_names[selected_sector_display]
-    available_industries = SECTOR_INDUSTRIES.get(sector_key, [])
+filter_state = st.session_state.get("industry_detail_sector_filter")
+if filter_state is not None and (not isinstance(filter_state, str) or filter_state not in SECTORS):
+    st.session_state["industry_detail_sector_filter"] = None
+selected_sector = st.selectbox(
+    "Filter by Sector", [None, *SECTORS],
+    format_func=lambda key: "All Sectors" if key is None else get_sector_display_name(key),
+    key="industry_detail_sector_filter",
+)
 
-industry_names = {get_industry_display_name(ind): ind for ind in available_industries}
-industry_display_list = sorted(industry_names.keys())
-
-if not industry_display_list:
+available_industries = INDUSTRIES if selected_sector is None else SECTOR_INDUSTRIES.get(selected_sector, [])
+industry_options = sorted(available_industries, key=get_industry_display_name)
+if not industry_options:
     st.warning("No industries available.")
     st.stop()
 
-# Pre-selection from Sector Detail drilldown
-preselected_key = st.session_state.pop("selected_industry", None)
-default_index = 0
-if preselected_key:
-    preselected_display = get_industry_display_name(preselected_key)
-    if preselected_display in industry_display_list:
-        default_index = industry_display_list.index(preselected_display)
-
-selected_display = st.selectbox("Select Industry", industry_display_list, index=default_index)
-selected_key = industry_names[selected_display]
+industry_state = st.session_state.get("industry_detail_industry")
+if not isinstance(industry_state, str) or industry_state not in industry_options:
+    st.session_state["industry_detail_industry"] = industry_options[0]
+selected_key = st.selectbox(
+    "Select Industry", industry_options, format_func=get_industry_display_name,
+    key="industry_detail_industry",
+)
+selected_display = get_industry_display_name(selected_key)
+if (valid_target and selected_key == pending
+        and selected_sector == (target_parent if target_parent in SECTORS else None)):
+    st.session_state.pop("selected_industry", None)
 
 # Show parent sector
 parent_sector = get_sector_for_industry(selected_key)
