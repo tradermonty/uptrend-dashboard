@@ -14,6 +14,7 @@
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2026-11-14 | Issue #9 | Collection and Excel dry-run never initialize or open the target DB; strict preview exit statuses expose any worksheet failure; normal persistence and live industry tolerance remain unchanged. |
 | 2026-11-13 | v5.5 | Finviz CSV response contract (Issue #2): `parse_finviz_export()` validates every 200 body before rows are counted; `InvalidFinvizResponse` (a ValueError) makes malformed, HTML/error, empty, ragged, duplicate-ticker and missing-ticker bodies a worksheet failure, so they can no longer be stored as counts. Header-only bodies remain valid zero-result exports. Parsed with the `csv` module so tickers such as `NA` stay strings. No published data changes. |
 | 2026-11-06 | v5.4 | `RedactingFilter` no longer raises into the caller on a malformed log call: `_render_log_message()` falls back to a redacted location and template, and drops the arguments. Malformed `exc_info` is replaced by a fixed placeholder through `_render_exception_text()`. `collect.py` configures logging before the missing-key check so that error keeps its format. |
 | 2026-11-06 | v5.3 | Sector Dispersion regime stabilization made causal: `_stabilize_regime` replaced by `_confirm_regime` sequential state machine (no lookahead, prefix-invariant labels, transition emitted only on confirmation date). Interior all-sector NaN rows are preserved to reset candidates; leading and trailing all-NaN rows are trimmed before the final partial-day exclusion. Absent dates are not observations. One-time regime relabel covered by docs/corrections/2026-11-regime-relabel.md. |
@@ -740,7 +741,7 @@ python import_excel.py data/export.xlsx --sheet all --sheet sec_technology
 # Specify DB path
 python import_excel.py data/export.xlsx --db data/uptrend.db
 
-# Dry run (shows counts without INSERT)
+# Dry run (shows counts without opening or creating the target DB)
 python import_excel.py data/export.xlsx --dry-run
 ```
 
@@ -758,8 +759,9 @@ python import_excel.py data/export.xlsx --dry-run
    e. Drop non-integer Count/Total rows (e.g., 1.5) with warning (v3.2)
    f. Drop logically invalid rows (negative, count > total) with warning (v3.2)
 
-3. Bulk write to SQLite with db_client.upsert_bulk(df)
+3. In a real import, initialize DBClient and bulk write with db_client.upsert_bulk(df)
    → INSERT OR REPLACE overwrites existing data
+   → Dry-run skips DBClient construction entirely and returns the same filtered counts
 
 4. Display result report:
    - Import row count per sheet
@@ -1676,7 +1678,9 @@ python collect.py --verbose
 | `--scope industries` | Any succeeded and failure ratio < 5% | All failed | Failure ratio ≥ 5% |
 | `--worksheet` | Success | Failure | — |
 
-In scope mode (no `--worksheet`), `--dry-run` skips exit-code evaluation: the run exits 0 even when worksheets fail, so check the `Worksheets failed` line and `ERROR` log lines instead. `--worksheet` still exits 1 on failure, with or without `--dry-run`.
+Issue #9: the table above applies to live collection. Bulk `--dry-run` is strict: 0 when every attempted worksheet succeeds, 1 when all fail, and 2 on any partial failure, including industry failures below the live 5% tolerance. Setup and single-worksheet failures return 1. HTTP resources close through the existing `finally` block.
+
+Collection preview supplies a private fail-closed `_DryRunDB` stand-in instead of constructing DBClient; its `upsert_raw_data()` raises if persistence is accidentally attempted. Excel preview skips DBClient construction. Neither preview opens, validates, initializes, migrates or writes its target DB, including absent nested paths and existing legacy databases. Collection still fetches/validates Finviz data, and Excel still reads and filters its workbook. A successful preview does not prove that a later database write will succeed. See [dry-run.md](operations/dry-run.md).
 
 **Scheduled execution (cron example):**
 
@@ -1865,3 +1869,8 @@ calculate_sector_dispersion trims leading and trailing all-sector NaN rows; inte
 ### v5.2 logging boundary regression coverage
 
 `test_config_repr_excludes_credential`, `test_configured_logging_renders_objects_and_templates`, and `test_configured_logging_sanitizes_chained_traceback` exercise the actual configure_logging wiring with synthetic credentials. CollectorConfig.finviz_api_key uses field(repr=False). Sanitized tracebacks retain diagnostic frames.
+
+
+### Issue #9 dry-run regression coverage
+
+`tests/test_dry_run_filesystem.py` verifies absent, nested, legacy and non-SQLite targets remain unchanged in preview, using byte and directory snapshots. Existing SQLite bytes include schema, rows and index metadata. Mocked HTTP exercises actual single/bulk collection in all scopes on success, partial failure and total failure; mocked Excel input exercises valid filtered counts and parse errors. Tests assert DBClient is never constructed in previews, accidental writes fail closed, setup failures leave targets alone, HTTP sessions close, real collection/import still persist, and live industry tolerance differs intentionally from strict preview failure reporting. No API access or published data is used.
