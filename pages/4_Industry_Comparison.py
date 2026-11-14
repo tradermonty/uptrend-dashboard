@@ -10,9 +10,8 @@ from src.data_loader import cached_load_all_data
 from src.data_processor import (
     get_sector_display_name,
     get_industry_display_name,
-    default_start_date,
-    filter_by_date_range,
 )
+from src.comparison_filters import comparison_date_filter
 from src.chart_builder import build_industry_comparison_chart
 
 st.set_page_config(page_title="Industry Comparison", page_icon="📊", layout="wide")
@@ -85,34 +84,9 @@ if not selected_keys:
     st.warning("Please select at least one industry.")
     st.stop()
 
-# Date filter
-first_df = next((all_data[k] for k in selected_keys if k in all_data and not all_data[k].empty), None)
-if first_df is not None:
-    min_date = first_df["date"].min().date()
-    max_date = first_df["date"].max().date()
-    default_start = default_start_date(min_date, max_date)
-    date_range = st.date_input(
-        "Date Range",
-        value=(default_start, max_date),
-        min_value=min_date,
-        max_value=max_date,
-    )
-
-    if date_range and len(date_range) == 2:
-        start, end = date_range
-        filtered_data = {}
-        for key in selected_keys:
-            df = all_data.get(key)
-            if df is not None:
-                filtered_data[key] = filter_by_date_range(df, start, end)
-    else:
-        filtered_data = {k: all_data[k] for k in selected_keys if k in all_data}
-else:
-    filtered_data = {k: all_data[k] for k in selected_keys if k in all_data}
-
-if not filtered_data:
-    st.warning("No data available for the selected industries.")
-    st.stop()
+filtered_data = comparison_date_filter(
+    all_data, selected_keys, get_industry_display_name, "industry_comparison_dates"
+)
 
 # Display mode toggle
 display_mode = st.radio(

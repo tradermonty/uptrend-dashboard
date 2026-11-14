@@ -7,7 +7,8 @@ load_dotenv()
 
 from src.constants import SECTORS
 from src.data_loader import cached_load_sector_data
-from src.data_processor import get_sector_display_name, default_start_date, filter_by_date_range
+from src.data_processor import get_sector_display_name
+from src.comparison_filters import comparison_date_filter
 from src.chart_builder import build_sector_comparison_chart
 from src.indicator_calculator import calculate_sector_dispersion
 
@@ -47,15 +48,23 @@ with st.sidebar:
         if not dispersion_df.empty
         else dispersion_df
     )
-    if not valid_disp.empty:
-        latest = valid_disp.iloc[-1]
+    if not dispersion_df.empty:
+        observed = dispersion_df.iloc[-1]
+        last_complete = str(valid_disp.iloc[-1]["date"].date()) if not valid_disp.empty else "none"
+        st.caption(
+            f"Latest observed: {observed['date'].date()} | "
+            f"Coverage: {observed['sector_count']}/{observed['expected_sector_count']} | "
+            f"Last complete as-of: {last_complete}"
+        )
+    if not dispersion_df.empty and dispersion_df.iloc[-1]["coverage_complete"]:
+        latest = dispersion_df.iloc[-1]
         regime_icons = {"converged": "🟢", "normal": "🔵", "diverged": "🔴"}
         st.markdown(
             f"**Dispersion**: σ={latest['dispersion']:.3f} "
             f"{regime_icons.get(latest['regime'], '')}"
         )
     else:
-        st.markdown("**Dispersion**: N/A (insufficient data)")
+        st.markdown("**Dispersion**: N/A (insufficient sector coverage)")
 
 # Multi-select sectors
 sector_names = {get_sector_display_name(s): s for s in SECTORS}
@@ -71,30 +80,9 @@ if not selected_keys:
     st.warning("Please select at least one sector.")
     st.stop()
 
-# Date filter using first available sector
-first_df = all_data.get(selected_keys[0])
-if first_df is not None and not first_df.empty:
-    min_date = first_df["date"].min().date()
-    max_date = first_df["date"].max().date()
-    default_start = default_start_date(min_date, max_date)
-    date_range = st.date_input(
-        "Date Range",
-        value=(default_start, max_date),
-        min_value=min_date,
-        max_value=max_date,
-    )
-
-    if date_range and len(date_range) == 2:
-        start, end = date_range
-        filtered_data = {}
-        for key in selected_keys:
-            df = all_data.get(key)
-            if df is not None:
-                filtered_data[key] = filter_by_date_range(df, start, end)
-    else:
-        filtered_data = {k: all_data[k] for k in selected_keys if k in all_data}
-else:
-    filtered_data = {k: all_data[k] for k in selected_keys if k in all_data}
+filtered_data = comparison_date_filter(
+    all_data, selected_keys, get_sector_display_name, "sector_comparison_dates"
+)
 
 # Display mode toggle
 display_mode = st.radio(

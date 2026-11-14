@@ -337,7 +337,8 @@ def build_sector_ranking_table(
 
 def prepare_dispersion_csv(dispersion_df: pd.DataFrame) -> pd.DataFrame:
     """Select and format columns for dispersion CSV export."""
-    output_cols = ["date", "dispersion", "mean_ratio", "range", "regime", "level_regime"]
+    output_cols = ["date", "dispersion", "mean_ratio", "range", "regime", "level_regime",
+                   "sector_count", "expected_sector_count", "coverage_complete"]
 
     if dispersion_df.empty:
         return pd.DataFrame(columns=output_cols)

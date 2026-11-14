@@ -7,7 +7,6 @@ import random
 import re
 import time
 from dataclasses import dataclass, field
-from datetime import date
 from enum import Enum
 from typing import Dict, List, NoReturn, Optional, Tuple
 
@@ -16,6 +15,7 @@ import requests
 
 from src.constants import INDUSTRIES, SECTORS, VALID_WORKSHEETS
 from src.db_client import DBClient
+from src.collection_session import SessionPolicyError, resolve_collection_date
 
 logger = logging.getLogger(__name__)
 
@@ -289,19 +289,24 @@ class DataCollector:
         """
         raise exc.__class__(redact(str(exc), self._redaction_secrets)) from None
 
-    def _make_request(self, url: str) -> pd.DataFrame:
+    def _make_request(self, url: str, *, session_date: Optional[str] = None) -> pd.DataFrame:
         """Fetch CSV from Finviz with exponential backoff retry + jitter.
 
         A 200 body is validated by ``parse_finviz_export``; an invalid body
         raises ``InvalidFinvizResponse`` and is not retried.
         """
+        session_date = resolve_collection_date(session_date)
         delay = self._config.retry_delay
         for attempt in range(1, self._config.max_retries + 1):
             try:
+                resolve_collection_date(session_date)
                 resp = self._session.get(url, timeout=self._config.http_timeout)
+                # Policy must take precedence over content/HTTP error tolerance.
+                resolve_collection_date(session_date)
                 resp.raise_for_status()
                 return parse_finviz_export(resp.content)
             except (requests.ConnectionError, requests.Timeout) as exc:
+                resolve_collection_date(session_date)
                 logger.warning(
                     "Request failed (attempt %d/%d): %s",
                     attempt,
@@ -314,6 +319,7 @@ class DataCollector:
                 time.sleep(delay + jitter)
                 delay *= 2
             except requests.HTTPError as exc:
+                resolve_collection_date(session_date)
                 status = exc.response.status_code if exc.response is not None else None
                 if status in self._RETRYABLE_STATUS_CODES:
                     logger.warning("HTTP %s (attempt %d/%d), backing off %.1fs",
@@ -326,23 +332,25 @@ class DataCollector:
                 else:
                     raise self._safe_http_error(exc) from None
             except requests.RequestException as exc:
+                resolve_collection_date(session_date)
                 self._raise_request_error(exc)
 
-    def _fetch_stock_count(self, sector: str = None) -> Tuple[int, int]:
+    def _fetch_stock_count(self, sector: str = None, *, session_date: Optional[str] = None) -> Tuple[int, int]:
         """Fetch uptrend count and total count for a sector (or all)."""
+        session_date = resolve_collection_date(session_date)
         uptrend_url = self._build_uptrend_url(sector)
         total_url = self._build_total_url(sector)
 
-        uptrend_df = self._fetch_export("uptrend", uptrend_url)
+        uptrend_df = self._fetch_export("uptrend", uptrend_url, session_date=session_date)
         time.sleep(self._config.request_interval)
-        total_df = self._fetch_export("total", total_url)
+        total_df = self._fetch_export("total", total_url, session_date=session_date)
 
         return len(uptrend_df), len(total_df)
 
-    def _fetch_export(self, label: str, url: str) -> pd.DataFrame:
+    def _fetch_export(self, label: str, url: str, *, session_date: Optional[str] = None) -> pd.DataFrame:
         """Fetch one export, naming which request failed the contract."""
         try:
-            return self._make_request(url)
+            return self._make_request(url, session_date=session_date)
         except InvalidFinvizResponse as exc:
             raise InvalidFinvizResponse(f"{label} response: {exc}") from None
 
@@ -368,12 +376,11 @@ class DataCollector:
                 f"Invalid worksheet: '{worksheet}'. "
                 f"Must be one of {VALID_WORKSHEETS}"
             )
-        if date is None:
-            from datetime import date as date_cls
-            date = date_cls.today().isoformat()
+        date = resolve_collection_date(date)
 
         sector = worksheet if worksheet != "all" else None
-        count, total = self._fetch_stock_count(sector)
+        count, total = self._fetch_stock_count(sector, session_date=date)
+        resolve_collection_date(date)  # A response pair crossing NY midnight cannot be written.
         self._validate_counts(worksheet, count, total)
 
         if dry_run:
@@ -408,9 +415,7 @@ class DataCollector:
             dry_run: If True, fetch data without writing to DB.
             scope: Which worksheets to collect (ALL, SECTORS, or INDUSTRIES).
         """
-        if date is None:
-            from datetime import date as date_cls
-            date = date_cls.today().isoformat()
+        date = resolve_collection_date(date)
 
         if scope == CollectScope.SECTORS:
             worksheets = ["all"] + SECTORS
@@ -427,6 +432,8 @@ class DataCollector:
                 result.succeeded[worksheet] = self.collect_worksheet(
                     worksheet, date, dry_run=dry_run,
                 )
+            except SessionPolicyError:
+                raise  # Fatal even for the final industry: never absorb into tolerance.
             except (requests.RequestException, ValueError) as exc:
                 logger.error(
                     "Failed to collect %s: %s", worksheet,

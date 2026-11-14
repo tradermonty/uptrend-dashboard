@@ -626,6 +626,29 @@ REGIME_BG_COLORS = {
 }
 
 
+def _dispersion_regime_segments(dispersion_df: pd.DataFrame) -> list:
+    """Return valid regime runs, ending each run before a missing observation."""
+    segments = []
+    previous = None
+    start = end = None
+    for _, row in dispersion_df.iterrows():
+        regime = row["regime"]
+        if pd.isna(regime):
+            if previous is not None:
+                segments.append((start, end, previous))
+            previous = None
+        elif regime != previous:
+            if previous is not None:
+                segments.append((start, end, previous))
+            start = end = row["date"]
+            previous = regime
+        else:
+            end = row["date"]
+    if previous is not None:
+        segments.append((start, end, previous))
+    return segments
+
+
 def build_dispersion_chart(dispersion_df: pd.DataFrame) -> go.Figure:
     """Build a dual-axis dispersion chart with regime background bands.
 
@@ -694,31 +717,16 @@ def build_dispersion_chart(dispersion_df: pd.DataFrame) -> go.Figure:
     # Regime background bands — only draw segments lasting >= 5 days
     # to avoid noisy flickering of thin colored bands
     _MIN_REGIME_BAND_DAYS = 5
-    valid = dispersion_df.dropna(subset=["regime"])
-    if not valid.empty:
-        segments = []
-        prev_regime = None
-        start_date = None
-        for _, row in valid.iterrows():
-            regime = row["regime"]
-            if regime != prev_regime:
-                if prev_regime is not None:
-                    segments.append((start_date, row["date"], prev_regime))
-                start_date = row["date"]
-                prev_regime = regime
-        if prev_regime is not None:
-            segments.append((start_date, valid.iloc[-1]["date"], prev_regime))
-
-        for seg_start, seg_end, seg_regime in segments:
-            if seg_regime not in REGIME_BG_COLORS:
-                continue
-            duration = (pd.Timestamp(seg_end) - pd.Timestamp(seg_start)).days
-            if duration >= _MIN_REGIME_BAND_DAYS:
-                fig.add_vrect(
-                    x0=seg_start, x1=seg_end,
-                    fillcolor=REGIME_BG_COLORS[seg_regime],
-                    layer="below", line_width=0,
-                )
+    for seg_start, seg_end, seg_regime in _dispersion_regime_segments(dispersion_df):
+        if seg_regime not in REGIME_BG_COLORS:
+            continue
+        duration = (pd.Timestamp(seg_end) - pd.Timestamp(seg_start)).days
+        if duration >= _MIN_REGIME_BAND_DAYS:
+            fig.add_vrect(
+                x0=seg_start, x1=seg_end,
+                fillcolor=REGIME_BG_COLORS[seg_regime],
+                layer="below", line_width=0,
+            )
 
     fig.update_layout(
         height=CHART_HEIGHT_DISPERSION,
@@ -744,27 +752,7 @@ def build_regime_timeline_chart(dispersion_df: pd.DataFrame) -> go.Figure:
         )
         return fig
 
-    valid = dispersion_df.dropna(subset=["regime"])
-    if valid.empty:
-        fig.update_layout(
-            height=CHART_HEIGHT_REGIME_TIMELINE,
-            template="plotly_white",
-        )
-        return fig
-
-    # Run-length encoding of regime
-    segments = []
-    prev_regime = None
-    start_date = None
-    for _, row in valid.iterrows():
-        regime = row["regime"]
-        if regime != prev_regime:
-            if prev_regime is not None:
-                segments.append((start_date, row["date"], prev_regime))
-            start_date = row["date"]
-            prev_regime = regime
-    if prev_regime is not None:
-        segments.append((start_date, valid.iloc[-1]["date"], prev_regime))
+    segments = _dispersion_regime_segments(dispersion_df)
 
     # Add a Bar trace per regime type for legend.
     # On a Plotly date axis, bar widths must be in milliseconds.

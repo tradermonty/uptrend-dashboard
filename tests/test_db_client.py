@@ -258,7 +258,7 @@ class TestCountTotalValidation:
             "count": [10.5],
             "total": [100],
         })
-        with pytest.raises(ValueError, match="must be integers"):
+        with pytest.raises(ValueError, match="must be an integer"):
             db_client.upsert_bulk(df)
 
     def test_upsert_rejects_bool_value(self, db_client):

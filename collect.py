@@ -4,7 +4,6 @@ import argparse
 import logging
 import os
 import sys
-from datetime import date
 
 from dotenv import load_dotenv
 
@@ -17,6 +16,7 @@ from src.data_collector import (
     redact,
 )
 from src.db_client import DBClient
+from src.collection_session import SessionPolicyError, resolve_collection_date, utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ def main():
     parser.add_argument("--worksheet", help="Collect specific worksheet only")
     parser.add_argument("--scope", choices=["sectors", "industries", "all"], default=None,
                         help="Collection scope (default: all)")
-    parser.add_argument("--date", help="Date in YYYY-MM-DD format (default: today)")
+    parser.add_argument("--date", help="Assert current New York session (YYYY-MM-DD); not a historical override")
     parser.add_argument("--dry-run", action="store_true", help="Fetch data without writing to DB")
     parser.add_argument("--verbose", action="store_true", help="Enable debug logging")
     args = parser.parse_args()
@@ -62,13 +62,13 @@ def main():
         logger.error("Invalid worksheet: '%s'", args.worksheet)
         sys.exit(1)
 
-    # Date validation
-    if args.date:
-        try:
-            date.fromisoformat(args.date)
-        except ValueError:
-            logger.error("Invalid date format: '%s'. Use YYYY-MM-DD.", args.date)
-            sys.exit(1)
+    # Refuse invalid session assertions before opening a DB or HTTP session.
+    try:
+        session_date = resolve_collection_date(args.date)
+    except SessionPolicyError as exc:
+        logger.error("Collection refused: %s", redact(str(exc), [api_key]))
+        sys.exit(1)
+    logger.info("Collection session: %s (observation UTC: %s)", session_date, utc_now().isoformat())
 
     scope = CollectScope(args.scope) if args.scope else CollectScope.ALL
     config = CollectorConfig(finviz_api_key=api_key)
@@ -79,7 +79,7 @@ def main():
         if args.worksheet:
             try:
                 count, total = collector.collect_worksheet(
-                    args.worksheet, date=args.date, dry_run=args.dry_run,
+                    args.worksheet, date=session_date, dry_run=args.dry_run,
                 )
                 print(f"\n  {args.worksheet}: {count}/{total}")
                 if args.dry_run:
@@ -88,7 +88,7 @@ def main():
                 logger.error("Failed to collect %s: %s", args.worksheet, redact(str(exc), [api_key]))
                 sys.exit(1)
         else:
-            result = collector.collect_all(date=args.date, dry_run=args.dry_run, scope=scope)
+            result = collector.collect_all(date=session_date, dry_run=args.dry_run, scope=scope)
 
             # Summary
             print("\nCollection Summary:")
@@ -173,6 +173,9 @@ def main():
                                 len(result.failed), industry_total,
                             )
                             # exit 0 (fallthrough)
+    except SessionPolicyError as exc:
+        logger.error("Collection refused: %s", redact(str(exc), [api_key]))
+        sys.exit(1)
     finally:
         collector.close()
 
