@@ -19,7 +19,7 @@ Streamlit + Plotly dashboard for visualizing US market uptrend stock ratios. Dat
 
 ### Prerequisites
 
-- Python 3.9+
+- Python 3.10+ (collection calendar dependency; CI uses 3.11, deployment specifies 3.12)
 - Finviz Elite API key (for data collection)
 
 ### Installation
@@ -52,8 +52,9 @@ python collect.py --scope industries
 # Dry run (fetch without writing to DB)
 python collect.py --dry-run
 
-# Specific date
-python collect.py --date 2026-02-07
+# Optional assertion of the current New York session (not a backfill)
+# Replace SESSION_DATE with today's New York date; run after the actual close
+python collect.py --date SESSION_DATE
 
 # Single worksheet
 python collect.py --worksheet ind_semiconductors
@@ -156,3 +157,9 @@ After each data collection, CSV files are auto-generated and committed to git. A
 - Values are raw decimals (0.29, not 29%)
 - Dates formatted as `YYYY-MM-DD`
 - NaN exported as empty string
+
+## Collection session safety
+
+Live collection is allowed only after the actual XNYS close on the current New York session date. Holidays, weekends and before-close runs are refused. `--date` asserts that same date; it cannot relabel a current snapshot as historical data. The workflow pins the New York date from its original run-creation timestamp and gates collection/export/commit on a valid session.
+
+See [session policy, read-only date audit and historical-source recovery](docs/operations/collection-sessions.md). For date-label diagnosis without modifying the database, run `python audit_collection_dates.py --db data/uptrend.db`. Historical corrections use a verified source workbook and a separately reviewed candidate DB, never a historical live `--date`.

@@ -26,6 +26,13 @@ from src.data_collector import (
 )
 
 
+@pytest.fixture(autouse=True)
+def after_close_observation_clock(mocker):
+    """Freeze actual session policy for synthetic requests; do not bypass it."""
+    from datetime import datetime, timezone
+    mocker.patch("src.collection_session.utc_now", return_value=datetime(2026, 11, 13, 22, tzinfo=timezone.utc))
+
+
 class TestCollectorConfig:
     """Test CollectorConfig defaults."""
 
@@ -264,7 +271,7 @@ class TestCollectWorkflow:
             collector._session, "get",
             side_effect=[_csv_response(SAMPLE_CSV), _csv_response(SAMPLE_CSV)],
         )
-        count, total = collector.collect_worksheet("all", date="2026-02-07")
+        count, total = collector.collect_worksheet("all", date="2026-11-13")
         assert count == 3
         assert total == 3
         # Verify data was written to DB
@@ -280,7 +287,7 @@ class TestCollectWorkflow:
             side_effect=[_csv_response(EMPTY_CSV), _csv_response(EMPTY_CSV)],
         )
         with pytest.raises(ValueError, match="Empty data"):
-            collector.collect_worksheet("all", date="2026-02-07")
+            collector.collect_worksheet("all", date="2026-11-13")
         # No data written
         df = db_client.fetch_raw_data("all")
         assert len(df) == 0
@@ -296,7 +303,7 @@ class TestCollectWorkflow:
             side_effect=[_csv_response(EMPTY_CSV), _csv_response(EMPTY_CSV)],
         )
         count, total = collector.collect_worksheet(
-            "ind_pharmaceuticalretailers", date="2026-02-07"
+            "ind_pharmaceuticalretailers", date="2026-11-13"
         )
         assert count == 0
         assert total == 0
@@ -310,7 +317,7 @@ class TestCollectWorkflow:
             collector._session, "get",
             side_effect=[_csv_response(EMPTY_CSV), _csv_response(EMPTY_CSV)],
         )
-        count, total = collector.collect_worksheet("all", date="2026-02-07", dry_run=True)
+        count, total = collector.collect_worksheet("all", date="2026-11-13", dry_run=True)
         assert count == 0
         assert total == 0
 
@@ -319,7 +326,7 @@ class TestCollectWorkflow:
             collector._session, "get",
             return_value=_csv_response(SAMPLE_CSV),
         )
-        result = collector.collect_all(date="2026-02-07")
+        result = collector.collect_all(date="2026-11-13")
         assert isinstance(result, CollectResult)
         # 161 worksheets: 'all' + 11 sectors + 149 industries
         assert len(result.succeeded) == 161
@@ -341,7 +348,7 @@ class TestCollectWorkflow:
 
         mocker.patch.object(collector._session, "get", side_effect=side_effect)
         mocker.patch.object(collector._config, "max_retries", 1)
-        result = collector.collect_all(date="2026-02-07")
+        result = collector.collect_all(date="2026-11-13")
         # First worksheet ("all") failed, remaining 160 should succeed
         assert len(result.succeeded) == 160
         assert len(result.failed) == 1
@@ -356,7 +363,7 @@ class TestCollectWorkflow:
             collector, "_fetch_stock_count", return_value=(-1, 100),
         )
         with pytest.raises(ValueError, match="negative"):
-            collector.collect_worksheet("all", date="2026-02-07")
+            collector.collect_worksheet("all", date="2026-11-13")
 
     def test_validate_counts_count_exceeds_total(self, collector, mocker):
         """Fix 4: count > total should raise ValueError."""
@@ -364,7 +371,7 @@ class TestCollectWorkflow:
             collector, "_fetch_stock_count", return_value=(200, 100),
         )
         with pytest.raises(ValueError, match="exceeds total"):
-            collector.collect_worksheet("all", date="2026-02-07")
+            collector.collect_worksheet("all", date="2026-11-13")
 
     def test_collect_worksheet_dry_run(self, collector, db_client, mocker):
         """Fix 7: dry_run=True should skip DB write but run validation."""
@@ -372,7 +379,7 @@ class TestCollectWorkflow:
             collector._session, "get",
             side_effect=[_csv_response(SAMPLE_CSV), _csv_response(SAMPLE_CSV)],
         )
-        count, total = collector.collect_worksheet("all", date="2026-02-07", dry_run=True)
+        count, total = collector.collect_worksheet("all", date="2026-11-13", dry_run=True)
         assert count == 3
         assert total == 3
         # No data written to DB
@@ -386,7 +393,7 @@ class TestCollectWorkflow:
             return_value=_csv_response(SAMPLE_CSV),
         )
         mock_upsert = mocker.patch.object(collector._db, "upsert_raw_data")
-        result = collector.collect_all(date="2026-02-07", dry_run=True)
+        result = collector.collect_all(date="2026-11-13", dry_run=True)
         assert len(result.succeeded) == 161
         mock_upsert.assert_not_called()
 
@@ -396,7 +403,7 @@ class TestCollectWorkflow:
             collector._session, "get",
             side_effect=[_csv_response(SAMPLE_CSV), _csv_response(SAMPLE_CSV)],
         )
-        count, total = collector.collect_worksheet("ind_semiconductors", date="2026-02-07")
+        count, total = collector.collect_worksheet("ind_semiconductors", date="2026-11-13")
         assert count == 3
         assert total == 3
         df = db_client.fetch_raw_data("ind_semiconductors")
@@ -408,7 +415,7 @@ class TestCollectWorkflow:
             collector._session, "get",
             return_value=_csv_response(SAMPLE_CSV),
         )
-        result = collector.collect_all(date="2026-02-07", scope=CollectScope.SECTORS)
+        result = collector.collect_all(date="2026-11-13", scope=CollectScope.SECTORS)
         assert len(result.succeeded) == 12
         assert all(
             k == "all" or k.startswith("sec_") for k in result.succeeded
@@ -420,7 +427,7 @@ class TestCollectWorkflow:
             collector._session, "get",
             return_value=_csv_response(SAMPLE_CSV),
         )
-        result = collector.collect_all(date="2026-02-07", scope=CollectScope.INDUSTRIES)
+        result = collector.collect_all(date="2026-11-13", scope=CollectScope.INDUSTRIES)
         assert len(result.succeeded) == 149
         assert all(k.startswith("ind_") for k in result.succeeded)
 
@@ -430,7 +437,7 @@ class TestCollectWorkflow:
             collector._session, "get",
             return_value=_csv_response(SAMPLE_CSV),
         )
-        result = collector.collect_all(date="2026-02-07", scope=CollectScope.SECTORS)
+        result = collector.collect_all(date="2026-11-13", scope=CollectScope.SECTORS)
         assert isinstance(result, CollectResult)
         assert hasattr(result, "succeeded")
         assert hasattr(result, "failed")
@@ -493,7 +500,7 @@ class TestCLI:
         main()
         # collect_all called with dry_run=True and scope
         mock_collect_all.assert_called_once_with(
-            date=None, dry_run=True, scope=CollectScope.ALL,
+            date="2026-11-13", dry_run=True, scope=CollectScope.ALL,
         )
         mock_upsert.assert_not_called()
 
@@ -565,7 +572,7 @@ class TestCLI:
         from collect import main
         main()
         mock_collect_all.assert_called_once_with(
-            date=None, dry_run=False, scope=CollectScope.SECTORS,
+            date="2026-11-13", dry_run=False, scope=CollectScope.SECTORS,
         )
 
     def test_cli_scope_worksheet_simultaneous_error(self, tmp_db, mocker):
@@ -821,7 +828,7 @@ class TestVerboseSecretLeak:
             ),
         )
         with pytest.raises(requests.ConnectionError) as excinfo:
-            collector.collect_worksheet("all", date="2026-02-07")
+            collector.collect_worksheet("all", date="2026-11-13")
         self._assert_no_key(excinfo.value, caplog)
 
     def test_timeout_leak(self, collector, caplog, mocker):
@@ -835,7 +842,7 @@ class TestVerboseSecretLeak:
             ),
         )
         with pytest.raises(requests.Timeout) as excinfo:
-            collector.collect_worksheet("all", date="2026-02-07")
+            collector.collect_worksheet("all", date="2026-11-13")
         self._assert_no_key(excinfo.value, caplog)
 
     def test_401_leak(self, collector, caplog, mocker):
@@ -847,7 +854,7 @@ class TestVerboseSecretLeak:
             return_value=_http_error_resp(url, status_code=401, reason="Unauthorized"),
         )
         with pytest.raises(requests.RequestException) as excinfo:
-            collector.collect_worksheet("all", date="2026-02-07")
+            collector.collect_worksheet("all", date="2026-11-13")
         self._assert_no_key(excinfo.value, caplog)
         assert "HTTP 401" in str(excinfo.value)
 
@@ -860,7 +867,7 @@ class TestVerboseSecretLeak:
             return_value=_http_error_resp(url, status_code=502, reason="Bad Gateway"),
         )
         with pytest.raises(requests.RequestException) as excinfo:
-            collector.collect_worksheet("all", date="2026-02-07")
+            collector.collect_worksheet("all", date="2026-11-13")
         self._assert_no_key(excinfo.value, caplog)
         assert "HTTP 502" in str(excinfo.value)
 
@@ -875,7 +882,7 @@ class TestVerboseSecretLeak:
             ),
         )
         with pytest.raises(requests.TooManyRedirects) as excinfo:
-            collector.collect_worksheet("all", date="2026-02-07")
+            collector.collect_worksheet("all", date="2026-11-13")
         self._assert_no_key(excinfo.value, caplog)
 
     def test_successful_verbose_run_has_no_key(self, collector, caplog, mocker):
@@ -885,7 +892,7 @@ class TestVerboseSecretLeak:
             collector._session, "get",
             side_effect=[_csv_response(SAMPLE_CSV), _csv_response(SAMPLE_CSV)],
         )
-        count, total = collector.collect_worksheet("all", date="2026-02-07")
+        count, total = collector.collect_worksheet("all", date="2026-11-13")
         assert (count, total) == (3, 3)
         assert self.KEY not in caplog.text
 
@@ -900,7 +907,7 @@ class TestVerboseSecretLeak:
             ],
         )
         with pytest.raises(requests.RequestException):
-            collector.collect_worksheet("all", date="2026-02-07")
+            collector.collect_worksheet("all", date="2026-11-13")
         assert "HTTP 502" in caplog.text
         assert "attempt 1/2" in caplog.text
 

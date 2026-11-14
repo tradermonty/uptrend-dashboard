@@ -15,6 +15,7 @@
 | Date | Version | Changes |
 |------|---------|---------|
 | 2026-11-13 | v5.5 | Finviz CSV response contract (Issue #2): `parse_finviz_export()` validates every 200 body before rows are counted; `InvalidFinvizResponse` (a ValueError) makes malformed, HTML/error, empty, ragged, duplicate-ticker and missing-ticker bodies a worksheet failure, so they can no longer be stored as counts. Header-only bodies remain valid zero-result exports. Parsed with the `csv` module so tickers such as `NA` stay strings. No published data changes. |
+| 2026-11-14 | v5.5.1 | Issue #3: New York/XNYS after-close session assertions, fatal per-GET/retry/session-boundary validation, workflow origin evidence and publication gates, read-only date audit and historical-source recovery runbook. No published data changes. |
 | 2026-11-06 | v5.4 | `RedactingFilter` no longer raises into the caller on a malformed log call: `_render_log_message()` falls back to a redacted location and template, and drops the arguments. Malformed `exc_info` is replaced by a fixed placeholder through `_render_exception_text()`. `collect.py` configures logging before the missing-key check so that error keeps its format. |
 | 2026-11-06 | v5.3 | Sector Dispersion regime stabilization made causal: `_stabilize_regime` replaced by `_confirm_regime` sequential state machine (no lookahead, prefix-invariant labels, transition emitted only on confirmation date). Interior all-sector NaN rows are preserved to reset candidates; leading and trailing all-NaN rows are trimmed before the final partial-day exclusion. Absent dates are not observations. One-time regime relabel covered by docs/corrections/2026-11-regime-relabel.md. |
 | 2026-10-14 | v5.2 | Logging boundary renders messages before redaction, sanitizes chained/cached tracebacks and stack text, and excludes the API credential from CollectorConfig repr. Boundary regressions cover numeric/mapping interpolation and nested objects. |
@@ -1543,7 +1544,7 @@ class DataCollector:
         """Fetch (uptrend_count, total_count) from Finviz API"""
         ...
 
-    def _make_request(self, url: str) -> pd.DataFrame:
+    def _make_request(self, url: str, *, session_date=None) -> pd.DataFrame:
         """GET url with retry/backoff; ConnectionError/Timeout exhaustion and
         non-HTTPError RequestException go through _raise_request_error;
         HTTPError paths raise sanitized errors via 'from None'. (v5.1)
@@ -1551,7 +1552,7 @@ class DataCollector:
         raises InvalidFinvizResponse and is not retried. (v5.5)"""
         ...
 
-    def _fetch_export(self, label: str, url: str) -> pd.DataFrame:
+    def _fetch_export(self, label: str, url: str, *, session_date=None) -> pd.DataFrame:
         """_make_request() that prefixes InvalidFinvizResponse with
         'uptrend response:' or 'total response:'. (v5.5)"""
         ...
@@ -1645,8 +1646,8 @@ python collect.py --scope industries
 # Specific category only
 python collect.py --worksheet ind_semiconductors
 
-# Specify date (for past data correction) — validates YYYY-MM-DD format
-python collect.py --date 2026-02-07
+# Assert the current New York session after its actual close (not a backfill)
+python collect.py --date SESSION_DATE
 
 # Dry run (runs collect_all/collect_worksheet with dry_run=True)
 python collect.py --dry-run
@@ -1682,31 +1683,21 @@ In scope mode (no `--worksheet`), `--dry-run` skips exit-code evaluation: the ru
 
 ```bash
 # Run every business day at 16:05 ET (after market close)
-# ※ Business day detection is handled within the script (Alpaca calendar API or date-based)
+# XNYS holiday/actual-close validation is handled offline by the collector
 5 16 * * 1-5 cd /path/to/uptrend-dashboard && /path/to/python collect.py >> logs/collect.log 2>&1
 ```
 
 > Log format: `%(asctime)s %(levelname)s: %(message)s`. RotatingFileHandler is not needed (cron's redirection is sufficient).
 
-**Business Day Detection:**
+**Session-date policy (Issue #3, v5.5.1):**
 
-stocktrading uses Alpaca API's calendar, but to avoid Alpaca dependency in uptrend-dashboard, one of the following approaches is used:
+`src/collection_session.py` uses `exchange_calendars==4.13.2` (requires Python 3.10+) (XNYS) and `zoneinfo` to validate the current New York date at/after its actual close. `resolve_collection_date(requested=None, now=None) -> str` rejects malformed, historical/future, non-session and before-close requests. `utc_now()` is the testable aware-clock boundary. `SessionPolicyError(ValueError)` is fatal and must be re-raised before `collect_all()`'s ordinary worksheet tolerance; `NonSessionDay` is its deliberate holiday/weekend subclass.
 
-| Approach | Pros | Cons |
-|----------|------|------|
-| A: Simple weekday check | No dependencies | Holidays trigger fetch attempts → possible 0 results |
-| B: `exchange_calendars` package | Accurate NYSE holiday detection | Additional dependency |
-| C: Run daily, skip UPSERT when data is 0 | Simplest | Unnecessary API calls |
+The CLI validates before DB/session initialization; each GET/retry, response classification, request-exception handler and pre-persistence boundary revalidate the same session. Policy errors suppress exception chaining so a prior secret-bearing transport exception cannot leak in formatted tracebacks. Both `collect_worksheet()` and `collect_all()` resolve default dates using New York, not the host date. Existing content/retry rules and industry tolerance remain for ordinary collection failures. Private `_make_request`, `_fetch_export` and `_fetch_stock_count` accept keyword-only `session_date=None` and pin/forward the resolved session.
 
-→ **Recommended: C** (simplicity first. Finviz API calls are lightweight; skip UPSERT when result is 0)
+`resolve_run_session(created_at, now=None)` asserts the New York date from the original GitHub workflow run creation timestamp; `scripts/session_preflight.sh` obtains that evidence using `actions: read`. Missing evidence, cross-date delays/reruns and policy failures cannot proceed. A same-date non-session is skipped with `eligible=false`; collection, export and commit require `eligible=true` and prior success. The module CLI exits 0 (eligible; prints date), 3 (non-session), or 1 (policy failure). Cron-only payloads cannot diagnose delay before run creation.
 
-**Additional Dependencies:**
-
-| Package | Purpose |
-|---------|---------|
-| `requests` | HTTP requests to Finviz API |
-
-> Only `requests` is added. Advanced features like circuit breakers from stocktrading's `FinvizClient` are not needed. Exponential backoff + jitter retry is sufficient.
+`audit_collection_dates.py --db PATH` opens existing SQLite in read-only mode and reports invalid/non-session/calendar-unknown labels without repair. Non-string labels include SQLite storage type; BLOB labels are represented as hex plus a null `date` so JSON diagnosis cannot crash. Tests cover exact formats, session boundaries, DST/early closes, HTTP retry/midnight drift, final-industry fatality, CLI no-request/no-DB refusal, scheduler gating, read-only audit and provenance-aware temporary historical import. See [the operating runbook](operations/collection-sessions.md) for copied-DB audit evidence and the separate `import_excel.py` source/backup/receipt/review procedure. No original DB/CSV was rewritten.
 
 **Retry/Error Handling Specification (v3.1):**
 
@@ -1716,7 +1707,7 @@ stocktrading uses Alpaca API's calendar, but to avoid Alpaca dependency in uptre
 | Backoff | Exponential backoff (2s → 4s → 8s …) + jitter (`delay * 0~25%`) |
 | Response contract | 200 body must satisfy the Finviz CSV response contract (below); otherwise `InvalidFinvizResponse`, not retried (v5.5; replaces the v3.1 empty-body → empty DataFrame rule) |
 | Data validation | `_validate_counts()`: validates negative values, count > total |
-| Exception scope | `collect_all()` catches only `RequestException` and `ValueError` (includes `InvalidFinvizResponse`) (v5.5) |
+| Exception scope | `collect_all()` re-raises fatal `SessionPolicyError` first; catches ordinary `RequestException` and `ValueError` (including `InvalidFinvizResponse`) per worksheet (v5.5.1) |
 | Secret masking | `mask_secrets()` sanitizes `auth=` params in all logged exceptions (v3.2) |
 | HTTP error sanitization | `_safe_http_error()` replaces HTTPError with URL-free message (v3.2) |
 | Session management | `close()` method ensures `requests.Session` is properly closed |
