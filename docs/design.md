@@ -14,6 +14,7 @@
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2026-11-14 | Issue #13 | Comparison date bounds use the union of all selected dated series; shared comparison filter reports per-series coverage, missing/disjoint data and empty/incomplete ranges. Stable page-specific date state resets on selected-set/bounds changes; no stored data changes. |
 | 2026-11-13 | v5.5 | Finviz CSV response contract (Issue #2): `parse_finviz_export()` validates every 200 body before rows are counted; `InvalidFinvizResponse` (a ValueError) makes malformed, HTML/error, empty, ragged, duplicate-ticker and missing-ticker bodies a worksheet failure, so they can no longer be stored as counts. Header-only bodies remain valid zero-result exports. Parsed with the `csv` module so tickers such as `NA` stay strings. No published data changes. |
 | 2026-11-06 | v5.4 | `RedactingFilter` no longer raises into the caller on a malformed log call: `_render_log_message()` falls back to a redacted location and template, and drops the arguments. Malformed `exc_info` is replaced by a fixed placeholder through `_render_exception_text()`. `collect.py` configures logging before the missing-key check so that error keeps its format. |
 | 2026-11-06 | v5.3 | Sector Dispersion regime stabilization made causal: `_stabilize_regime` replaced by `_confirm_regime` sequential state machine (no lookahead, prefix-invariant labels, transition emitted only on confirmation date). Interior all-sector NaN rows are preserved to reset candidates; leading and trailing all-NaN rows are trimmed before the final partial-day exclusion. Absent dates are not observations. One-time regime relabel covered by docs/corrections/2026-11-regime-relabel.md. |
@@ -854,6 +855,9 @@ Screen layout is unchanged from v1. Only the data source changes; UI remains the
 
 ### 5.3 Sector Comparison Page (pages/2_Sector_Comparison.py)
 
+Issue #13: the date selector uses union bounds across all selected series. Below it, an observed-coverage table lists each series with row count and first/last observed date; unavailable series and absent common dates are explicit. Empty or incomplete ranges pause chart rendering. See the shared filter contract below.
+
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ Sector Comparison                                           │
@@ -908,6 +912,9 @@ v2.3 revision: Display mode radio buttons, 10MA/Raw toggle, threshold dashed lin
 ```
 
 ### 5.5 Industry Comparison Page (pages/4_Industry_Comparison.py, v4.0)
+
+Issue #13: the date selector uses union bounds across all selected series. Below it, an observed-coverage table lists each series with row count and first/last observed date; unavailable series and absent common dates are explicit. Empty or incomplete ranges pause chart rendering. See the shared filter contract below.
+
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -1865,3 +1872,12 @@ calculate_sector_dispersion trims leading and trailing all-sector NaN rows; inte
 ### v5.2 logging boundary regression coverage
 
 `test_config_repr_excludes_credential`, `test_configured_logging_renders_objects_and_templates`, and `test_configured_logging_sanitizes_chained_traceback` exercise the actual configure_logging wiring with synthetic credentials. CollectorConfig.finviz_api_key uses field(repr=False). Sanitized tracebacks retain diagnostic frames.
+
+
+### Issue #13: shared comparison filter
+
+`src/comparison_filters.py` exposes `comparison_date_bounds(all_data, selected_keys) -> Optional[Tuple[date, date]]` and `comparison_date_filter(all_data, selected_keys, display_name, widget_key) -> Dict[str, DataFrame]`. Loaders provide datetime `date` columns; missing/empty frames and NaT observations contribute no bounds. Union bounds are independent of selection order and include staggered or disjoint histories. The filter uses inclusive dates and never fills missing observations.
+
+Page keys are `sector_comparison_dates` and `industry_comparison_dates`; each has a companion `_context` state containing the sorted selected set and union bounds. A changed context or absent widget state initializes the existing configured two-year `default_start_date()` window. Ordinary reruns and reordered selections retain manual dates. No dated observations, incomplete input, or an empty filtered range produces a meaningful message and stops chart construction. The observed-coverage table has `Series`, `Observations`, `First observed`, and `Last observed` columns, including zero-count unavailable selections; endpoints do not imply continuous coverage. Series lacking range observations are omitted from chart input, and absence of a date shared by all selections is reported. Existing smoothed/raw display behavior remains unchanged.
+
+Regression coverage: `tests/test_comparison_filters.py` covers union/order invariance, missing/empty/NaT datasets, disjoint histories, real sector and both industry comparison modes, latest chart input, manual/partial/empty ranges, reordered selections, changed selection/bounds and coverage messages. Operational policy: [comparison-date-ranges.md](operations/comparison-date-ranges.md).
