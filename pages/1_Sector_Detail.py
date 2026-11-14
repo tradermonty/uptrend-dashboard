@@ -45,20 +45,25 @@ def load_data():
 
 all_data = load_data()
 
-# Sector selector
-sector_names = {get_sector_display_name(s): s for s in SECTORS}
-display_names = list(sector_names.keys())
+# Apply navigation before the stable selector widget is instantiated.
+pending = st.session_state.get("selected_sector")
+valid_target = isinstance(pending, str) and pending in SECTORS
+if "selected_sector" in st.session_state:
+    if valid_target:
+        st.session_state["sector_detail_sector"] = pending
+    else:
+        st.session_state.pop("selected_sector")
+        st.warning("Invalid sector navigation target. Choose a sector below.")
 
-# If navigated from main page sector summary chart, pre-select that sector
-preselected_key = st.session_state.pop("selected_sector", None)
-default_index = 0
-if preselected_key:
-    preselected_display = get_sector_display_name(preselected_key)
-    if preselected_display in display_names:
-        default_index = display_names.index(preselected_display)
-
-selected_display = st.selectbox("Select Sector", display_names, index=default_index)
-selected_key = sector_names[selected_display]
+sector_state = st.session_state.get("sector_detail_sector")
+if not isinstance(sector_state, str) or sector_state not in SECTORS:
+    st.session_state["sector_detail_sector"] = SECTORS[0]
+selected_key = st.selectbox(
+    "Select Sector", SECTORS, format_func=get_sector_display_name, key="sector_detail_sector",
+)
+selected_display = get_sector_display_name(selected_key)
+if valid_target and selected_key == pending:
+    st.session_state.pop("selected_sector", None)
 
 df = all_data.get(selected_key)
 

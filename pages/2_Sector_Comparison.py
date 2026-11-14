@@ -48,15 +48,23 @@ with st.sidebar:
         if not dispersion_df.empty
         else dispersion_df
     )
-    if not valid_disp.empty:
-        latest = valid_disp.iloc[-1]
+    if not dispersion_df.empty:
+        observed = dispersion_df.iloc[-1]
+        last_complete = str(valid_disp.iloc[-1]["date"].date()) if not valid_disp.empty else "none"
+        st.caption(
+            f"Latest observed: {observed['date'].date()} | "
+            f"Coverage: {observed['sector_count']}/{observed['expected_sector_count']} | "
+            f"Last complete as-of: {last_complete}"
+        )
+    if not dispersion_df.empty and dispersion_df.iloc[-1]["coverage_complete"]:
+        latest = dispersion_df.iloc[-1]
         regime_icons = {"converged": "🟢", "normal": "🔵", "diverged": "🔴"}
         st.markdown(
             f"**Dispersion**: σ={latest['dispersion']:.3f} "
             f"{regime_icons.get(latest['regime'], '')}"
         )
     else:
-        st.markdown("**Dispersion**: N/A (insufficient data)")
+        st.markdown("**Dispersion**: N/A (insufficient sector coverage)")
 
 # Multi-select sectors
 sector_names = {get_sector_display_name(s): s for s in SECTORS}

@@ -5,8 +5,8 @@
 | Document Type | Software Design Document |
 | Project Name | uptrend-dashboard |
 | Created | 2026-02-08 |
-| Revised | 2026-11-13 |
-| Status | v5.5 Finviz response contract |
+| Revised | 2026-11-14 |
+| Status | v5.6 Complete sector coverage |
 
 ---
 
@@ -15,7 +15,9 @@
 | Date | Version | Changes |
 |------|---------|---------|
 | 2026-11-14 | Issue #13 | Comparison date bounds use the union of all selected dated series; shared comparison filter reports per-series coverage, missing/disjoint data and empty/incomplete ranges. Stable page-specific date state resets on selected-set/bounds changes; no stored data changes. |
+| 2026-11-14 | v5.6 | Issue #5: require finite observations from all 11 configured sectors before dispersion statistics/regimes; retain diagnostic dates and export coverage; suppress current signals/advice on incomplete latest observations; preserve chart gaps. Published data is not regenerated in this change. |
 | 2026-11-13 | v5.5 | Finviz CSV response contract (Issue #2): `parse_finviz_export()` validates every 200 body before rows are counted; `InvalidFinvizResponse` (a ValueError) makes malformed, HTML/error, empty, ragged, duplicate-ticker and missing-ticker bodies a worksheet failure, so they can no longer be stored as counts. Header-only bodies remain valid zero-result exports. Parsed with the `csv` module so tickers such as `NA` stay strings. No published data changes. |
+| 2026-11-14 | v5.5.1 | Issue #3: New York/XNYS after-close session assertions, fatal per-GET/retry/session-boundary validation, workflow origin evidence and publication gates, read-only date audit and historical-source recovery runbook. No published data changes. |
 | 2026-11-06 | v5.4 | `RedactingFilter` no longer raises into the caller on a malformed log call: `_render_log_message()` falls back to a redacted location and template, and drops the arguments. Malformed `exc_info` is replaced by a fixed placeholder through `_render_exception_text()`. `collect.py` configures logging before the missing-key check so that error keeps its format. |
 | 2026-11-06 | v5.3 | Sector Dispersion regime stabilization made causal: `_stabilize_regime` replaced by `_confirm_regime` sequential state machine (no lookahead, prefix-invariant labels, transition emitted only on confirmation date). Interior all-sector NaN rows are preserved to reset candidates; leading and trailing all-NaN rows are trimmed before the final partial-day exclusion. Absent dates are not observations. One-time regime relabel covered by docs/corrections/2026-11-regime-relabel.md. |
 | 2026-10-14 | v5.2 | Logging boundary renders messages before redaction, sanitizes chained/cached tracebacks and stack text, and excludes the API credential from CollectorConfig repr. Boundary regressions cover numeric/mapping interpolation and nested objects. |
@@ -35,6 +37,18 @@
 | 2026-02-14 | v3.4 | CSV download buttons on main page for LLM data analysis |
 | 2026-02-11 | v3.3 | Sector summary bar chart click → Sector Detail page navigation |
 | 2026-02-11 | v3.2 | Data validation hardening, secret masking, CI test workflow. DB CHECK constraints, Python-level count/total validation, import_excel row filtering, mask_secrets/safe_http_error, GitHub Actions pytest |
+
+### v5.6 Key Changes (Complete Sector Coverage)
+
+- `calculate_sector_dispersion(sector_data)` uses exactly `SECTORS`, never the number of supplied frames; unknown `sec_*` keys cannot replace a configured sector. Observed dates come from all recognized frames with a `date` column, including frames without `ma_10`. Values are normalized numerically before finite filtering; object/nullable `pd.NA` and `None` remain missing, and nonnumeric values cannot count toward coverage. No missing session dates are invented.
+- All observed dates, including leading warmup, interior gaps and consecutive incomplete tails, remain in the output. New columns: `sector_count` (finite expected-sector values), `expected_sector_count` (11), `coverage_complete` (boolean). No recognized observed dates yields an empty frame with the full schema.
+- An incomplete row has NaN for every metric, threshold and regime. Masking occurs before cross-sectional statistics, MA10, velocity or expanding percentiles. MA10 needs 10 contiguous complete observations; 3-observation velocity needs all four observations complete. Expanding thresholds retain earlier valid history, but incomplete values never enter them. Missing regime observations reset pending confirmation; the confirmed regime is retained internally. Complete uninterrupted data retains its numerical calculations.
+- `detect_dispersion_signals()` evaluates the final observed row only. Missing/incomplete coverage metadata, missing labels or non-finite primary metrics returns no signals. It never falls back to an earlier date. Its input is the current calculation schema, not a legacy hand-built frame without coverage.
+- Dispersion Monitor and the Sector Comparison sidebar display latest observed date/coverage and last complete as-of date. Incomplete latest data withholds current signal banners, metrics, gauge, current regime ranking and action-guide highlights. Historical charts/statistics remain accessible if any complete history exists; otherwise the page explains insufficient coverage. This does not establish wall-clock/session freshness (Issue #3/#6).
+- Charts end valid regime bands/timeline runs before missing observations rather than bridging the gap.
+- `prepare_dispersion_csv()` retains the original six columns in order (`date`, `dispersion`, `mean_ratio`, `range`, `regime`, `level_regime`) and appends `sector_count`, `expected_sector_count`, `coverage_complete`. Sparse exports include diagnostic rows with blank metrics; exports without recognized dates contain headers only. All export paths use this schema.
+- Historical derived values can differ on future deliberate recalculation because previously accepted partial-sector observations no longer contribute. This PR does not regenerate or commit the tracked SQLite DB or published CSVs; review any publication/correction separately.
+- Regression coverage: `tests/test_dispersion_coverage.py` covers sparse/missing/unrecognized sectors, malformed later-date frames, non-finite histories, interior/tail gaps, gap-independent statistics, full-data references, causal confirmation/prefix invariance, signal withholding, chart gaps, CSV metadata and real temporary-DB export. `tests/test_dispersion_pages.py` registers both real pages with Streamlit navigation and synthetic loaders to verify complete, partial, never-complete and all-missing states.
 
 ### v5.5 Key Changes (Finviz Response Contract)
 
@@ -78,7 +92,7 @@
 - **Sector Comparison integration**: Sidebar dispersion gauge with regime badge and link to Dispersion Monitor
 - **New data processor functions**: `build_sector_ranking_table()` (regime-aware sort), `prepare_dispersion_csv()`
 - **New chart functions**: `build_dispersion_chart()` (dual-axis with time-series p25/p75 traces), `build_regime_timeline_chart()` (horizontal bar regime visualization)
-- **CSV export**: `data/sector_dispersion.csv` always regenerated (stale-file prevention); empty CSV with headers if insufficient sectors
+- **CSV export**: `data/sector_dispersion.csv` always regenerated (stale-file prevention); v5.6 exports incomplete dates with coverage and blank metrics, or headers only if no recognized dates
 - **New constants**: `DISPERSION_CONVERGED_FALLBACK`, `DISPERSION_DIVERGED_FALLBACK`, `MEAN_RATIO_LOW/HIGH`, `DISPERSION_VELOCITY_WINDOW`, `DISPERSION_MIN_HISTORY`, `CHART_HEIGHT_DISPERSION/REGIME_TIMELINE`
 - **Data guard**: All pages handle insufficient dispersion data gracefully (st.warning + st.stop or N/A display)
 
@@ -123,7 +137,7 @@
 - **`_key` column**: Added internal worksheet key column to `build_sector_summary()` output for chart `customdata` mapping (hidden from `st.dataframe` display)
 - **`customdata` on bar trace**: `build_sector_summary_chart()` passes `_key` values as `customdata` on the `go.Bar` trace
 - **`on_select` event**: `app.py` uses `st.plotly_chart(on_select="rerun")` and `st.dataframe(on_select="rerun", selection_mode="single-row")` to capture click events, sets `st.session_state["selected_sector"]`, and calls `st.switch_page()`
-- **Sector Detail pre-selection**: `pages/1_Sector_Detail.py` reads `st.session_state.pop("selected_sector")` to set `st.selectbox` default index
+- **Sector Detail pre-selection**: `pages/1_Sector_Detail.py` applies a validated `selected_sector` intent to canonical widget state before creating the selector and consumes it only after the requested sector is selected (Issue #12).
 - **Streamlit version**: Bumped minimum to `>=1.35.0` for `on_select` parameter support
 - **Tests**: 114 tests (added `test_sector_summary_chart_customdata`)
 
@@ -468,7 +482,7 @@ Centrally manages constants used across all modules.
 | `__init__` | `(db_path: str = "data/uptrend.db")` | DB connection, automatic table creation |
 | `_connection` | `() -> ContextManager` | DB connection context manager (auto commit/rollback/close) |
 | `_init_tables` | `() -> None` | Execute CREATE TABLE IF NOT EXISTS |
-| `_coerce_whole_number` | `(value, field_name) -> int` | Static. Coerce int-like values to int; reject bool, non-integer float (v3.2) |
+| `_coerce_whole_number` | `(value, field_name) -> int` | Static. Exact native signed-64-bit int from typed Python/NumPy integer or finite whole float; reject bool/missing/unsupported/out-of-range input (Issue #7) |
 | `_validate_counts` | `(count, total) -> Tuple[int, int]` | Coerce + validate non-negative, count <= total (v3.2) |
 | `upsert_raw_data` | `(date, worksheet, count, total) -> None` | Single row UPSERT with worksheet + count/total validation |
 | `upsert_bulk` | `(df: DataFrame) -> None` | DataFrame bulk UPSERT with comprehensive validation (v3.2) |
@@ -477,18 +491,28 @@ Centrally manages constants used across all modules.
 | `get_worksheets` | `() -> List[str]` | List of registered category names |
 | `get_date_range` | `(worksheet: str) -> Tuple[str, str]` | Date range for specified category |
 
-**Count/Total Validation (v3.2):**
+**DB validation revision history:**
 
-`upsert_raw_data` applies `_validate_counts()` which coerces types via `_coerce_whole_number()` and validates business rules. `upsert_bulk` performs equivalent validation at the DataFrame level before DB write:
+| Date | Change |
+|------|--------|
+| 2026-11-14 | Issue #7: shared scalar/bulk native-integer validation, exact signed-64-bit bounds, positional binding, duplicate required-column rejection, and atomicity regressions. No historical data/schema rewrite. |
+
+**Count/Total Validation (Issue #7):**
+
+Both `upsert_raw_data()` and `upsert_bulk()` apply `_validate_counts()` / `_coerce_whole_number()` before writing. Integral Python/NumPy scalars become native Python `int`; finite whole-valued Python/NumPy floats are converted only after checking that they have no fractional part. Normalized integers must fit SQLite's signed 64-bit range, then satisfy `0 <= count <= total`. There is no blanket `pd.to_numeric` or float conversion.
 
 | Check | `upsert_raw_data` | `upsert_bulk` |
 |-------|-------------------|---------------|
-| Missing columns | N/A | `required_columns - set(df.columns)` |
-| Bool rejection | `isinstance(value, bool)` → ValueError | N/A (pandas converts) |
-| Non-numeric | `_coerce_whole_number` type check | `pd.to_numeric(errors="coerce")` + NaN check |
-| Non-integer | `float.is_integer()` check | `counts % 1 != 0` mask |
-| Negative | `count_i < 0` check | `counts < 0` mask |
-| count > total | `count_i > total_i` check | `counts > totals` mask |
+| Missing/duplicate required columns | N/A | Reject missing or duplicated `date`, `worksheet`, `count`, `total` names |
+| Bool rejection | Python/NumPy bool -> ValueError | Same scalar validator, preserving original scalar types |
+| Unsupported/missing values | Reject strings (including numeric strings), Decimal/Fraction/complex/duration, None/NA/NaN/infinities | Same scalar validator; no automatic text-to-number conversion |
+| Whole numeric values | Typed integer or finite whole float -> native Python int | Same scalar validator; preserve exact large integers |
+| SQLite bounds | Reject outside `[-2**63, 2**63-1]` before binding | Same scalar validator before the transaction |
+| Negative/count > total | ValueError | Same business rules, with zero-based row position in diagnostics |
+| Row binding | Single native tuple | `itertuples(index=False, name=None)` over required columns; independent of row labels |
+| Batch safety | Existing UPSERT transaction | Validate every tuple first, then one transactional `executemany`; rollback SQL failures |
+
+Duplicate/non-default/MultiIndex row labels are supported without mutating the caller's frame. Duplicate primary keys retain ordered last-row-wins UPSERT behavior. SQLite INTEGER type/exactness, nullable inputs, invalid final-row preflight and trigger-induced SQL rollback are verified in `tests/test_db_integer_binding.py`; importer/exporter/integration suites cover existing producers. See [typed inputs and operational boundaries](operations/sqlite-integer-inputs.md) for the intentional bulk numeric-string compatibility change, caller-side precision precautions and the exclusion of historical BLOB repair/schema migration.
 
 **DB Connection Management Pattern (v2.2):**
 
@@ -820,6 +844,14 @@ Screen layout is unchanged from v1. Only the data source changes; UI remains the
 
 ### 5.2 Sector Detail Page (pages/1_Sector_Detail.py)
 
+**Detail navigation revision history:**
+
+| Date | Change |
+|------|--------|
+| 2026-11-14 | Issue #12: resolve drilldown intent before canonical detail selectors; preserve manual choices on ordinary reruns; consume only applied valid targets; warn explicitly for invalid targets. No data changes. |
+
+`selected_sector` remains the overview chart/table intent payload. The destination validates it against `SECTORS`, assigns the canonical key to page-specific `sector_detail_sector`, then constructs `Select Sector` with `format_func=get_sector_display_name`. Only an applied target is removed. A valid target without data is selected and named by the existing no-data warning. Invalid payloads are discarded with a warning and do not replace a valid manual choice; stale widget values recover before construction.
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ Sector Detail                                               │
@@ -884,6 +916,12 @@ Issue #13: the date selector uses union bounds across all selected series. Below
 v2.3 revision: Display mode radio buttons, 10MA/Raw toggle, threshold dashed lines, latest value annotations, Y-axis % format, legend sorting (latest value descending).
 
 ### 5.4 Industry Detail Page (pages/3_Industry_Detail.py, v4.0)
+
+Issue #12: the destination inspects `selected_industry` **before either selector exists**. A valid configured target sets `industry_detail_sector_filter` to its configured parent (or `None` for All Sectors if no parent exists) and `industry_detail_industry` to the canonical industry key. Both widgets use canonical option values with display-name formatting. `None` is the explicit All Sectors value. The pending target is consumed only after industry and parent context have applied. Thus a previous Healthcare filter cannot hide Semiconductors or consume its intent while displaying Biotechnology.
+
+Without a target, valid manual filter/industry state persists; changing to a filter excluding the prior industry selects the first industry in display-name sort order. Invalid pending targets warn and are discarded while keeping valid manual state. Configured targets without data remain selected and produce a warning naming that exact target. Caption, metrics, chart and download all use the same canonical selection. Overview, Sector Detail and Heatmap producers retain their existing intent keys; no speculative source-event changes are required.
+
+`tests/test_detail_navigation.py` uses real registered page navigation and synthetic loaders. It covers pending intents over existing widgets, repeated cross-sector and same-target requests, manual filters/All Sectors, invalid/stale state, missing/empty data, and overview/sector/heatmap chart/table routes to previously visited pages. Event-only source simulation is used where AppTest cannot send Plotly/dataframe selections; destination selectors remain real. See [the navigation operating note](operations/detail-navigation.md).
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -1185,8 +1223,8 @@ Implemented with TDD. Tests are written first, and implementation is written to 
 | test_regime_prefix_invariant_across_truncation | calculate_sector_dispersion regime prefix-invariance (v5.3) |
 | test_no_event_on_blip_start | Short blip yields no forward-stat event (v5.3) |
 | test_event_date_is_confirmation_date | Forward-stat event date = confirmation date (v5.3) |
-| test_trailing_all_nan_rows_are_trimmed | Trailing all-NaN rows never reach the output (v5.3) |
-| test_partial_row_before_trailing_gap_is_excluded | Partial row before a trailing gap stays excluded (v5.3) |
+| test_trailing_all_nan_rows_retain_diagnostic_coverage | Trailing all-NaN dates retain zero coverage and missing metrics (v5.6) |
+| test_partial_row_before_trailing_gap_is_retained_as_invalid | Partial dates before a trailing gap remain diagnostic, without metrics (v5.6) |
 | test_absent_date_is_not_an_observation | A date with no row does not reset a candidate run (v5.3) |
 
 **test_data_processor.py:**
@@ -1550,7 +1588,7 @@ class DataCollector:
         """Fetch (uptrend_count, total_count) from Finviz API"""
         ...
 
-    def _make_request(self, url: str) -> pd.DataFrame:
+    def _make_request(self, url: str, *, session_date=None) -> pd.DataFrame:
         """GET url with retry/backoff; ConnectionError/Timeout exhaustion and
         non-HTTPError RequestException go through _raise_request_error;
         HTTPError paths raise sanitized errors via 'from None'. (v5.1)
@@ -1558,7 +1596,7 @@ class DataCollector:
         raises InvalidFinvizResponse and is not retried. (v5.5)"""
         ...
 
-    def _fetch_export(self, label: str, url: str) -> pd.DataFrame:
+    def _fetch_export(self, label: str, url: str, *, session_date=None) -> pd.DataFrame:
         """_make_request() that prefixes InvalidFinvizResponse with
         'uptrend response:' or 'total response:'. (v5.5)"""
         ...
@@ -1652,8 +1690,8 @@ python collect.py --scope industries
 # Specific category only
 python collect.py --worksheet ind_semiconductors
 
-# Specify date (for past data correction) — validates YYYY-MM-DD format
-python collect.py --date 2026-02-07
+# Assert the current New York session after its actual close (not a backfill)
+python collect.py --date SESSION_DATE
 
 # Dry run (runs collect_all/collect_worksheet with dry_run=True)
 python collect.py --dry-run
@@ -1689,31 +1727,21 @@ In scope mode (no `--worksheet`), `--dry-run` skips exit-code evaluation: the ru
 
 ```bash
 # Run every business day at 16:05 ET (after market close)
-# ※ Business day detection is handled within the script (Alpaca calendar API or date-based)
+# XNYS holiday/actual-close validation is handled offline by the collector
 5 16 * * 1-5 cd /path/to/uptrend-dashboard && /path/to/python collect.py >> logs/collect.log 2>&1
 ```
 
 > Log format: `%(asctime)s %(levelname)s: %(message)s`. RotatingFileHandler is not needed (cron's redirection is sufficient).
 
-**Business Day Detection:**
+**Session-date policy (Issue #3, v5.5.1):**
 
-stocktrading uses Alpaca API's calendar, but to avoid Alpaca dependency in uptrend-dashboard, one of the following approaches is used:
+`src/collection_session.py` uses `exchange_calendars==4.13.2` (requires Python 3.10+) (XNYS) and `zoneinfo` to validate the current New York date at/after its actual close. `resolve_collection_date(requested=None, now=None) -> str` rejects malformed, historical/future, non-session and before-close requests. `utc_now()` is the testable aware-clock boundary. `SessionPolicyError(ValueError)` is fatal and must be re-raised before `collect_all()`'s ordinary worksheet tolerance; `NonSessionDay` is its deliberate holiday/weekend subclass.
 
-| Approach | Pros | Cons |
-|----------|------|------|
-| A: Simple weekday check | No dependencies | Holidays trigger fetch attempts → possible 0 results |
-| B: `exchange_calendars` package | Accurate NYSE holiday detection | Additional dependency |
-| C: Run daily, skip UPSERT when data is 0 | Simplest | Unnecessary API calls |
+The CLI validates before DB/session initialization; each GET/retry, response classification, request-exception handler and pre-persistence boundary revalidate the same session. Policy errors suppress exception chaining so a prior secret-bearing transport exception cannot leak in formatted tracebacks. Both `collect_worksheet()` and `collect_all()` resolve default dates using New York, not the host date. Existing content/retry rules and industry tolerance remain for ordinary collection failures. Private `_make_request`, `_fetch_export` and `_fetch_stock_count` accept keyword-only `session_date=None` and pin/forward the resolved session.
 
-→ **Recommended: C** (simplicity first. Finviz API calls are lightweight; skip UPSERT when result is 0)
+`resolve_run_session(created_at, now=None)` asserts the New York date from the original GitHub workflow run creation timestamp; `scripts/session_preflight.sh` obtains that evidence using `actions: read`. Missing evidence, cross-date delays/reruns and policy failures cannot proceed. A same-date non-session is skipped with `eligible=false`; collection, export and commit require `eligible=true` and prior success. The module CLI exits 0 (eligible; prints date), 3 (non-session), or 1 (policy failure). Cron-only payloads cannot diagnose delay before run creation.
 
-**Additional Dependencies:**
-
-| Package | Purpose |
-|---------|---------|
-| `requests` | HTTP requests to Finviz API |
-
-> Only `requests` is added. Advanced features like circuit breakers from stocktrading's `FinvizClient` are not needed. Exponential backoff + jitter retry is sufficient.
+`audit_collection_dates.py --db PATH` opens existing SQLite in read-only mode and reports invalid/non-session/calendar-unknown labels without repair. Non-string labels include SQLite storage type; BLOB labels are represented as hex plus a null `date` so JSON diagnosis cannot crash. Tests cover exact formats, session boundaries, DST/early closes, HTTP retry/midnight drift, final-industry fatality, CLI no-request/no-DB refusal, scheduler gating, read-only audit and provenance-aware temporary historical import. See [the operating runbook](operations/collection-sessions.md) for copied-DB audit evidence and the separate `import_excel.py` source/backup/receipt/review procedure. No original DB/CSV was rewritten.
 
 **Retry/Error Handling Specification (v3.1):**
 
@@ -1723,7 +1751,7 @@ stocktrading uses Alpaca API's calendar, but to avoid Alpaca dependency in uptre
 | Backoff | Exponential backoff (2s → 4s → 8s …) + jitter (`delay * 0~25%`) |
 | Response contract | 200 body must satisfy the Finviz CSV response contract (below); otherwise `InvalidFinvizResponse`, not retried (v5.5; replaces the v3.1 empty-body → empty DataFrame rule) |
 | Data validation | `_validate_counts()`: validates negative values, count > total |
-| Exception scope | `collect_all()` catches only `RequestException` and `ValueError` (includes `InvalidFinvizResponse`) (v5.5) |
+| Exception scope | `collect_all()` re-raises fatal `SessionPolicyError` first; catches ordinary `RequestException` and `ValueError` (including `InvalidFinvizResponse`) per worksheet (v5.5.1) |
 | Secret masking | `mask_secrets()` sanitizes `auth=` params in all logged exceptions (v3.2) |
 | HTTP error sanitization | `_safe_http_error()` replaces HTTPError with URL-free message (v3.2) |
 | Session management | `close()` method ensures `requests.Session` is properly closed |
@@ -1848,6 +1876,10 @@ python import_excel.py path/to/export.xlsx
 
 ### 12.2 Start Dashboard
 
+**Development-preview revision (2026-11-14, Issue #17):** `.devcontainer/devcontainer.json` explicitly starts `streamlit run app.py --server.enableCORS true --server.enableXsrfProtection true`. The app entrypoint, port 8501 and `openPreview` forwarding are unchanged. Both protection flags remain explicitly enabled; the repository supplies no disabling override. Per-user reverse-proxy host configuration must use an exact verified address and does not alter shared defaults or forwarded-port visibility.
+
+`tests/test_devcontainer_security.py` validates the actual command and starts a loopback-only synthetic app. It verifies effective flags, HTML/WebSocket execution, exact forwarded Host/Origin compatibility, unrelated-Origin rejection and differential missing/valid-XSRF upload behavior. The tests use no real DB, user credentials, external API or additional client package. Process/socket cleanup and waits are bounded. Local proxy simulation is distinct from actual hosted Codespaces acceptance; see [protected preview operations](operations/protected-preview.md) for private forwarding, hostname diagnosis, hosted verification steps and evidence limits. Existing DB/CSV/application behavior is untouched.
+
 ```bash
 streamlit run app.py
 ```
@@ -1867,7 +1899,7 @@ python import_excel.py path/to/new_export.xlsx
 
 ### v5.3 missing-observation integration
 
-calculate_sector_dispersion trims leading and trailing all-sector NaN rows; interior all-sector NaN dates remain with missing regime/level_regime to reset confirmation. The existing final partial-day exclusion remains. TestDispersionMissingDateBoundary covers the public pipeline and both statistical consumers with nonlinear values; the uninterrupted confirmation-date test also uses nonlinear values. After an interior NaN row, dispersion_ma10 is NaN for the following 9 rows and dispersion_velocity is NaN again 3 rows later. Dates with no row are not observations and do not reset a run.
+The v5.3 missing-observation behavior is superseded by v5.6: all observed dates remain diagnostic, and every incomplete date resets pending confirmation. TestDispersionMissingDateBoundary still covers the public pipeline and statistical consumers with nonlinear values. After an incomplete row, MA10 requires ten complete observations and velocity requires four. Dates with no row are not observations and do not reset a run.
 
 ### v5.2 logging boundary regression coverage
 

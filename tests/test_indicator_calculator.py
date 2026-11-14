@@ -299,10 +299,9 @@ class TestCalculateSectorDispersion:
         """Output should have rows for dates where at least one sector has valid ma_10."""
         data = _make_sector_data(n=80)
         result = calculate_sector_dispersion(data)
-        # ma_10 has 9 leading NaNs, so leading warmup trimming removes those
-        first_sec = [k for k in data if k.startswith("sec_")][0]
-        expected_valid = data[first_sec]["ma_10"].notna().sum()
-        assert len(result) == expected_valid
+        # Observed warmup dates are retained with explicit zero coverage.
+        assert len(result) == 80
+        assert result.iloc[:9]["sector_count"].eq(0).all()
 
     def test_all_equal_sectors_zero_dispersion(self):
         """When all sectors have identical ma_10, dispersion should be 0."""
@@ -320,14 +319,16 @@ class TestCalculateSectorDispersion:
         valid_disp = result["dispersion"].dropna()
         assert (valid_disp < 1e-10).all()
 
-    def test_fewer_than_two_sectors_returns_empty(self):
-        """With fewer than 2 sectors, should return empty DataFrame."""
+    def test_one_sector_returns_coverage_without_market_metrics(self):
+        """A single sector supplies dates, but cannot classify the market."""
         dates = pd.bdate_range("2024-01-01", periods=20, freq="B")
         df = pd.DataFrame({"date": dates, "count": [200] * 20, "total": [500] * 20})
         calc = calculate_indicators(df)
         data = {"all": calc, "sec_technology": calc.copy()}
         result = calculate_sector_dispersion(data)
-        assert result.empty
+        assert len(result) == 20
+        assert result["regime"].isna().all()
+        assert result["sector_count"].max() == 1
 
     def test_excludes_all_key(self):
         """Should only use sec_* keys, not 'all'."""
@@ -533,6 +534,9 @@ class TestDetectDispersionSignals:
             "p75": [0.10] * n,
             "velocity_p90": [vel_p90] * n,
             "dispersion_median": [disp_median] * n,
+            "sector_count": [len(SECTORS)] * n,
+            "expected_sector_count": [len(SECTORS)] * n,
+            "coverage_complete": [True] * n,
         })
 
     def test_capitulation_signal(self):
@@ -1012,22 +1016,26 @@ class TestDispersionMissingDateBoundary:
                 for i, sector in enumerate(SECTORS)}
 
     @pytest.mark.parametrize("n_tail", [1, 2, 3])
-    def test_trailing_all_nan_rows_are_trimmed(self, n_tail):
+    def test_trailing_all_nan_rows_retain_diagnostic_coverage(self, n_tail):
         dates = pd.bdate_range("2026-01-05", periods=10)
         data = self._sector_data(dates, [.1] * (10 - n_tail) + [np.nan] * n_tail)
         result = calculate_sector_dispersion(data)
         last = result.iloc[-1]
-        assert last["date"] == dates[9 - n_tail]
-        assert last["dispersion"] == pytest.approx(.1)
-        assert last["regime"] == "normal"
+        assert last["date"] == dates[-1]
+        assert last["sector_count"] == 0
+        assert pd.isna(last["dispersion"])
+        assert pd.isna(last["regime"])
+        assert result.loc[9 - n_tail, "dispersion"] == pytest.approx(.1)
 
-    def test_partial_row_before_trailing_gap_is_excluded(self):
+    def test_partial_row_before_trailing_gap_is_retained_as_invalid(self):
         dates = pd.bdate_range("2026-01-05", periods=10)
         data = self._sector_data(dates, [.1] * 9 + [np.nan])
         data[SECTORS[0]].loc[8, "ma_10"] = np.nan
         result = calculate_sector_dispersion(data)
-        assert result.iloc[-1]["date"] == dates[7]
-        assert result.iloc[-1]["dispersion"] == pytest.approx(.1)
+        assert result.iloc[-1]["date"] == dates[-1]
+        assert result.loc[8, "sector_count"] == 10
+        assert result.iloc[8:]["dispersion"].isna().all()
+        assert result.loc[7, "dispersion"] == pytest.approx(.1)
 
     def test_absent_date_is_not_an_observation(self):
         """Rows are observed sessions: a date with no row does not reset a run.
