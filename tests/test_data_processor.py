@@ -612,8 +612,12 @@ class TestPrepareDispersionCsv:
             "velocity_p90": [np.nan] * 5,
             "dispersion_median": [0.07] * 5,
         })
+        df["sector_count"] = 11
+        df["expected_sector_count"] = 11
+        df["coverage_complete"] = True
         result = prepare_dispersion_csv(df)
-        expected = {"date", "dispersion", "mean_ratio", "range", "regime", "level_regime"}
+        expected = {"date", "dispersion", "mean_ratio", "range", "regime", "level_regime",
+                    "sector_count", "expected_sector_count", "coverage_complete"}
         assert set(result.columns) == expected
 
     def test_empty_dataframe(self):
@@ -622,9 +626,13 @@ class TestPrepareDispersionCsv:
             "date", "dispersion", "mean_ratio", "range",
             "regime", "level_regime",
         ])
+        df["sector_count"] = 11
+        df["expected_sector_count"] = 11
+        df["coverage_complete"] = True
         result = prepare_dispersion_csv(df)
         assert result.empty
-        expected = {"date", "dispersion", "mean_ratio", "range", "regime", "level_regime"}
+        expected = {"date", "dispersion", "mean_ratio", "range", "regime", "level_regime",
+                    "sector_count", "expected_sector_count", "coverage_complete"}
         assert set(result.columns) == expected
 
     def test_date_format(self):
@@ -643,5 +651,8 @@ class TestPrepareDispersionCsv:
             "velocity_p90": [np.nan, np.nan],
             "dispersion_median": [0.07, 0.07],
         })
+        df["sector_count"] = 11
+        df["expected_sector_count"] = 11
+        df["coverage_complete"] = True
         result = prepare_dispersion_csv(df)
         assert result["date"].iloc[0] == "2024-01-01"
