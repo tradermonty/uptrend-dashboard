@@ -137,11 +137,12 @@ class TestExportCsv:
         assert "dispersion" in result
         assert os.path.isfile(result["dispersion"]["path"])
         df = pd.read_csv(result["dispersion"]["path"])
-        expected_cols = {"date", "dispersion", "mean_ratio", "range", "regime", "level_regime"}
+        expected_cols = {"date", "dispersion", "mean_ratio", "range", "regime", "level_regime",
+                         "sector_count", "expected_sector_count", "coverage_complete"}
         assert expected_cols == set(df.columns)
 
-    def test_dispersion_empty_on_insufficient_sectors(self, tmp_path):
-        """With <2 sectors, dispersion CSV should have headers only."""
+    def test_dispersion_exposes_insufficient_sector_coverage(self, tmp_path):
+        """A sparse input exports diagnostic dates, never market metrics."""
         from export_csv import export_csv
 
         db_path = str(tmp_path / "sparse.db")
@@ -162,8 +163,13 @@ class TestExportCsv:
         result = export_csv(db_path, output_dir)
         assert "dispersion" in result
         df = pd.read_csv(result["dispersion"]["path"])
-        assert len(df) == 0
-        assert set(df.columns) == {"date", "dispersion", "mean_ratio", "range", "regime", "level_regime"}
+        assert len(df) == 20
+        assert df["dispersion"].isna().all()
+        assert df["regime"].isna().all()
+        assert not df["coverage_complete"].any()
+        assert df["sector_count"].iloc[-1] == 1
+        assert set(df.columns) == {"date", "dispersion", "mean_ratio", "range", "regime", "level_regime",
+                         "sector_count", "expected_sector_count", "coverage_complete"}
 
 
 class TestExportCsvCli:

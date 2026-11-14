@@ -5,8 +5,8 @@
 | Document Type | Software Design Document |
 | Project Name | uptrend-dashboard |
 | Created | 2026-02-08 |
-| Revised | 2026-11-13 |
-| Status | v5.5 Finviz response contract |
+| Revised | 2026-11-14 |
+| Status | v5.6 Complete sector coverage |
 
 ---
 
@@ -14,6 +14,7 @@
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2026-11-14 | v5.6 | Issue #5: require finite observations from all 11 configured sectors before dispersion statistics/regimes; retain diagnostic dates and export coverage; suppress current signals/advice on incomplete latest observations; preserve chart gaps. Published data is not regenerated in this change. |
 | 2026-11-13 | v5.5 | Finviz CSV response contract (Issue #2): `parse_finviz_export()` validates every 200 body before rows are counted; `InvalidFinvizResponse` (a ValueError) makes malformed, HTML/error, empty, ragged, duplicate-ticker and missing-ticker bodies a worksheet failure, so they can no longer be stored as counts. Header-only bodies remain valid zero-result exports. Parsed with the `csv` module so tickers such as `NA` stay strings. No published data changes. |
 | 2026-11-06 | v5.4 | `RedactingFilter` no longer raises into the caller on a malformed log call: `_render_log_message()` falls back to a redacted location and template, and drops the arguments. Malformed `exc_info` is replaced by a fixed placeholder through `_render_exception_text()`. `collect.py` configures logging before the missing-key check so that error keeps its format. |
 | 2026-11-06 | v5.3 | Sector Dispersion regime stabilization made causal: `_stabilize_regime` replaced by `_confirm_regime` sequential state machine (no lookahead, prefix-invariant labels, transition emitted only on confirmation date). Interior all-sector NaN rows are preserved to reset candidates; leading and trailing all-NaN rows are trimmed before the final partial-day exclusion. Absent dates are not observations. One-time regime relabel covered by docs/corrections/2026-11-regime-relabel.md. |
@@ -34,6 +35,18 @@
 | 2026-02-14 | v3.4 | CSV download buttons on main page for LLM data analysis |
 | 2026-02-11 | v3.3 | Sector summary bar chart click → Sector Detail page navigation |
 | 2026-02-11 | v3.2 | Data validation hardening, secret masking, CI test workflow. DB CHECK constraints, Python-level count/total validation, import_excel row filtering, mask_secrets/safe_http_error, GitHub Actions pytest |
+
+### v5.6 Key Changes (Complete Sector Coverage)
+
+- `calculate_sector_dispersion(sector_data)` uses exactly `SECTORS`, never the number of supplied frames; unknown `sec_*` keys cannot replace a configured sector. Observed dates come from all recognized frames with a `date` column, including frames without `ma_10`. Values are normalized numerically before finite filtering; object/nullable `pd.NA` and `None` remain missing, and nonnumeric values cannot count toward coverage. No missing session dates are invented.
+- All observed dates, including leading warmup, interior gaps and consecutive incomplete tails, remain in the output. New columns: `sector_count` (finite expected-sector values), `expected_sector_count` (11), `coverage_complete` (boolean). No recognized observed dates yields an empty frame with the full schema.
+- An incomplete row has NaN for every metric, threshold and regime. Masking occurs before cross-sectional statistics, MA10, velocity or expanding percentiles. MA10 needs 10 contiguous complete observations; 3-observation velocity needs all four observations complete. Expanding thresholds retain earlier valid history, but incomplete values never enter them. Missing regime observations reset pending confirmation; the confirmed regime is retained internally. Complete uninterrupted data retains its numerical calculations.
+- `detect_dispersion_signals()` evaluates the final observed row only. Missing/incomplete coverage metadata, missing labels or non-finite primary metrics returns no signals. It never falls back to an earlier date. Its input is the current calculation schema, not a legacy hand-built frame without coverage.
+- Dispersion Monitor and the Sector Comparison sidebar display latest observed date/coverage and last complete as-of date. Incomplete latest data withholds current signal banners, metrics, gauge, current regime ranking and action-guide highlights. Historical charts/statistics remain accessible if any complete history exists; otherwise the page explains insufficient coverage. This does not establish wall-clock/session freshness (Issue #3/#6).
+- Charts end valid regime bands/timeline runs before missing observations rather than bridging the gap.
+- `prepare_dispersion_csv()` retains the original six columns in order (`date`, `dispersion`, `mean_ratio`, `range`, `regime`, `level_regime`) and appends `sector_count`, `expected_sector_count`, `coverage_complete`. Sparse exports include diagnostic rows with blank metrics; exports without recognized dates contain headers only. All export paths use this schema.
+- Historical derived values can differ on future deliberate recalculation because previously accepted partial-sector observations no longer contribute. This PR does not regenerate or commit the tracked SQLite DB or published CSVs; review any publication/correction separately.
+- Regression coverage: `tests/test_dispersion_coverage.py` covers sparse/missing/unrecognized sectors, malformed later-date frames, non-finite histories, interior/tail gaps, gap-independent statistics, full-data references, causal confirmation/prefix invariance, signal withholding, chart gaps, CSV metadata and real temporary-DB export. `tests/test_dispersion_pages.py` registers both real pages with Streamlit navigation and synthetic loaders to verify complete, partial, never-complete and all-missing states.
 
 ### v5.5 Key Changes (Finviz Response Contract)
 
@@ -77,7 +90,7 @@
 - **Sector Comparison integration**: Sidebar dispersion gauge with regime badge and link to Dispersion Monitor
 - **New data processor functions**: `build_sector_ranking_table()` (regime-aware sort), `prepare_dispersion_csv()`
 - **New chart functions**: `build_dispersion_chart()` (dual-axis with time-series p25/p75 traces), `build_regime_timeline_chart()` (horizontal bar regime visualization)
-- **CSV export**: `data/sector_dispersion.csv` always regenerated (stale-file prevention); empty CSV with headers if insufficient sectors
+- **CSV export**: `data/sector_dispersion.csv` always regenerated (stale-file prevention); v5.6 exports incomplete dates with coverage and blank metrics, or headers only if no recognized dates
 - **New constants**: `DISPERSION_CONVERGED_FALLBACK`, `DISPERSION_DIVERGED_FALLBACK`, `MEAN_RATIO_LOW/HIGH`, `DISPERSION_VELOCITY_WINDOW`, `DISPERSION_MIN_HISTORY`, `CHART_HEIGHT_DISPERSION/REGIME_TIMELINE`
 - **Data guard**: All pages handle insufficient dispersion data gracefully (st.warning + st.stop or N/A display)
 
@@ -1178,8 +1191,8 @@ Implemented with TDD. Tests are written first, and implementation is written to 
 | test_regime_prefix_invariant_across_truncation | calculate_sector_dispersion regime prefix-invariance (v5.3) |
 | test_no_event_on_blip_start | Short blip yields no forward-stat event (v5.3) |
 | test_event_date_is_confirmation_date | Forward-stat event date = confirmation date (v5.3) |
-| test_trailing_all_nan_rows_are_trimmed | Trailing all-NaN rows never reach the output (v5.3) |
-| test_partial_row_before_trailing_gap_is_excluded | Partial row before a trailing gap stays excluded (v5.3) |
+| test_trailing_all_nan_rows_retain_diagnostic_coverage | Trailing all-NaN dates retain zero coverage and missing metrics (v5.6) |
+| test_partial_row_before_trailing_gap_is_retained_as_invalid | Partial dates before a trailing gap remain diagnostic, without metrics (v5.6) |
 | test_absent_date_is_not_an_observation | A date with no row does not reset a candidate run (v5.3) |
 
 **test_data_processor.py:**
@@ -1860,7 +1873,7 @@ python import_excel.py path/to/new_export.xlsx
 
 ### v5.3 missing-observation integration
 
-calculate_sector_dispersion trims leading and trailing all-sector NaN rows; interior all-sector NaN dates remain with missing regime/level_regime to reset confirmation. The existing final partial-day exclusion remains. TestDispersionMissingDateBoundary covers the public pipeline and both statistical consumers with nonlinear values; the uninterrupted confirmation-date test also uses nonlinear values. After an interior NaN row, dispersion_ma10 is NaN for the following 9 rows and dispersion_velocity is NaN again 3 rows later. Dates with no row are not observations and do not reset a run.
+The v5.3 missing-observation behavior is superseded by v5.6: all observed dates remain diagnostic, and every incomplete date resets pending confirmation. TestDispersionMissingDateBoundary still covers the public pipeline and statistical consumers with nonlinear values. After an incomplete row, MA10 requires ten complete observations and velocity requires four. Dates with no row are not observations and do not reset a run.
 
 ### v5.2 logging boundary regression coverage
 

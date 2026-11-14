@@ -45,12 +45,22 @@ with st.sidebar:
 sector_data = cached_load_sector_data()
 dispersion_df = calculate_sector_dispersion(sector_data)
 
+# === Coverage and historical as-of ===
+valid_df = dispersion_df.dropna(subset=["regime", "level_regime"])
+current_available = not dispersion_df.empty and bool(dispersion_df.iloc[-1]["coverage_complete"])
+if not dispersion_df.empty:
+    observed = dispersion_df.iloc[-1]
+    last_complete = str(valid_df.iloc[-1]["date"].date()) if not valid_df.empty else "none"
+    st.caption(
+        f"Latest observed: {observed['date'].date()} | "
+        f"Coverage: {observed['sector_count']}/{observed['expected_sector_count']} | "
+        f"Last complete as-of: {last_complete}"
+    )
+    if not current_available:
+        st.warning("Current dispersion signals unavailable: incomplete sector coverage. "
+                   "Charts and statistics below describe historical complete observations.")
+
 # === Data sufficiency guard ===
-valid_df = (
-    dispersion_df.dropna(subset=["regime", "level_regime"])
-    if not dispersion_df.empty
-    else dispersion_df
-)
 if valid_df.empty:
     st.warning(
         "Insufficient dispersion data. "
@@ -68,43 +78,44 @@ forward_stats = (
 )
 sector_edge = calculate_sector_edge(dispersion_df, sector_data)
 latest_valid = valid_df.iloc[-1]
-current_regime = latest_valid["regime"]
-current_level = latest_valid["level_regime"]
+current_regime = latest_valid["regime"] if current_available else None
+current_level = latest_valid["level_regime"] if current_available else None
 
-# --- 1. Signal Banner ---
-active_signals = [s for s in signals if s.active]
-if not active_signals:
-    st.success(f"NORMAL — Sector dispersion within normal range "
-               f"(σ={latest_valid['dispersion']:.3f}, mean={latest_valid['mean_ratio']:.1%})")
-else:
-    for sig in active_signals:
-        if sig.signal_id == "CAPITULATION":
-            st.error(
-                f"CAPITULATION ACTIVE — All sectors converged at low levels "
-                f"(σ={sig.dispersion:.3f}, mean={sig.mean_ratio:.1%})"
-            )
-        elif sig.signal_id == "DIVERGENCE_WARNING":
-            st.warning(
-                f"DIVERGENCE WARNING — Sector dispersion expanding "
-                f"(σ={sig.dispersion:.3f})"
-            )
-        elif sig.signal_id == "BREAKOUT_VELOCITY":
-            st.info(
-                f"BREAKOUT VELOCITY — Convergence breakout signal "
-                f"(σ={sig.dispersion:.3f})"
-            )
+if current_available:
+    # --- 1. Signal Banner ---
+    active_signals = [s for s in signals if s.active]
+    if not active_signals:
+        st.success(f"NORMAL — Sector dispersion within normal range "
+                   f"(σ={latest_valid['dispersion']:.3f}, mean={latest_valid['mean_ratio']:.1%})")
+    else:
+        for sig in active_signals:
+            if sig.signal_id == "CAPITULATION":
+                st.error(
+                    f"CAPITULATION ACTIVE — All sectors converged at low levels "
+                    f"(σ={sig.dispersion:.3f}, mean={sig.mean_ratio:.1%})"
+                )
+            elif sig.signal_id == "DIVERGENCE_WARNING":
+                st.warning(
+                    f"DIVERGENCE WARNING — Sector dispersion expanding "
+                    f"(σ={sig.dispersion:.3f})"
+                )
+            elif sig.signal_id == "BREAKOUT_VELOCITY":
+                st.info(
+                    f"BREAKOUT VELOCITY — Convergence breakout signal "
+                    f"(σ={sig.dispersion:.3f})"
+                )
 
-# --- Status metrics ---
-col1, col2, col3, col4 = st.columns(4)
-with col1:
-    st.metric("Dispersion (σ)", f"{latest_valid['dispersion']:.4f}")
-with col2:
-    st.metric("Mean Ratio", f"{latest_valid['mean_ratio']:.1%}")
-with col3:
-    regime_emoji = {"converged": "🟢", "normal": "🔵", "diverged": "🔴"}
-    st.metric("Regime", f"{regime_emoji.get(current_regime, '')} {current_regime.title()}")
-with col4:
-    st.metric("Level", current_level.title())
+    # --- Status metrics ---
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Dispersion (σ)", f"{latest_valid['dispersion']:.4f}")
+    with col2:
+        st.metric("Mean Ratio", f"{latest_valid['mean_ratio']:.1%}")
+    with col3:
+        regime_emoji = {"converged": "🟢", "normal": "🔵", "diverged": "🔴"}
+        st.metric("Regime", f"{regime_emoji.get(current_regime, '')} {current_regime.title()}")
+    with col4:
+        st.metric("Level", current_level.title())
 
 # === Date filter (chart/table display only) ===
 with st.sidebar:
@@ -145,25 +156,28 @@ st.plotly_chart(fig_timeline, use_container_width=True)
 
 # --- 4. Sector Ranking Table ---
 st.subheader("Sector Ranking")
-if current_regime == "converged" and current_level == "low":
-    st.caption("CAPITULATION regime: Ranked by historical recovery leaders")
-elif current_regime == "diverged":
-    st.caption("DIVERGENCE regime: Ranked by historical defensive leaders")
+if not current_available:
+    st.info("Current regime-based sector ranking is unavailable until all sectors report.")
 else:
-    st.caption("NORMAL regime: Ranked by current ratio")
+    if current_regime == "converged" and current_level == "low":
+        st.caption("CAPITULATION regime: Ranked by historical recovery leaders")
+    elif current_regime == "diverged":
+        st.caption("DIVERGENCE regime: Ranked by historical defensive leaders")
+    else:
+        st.caption("NORMAL regime: Ranked by current ratio")
 
-ranking = build_sector_ranking_table(sector_data, current_regime, current_level, sector_edge)
-if not ranking.empty:
-    st.dataframe(
-        ranking.style
-        .format({
-            "Current Ratio": "{:.1%}",
-            "10MA": "{:.1%}",
-            "Historical Edge": lambda x: f"{x:+.4f}" if x is not None and x == x else "N/A",
-        }),
-        use_container_width=True,
-        hide_index=True,
-    )
+    ranking = build_sector_ranking_table(sector_data, current_regime, current_level, sector_edge)
+    if not ranking.empty:
+        st.dataframe(
+            ranking.style
+            .format({
+                "Current Ratio": "{:.1%}",
+                "10MA": "{:.1%}",
+                "Historical Edge": lambda x: f"{x:+.4f}" if x is not None and x == x else "N/A",
+            }),
+            use_container_width=True,
+            hide_index=True,
+        )
 
 # --- 5. Historical Stats (Expander) ---
 with st.expander("Historical Stats (Regime Transition Events)"):

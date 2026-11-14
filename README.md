@@ -15,6 +15,12 @@ Streamlit + Plotly dashboard for visualizing US market uptrend stock ratios. Dat
 - **Self-Contained Data Collection**: Finviz Elite CSV scraper with cron-ready CLI (161 worksheets)
 - **CSV Export for LLM Access**: Automated CSV generation via GitHub Actions, accessible via raw URL
 
+### Dispersion coverage
+
+The Dispersion Monitor requires finite 10MA values from all 11 configured sectors for each observation. It displays the latest observed date and coverage (for example, `10/11`) separately from the last complete as-of date. When the latest observation is incomplete, current signals, regime-based ranking and action highlights are withheld; historical charts and statistics remain available when complete history exists. Complete coverage alone does not prove the data is current for today's market session.
+
+`sector_dispersion.csv` keeps its original six columns and appends `sector_count`, `expected_sector_count` and `coverage_complete`. Incomplete dates, including warmup and trailing missing observations, remain as diagnostic rows with blank metrics/regimes. Consumers should require `coverage_complete` and inspect `date` before using a row as a current signal; do not substitute an older complete row silently. Missing dates are not invented or forward-filled.
+
 ## Setup
 
 ### Prerequisites
