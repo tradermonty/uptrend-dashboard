@@ -7,6 +7,7 @@ import sys
 
 from dotenv import load_dotenv
 
+from src.collection_session import SessionPolicyError, resolve_collection_date, utc_now
 from src.constants import SECTORS, VALID_WORKSHEETS
 from src.data_collector import (
     CollectorConfig,
@@ -16,7 +17,7 @@ from src.data_collector import (
     redact,
 )
 from src.db_client import DBClient
-from src.collection_session import SessionPolicyError, resolve_collection_date, utc_now
+from src.finviz_universe import MigrationEvidenceError, load_evidence
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +73,11 @@ def main():
 
     scope = CollectScope(args.scope) if args.scope else CollectScope.ALL
     config = CollectorConfig(finviz_api_key=api_key)
+    try:
+        load_evidence(config.migration_evidence_path)
+    except MigrationEvidenceError as exc:
+        logger.error("Collection refused: %s", exc)
+        sys.exit(1)
     db_client = _DryRunDB() if args.dry_run else DBClient(args.db)
     collector = DataCollector(db_client=db_client, config=config)
 
@@ -173,7 +179,7 @@ def main():
                                 len(result.failed), industry_total,
                             )
                             # exit 0 (fallthrough)
-    except SessionPolicyError as exc:
+    except (SessionPolicyError, MigrationEvidenceError) as exc:
         logger.error("Collection refused: %s", redact(str(exc), [api_key]))
         sys.exit(1)
     finally:

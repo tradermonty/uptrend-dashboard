@@ -14,6 +14,7 @@
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2026-11-17 | v5.7 | Issue #35: evidence-gated stock/ETF Finviz routing, read-only matched ticker comparisons, preserved market/Financial fund denominators and historical raw data; see docs/finviz-migration.md. |
 | 2026-11-14 | v5.6 | Issue #5: require finite observations from all 11 configured sectors before dispersion statistics/regimes; retain diagnostic dates and export coverage; suppress current signals/advice on incomplete latest observations; preserve chart gaps. Published data is not regenerated in this change. |
 | 2026-11-14 | Issue #13 | Comparison date bounds use the union of all selected dated series; shared comparison filter reports per-series coverage, missing/disjoint data and empty/incomplete ranges. Stable page-specific date state resets on selected-set/bounds changes; no stored data changes. |
 | 2026-11-14 | Issue #9 | Collection and Excel dry-run never initialize or open the target DB; strict preview exit statuses expose any worksheet failure; normal persistence and live industry tolerance remain unchanged. |
@@ -38,6 +39,16 @@
 | 2026-02-14 | v3.4 | CSV download buttons on main page for LLM data analysis |
 | 2026-02-11 | v3.3 | Sector summary bar chart click → Sector Detail page navigation |
 | 2026-02-11 | v3.2 | Data validation hardening, secret masking, CI test workflow. DB CHECK constraints, Python-level count/total validation, import_excel row filtering, mask_secrets/safe_http_error, GitHub Actions pytest |
+
+### v5.7 Key Changes (Finviz Universe Continuity, Issue #35)
+
+- `src/finviz_universe.py` owns the original base/uptrend filters, a whitelist of worksheet routes, new export URL/parameter construction, canonical ticker identity and a versioned policy fingerprint. Market/Financial combine disjoint stock + ETF legs; ETF/closed-end fund industries use ETF; other worksheets use stocks. Every production request pins `c=1`, `type`, `v=151`, and `ft=4`.
+- `comparison_report(samples, started_at, completed_at)` records matched numerator/denominator sets, per-route counts, hashes, missing/extra identities, ratios, UTC retrieval window, New York date and latest closed exchange session. Only a complete matching representative matrix is ready. Invalid responses and failed requests remain failures, never zero observations.
+- `validate_evidence(report)` / `load_evidence(path)` reject missing, failed, incomplete or mismatched reviewed evidence. `CollectorConfig.migration_evidence_path` defaults to `docs/finviz-migration-evidence.json`. `collect.py` validates before DB initialization; `DataCollector` also validates library construction. Migration policy failures are fatal rather than tolerated industry failures.
+- `DataCollector._build_url(uptrend, sector=None, universe=None)` uses `/export/screener`. `_fetch_stock_count()` fetches both halves for every intended route, rejects overlap and numerator identities outside the denominator, and returns counts only after the complete pair is validated. Request pacing is between requests as before; mixed worksheets require four rather than two GETs. Total full-scope traffic increases from 322 to 326 GETs before retries.
+- `compare_finviz_exports.py --output NEW.json` is a separate read-only sampler using the unchanged legacy export as baseline. It does not open a DB or publish CSVs and never overwrites a report or the approved evidence. Missing/failed/changed samples cannot authorize collection. See `docs/finviz-migration.md` for the sampled counts, limitations and cutover/revalidation procedure.
+- The 2026-11-16 completed-session comparison retained market 508/2730, Financial 105/581 and fund denominators 47/35/3. Stocks-only routing would drop 85 denominator identities. ETF 0/0 remains a no-write industry observation. Raw schema, historical rows and published CSVs are not changed by this implementation.
+- Regression suite: `tests/test_finviz_migration.py`; the existing URL/fetch fixtures in `tests/test_data_collector.py`, `tests/test_collection_session.py` and `tests/test_dry_run_filesystem.py` now model explicit empty ETF legs for stock-only samples while preserving retry, secrecy, persistence, tolerance and dry-run assertions.
 
 ### v5.6 Key Changes (Complete Sector Coverage)
 

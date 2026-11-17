@@ -178,7 +178,14 @@ def test_cli_policy_violation_is_nonzero_without_traceback(tmp_path, mocker, cap
 
 @pytest.mark.parametrize("explicit", [None, "2026-11-13"])
 def test_valid_default_and_explicit_session_persist_same_date(collector, db_client, mocker, explicit):
-    mocker.patch.object(collector._session, "get", side_effect=lambda *a, **k: csv_response())
+    from urllib.parse import parse_qs, urlsplit
+    def get(url, **kwargs):
+        result = csv_response()
+        if parse_qs(urlsplit(url).query)["type"] == ["etf"]:
+            result._content = b"Ticker\n"
+        return result
+    mocker.patch.object(collector._session, "get", side_effect=get)
+    mocker.patch("src.data_collector.time.sleep")
     assert collector.collect_worksheet("all", date=explicit) == (1, 1)
     row = db_client.fetch_raw_data("all").iloc[0]
     assert str(row["date"].date()) == "2026-11-13"

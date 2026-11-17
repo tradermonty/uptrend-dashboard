@@ -13,21 +13,25 @@ from typing import Dict, List, NoReturn, Optional, Tuple
 import pandas as pd
 import requests
 
+from src.collection_session import SessionPolicyError, resolve_collection_date
 from src.constants import INDUSTRIES, SECTORS, VALID_WORKSHEETS
 from src.db_client import DBClient
-from src.collection_session import SessionPolicyError, resolve_collection_date
+from src.finviz_universe import (
+    BASE_FILTERS as _BASE_FILTERS,
+)
+from src.finviz_universe import (
+    DEFAULT_EVIDENCE,
+    MigrationEvidenceError,
+    build_export_url,
+    load_evidence,
+    ticker_set,
+    universes_for,
+)
+from src.finviz_universe import (
+    UPTREND_FILTERS as _UPTREND_FILTERS,
+)
 
 logger = logging.getLogger(__name__)
-
-# Finviz screener filters
-_BASE_FILTERS = ["cap_microover", "sh_avgvol_o100", "sh_price_o10"]
-_UPTREND_FILTERS = _BASE_FILTERS + [
-    "ta_highlow52w_a30h",
-    "ta_perf2_4wup",
-    "ta_sma20_pa",
-    "ta_sma200_pa",
-    "ta_sma50_sa200",
-]
 
 
 class CollectScope(Enum):
@@ -237,6 +241,7 @@ class CollectorConfig:
     retry_delay: float = 2.0
     request_interval: float = 2.0
     http_timeout: float = 30.0
+    migration_evidence_path: str = str(DEFAULT_EVIDENCE)
 
 
 class DataCollector:
@@ -245,6 +250,7 @@ class DataCollector:
     def __init__(self, db_client: DBClient, config: CollectorConfig):
         self._db = db_client
         self._config = config
+        load_evidence(config.migration_evidence_path)  # fail before HTTP/persistence
         self._session = requests.Session()
 
     def _build_filters(self, uptrend: bool, sector: str = None) -> str:
@@ -253,12 +259,11 @@ class DataCollector:
             filters.append(sector)
         return ",".join(filters)
 
-    def _build_url(self, uptrend: bool, sector: str = None) -> str:
-        filters = self._build_filters(uptrend, sector)
-        return (
-            f"{self._config.base_url}/export.ashx"
-            f"?v=151&f={filters}&ft=4&auth={self._config.finviz_api_key}"
-        )
+    def _build_url(self, uptrend: bool, sector: str = None, universe: str = None) -> str:
+        worksheet = sector or 'all'
+        universe = universe or universes_for(worksheet)[0]
+        return build_export_url(self._config.base_url, self._config.finviz_api_key,
+                                uptrend, worksheet, universe)
 
     def _build_uptrend_url(self, sector: str = None) -> str:
         return self._build_url(uptrend=True, sector=sector)
@@ -338,14 +343,27 @@ class DataCollector:
     def _fetch_stock_count(self, sector: str = None, *, session_date: Optional[str] = None) -> Tuple[int, int]:
         """Fetch uptrend count and total count for a sector (or all)."""
         session_date = resolve_collection_date(session_date)
-        uptrend_url = self._build_uptrend_url(sector)
-        total_url = self._build_total_url(sector)
-
-        uptrend_df = self._fetch_export("uptrend", uptrend_url, session_date=session_date)
-        time.sleep(self._config.request_interval)
-        total_df = self._fetch_export("total", total_url, session_date=session_date)
-
-        return len(uptrend_df), len(total_df)
+        worksheet = sector or 'all'
+        routes = universes_for(worksheet)
+        halves = {}
+        first_request = True
+        for uptrend, label in ((True, 'uptrend'), (False, 'total')):
+            tickers = set()
+            for route in routes:
+                url = self._build_url(uptrend, sector, universe=route)
+                if not first_request:
+                    time.sleep(self._config.request_interval)
+                frame = self._fetch_export(label, url, session_date=session_date)
+                first_request = False
+                column = next(c for c in frame.columns if c.casefold() == 'ticker')
+                values = ticker_set(frame[column].tolist())
+                if tickers & values:
+                    raise InvalidFinvizResponse('overlapping stock/fund ticker identities')
+                tickers |= values
+            halves[label] = tickers
+        if not halves['uptrend'] <= halves['total']:
+            raise InvalidFinvizResponse('uptrend tickers are not a subset of the total universe')
+        return len(halves['uptrend']), len(halves['total'])
 
     def _fetch_export(self, label: str, url: str, *, session_date: Optional[str] = None) -> pd.DataFrame:
         """Fetch one export, naming which request failed the contract."""
@@ -432,7 +450,7 @@ class DataCollector:
                 result.succeeded[worksheet] = self.collect_worksheet(
                     worksheet, date, dry_run=dry_run,
                 )
-            except SessionPolicyError:
+            except (SessionPolicyError, MigrationEvidenceError):
                 raise  # Fatal even for the final industry: never absorb into tolerance.
             except (requests.RequestException, ValueError) as exc:
                 logger.error(
