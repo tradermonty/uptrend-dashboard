@@ -74,7 +74,7 @@ class TestBuildUrl:
 
     def test_build_uptrend_url_no_sector(self, collector):
         url = collector._build_uptrend_url()
-        assert "/export.ashx" in url
+        assert "/export/screener" in url
         assert "cap_microover" in url
         assert "sh_avgvol_o100" in url
         assert "sh_price_o10" in url
@@ -114,7 +114,7 @@ class TestBuildUrl:
 
     def test_url_uses_export_endpoint(self, collector):
         url = collector._build_uptrend_url()
-        assert url.startswith("https://elite.finviz.com/export.ashx?")
+        assert url.startswith("https://elite.finviz.com/export/screener?")
         assert "v=151" in url
         assert "ft=4" in url
 
@@ -140,6 +140,16 @@ SAMPLE_CSV = "No.,Ticker,Company,Sector\n1,AAPL,Apple Inc.,Technology\n2,MSFT,Mi
 EMPTY_CSV = "No.,Ticker,Company,Sector\n"
 
 
+
+
+def _routed_csv_response(url, **kwargs):
+    """Stock-only legacy fixtures have no additional ETF identities in mixed rows."""
+    from urllib.parse import parse_qs, urlsplit
+    query = parse_qs(urlsplit(url).query)
+    empty_fund_leg = query.get("type") == ["etf"] and "ind_" not in query.get("f", [""])[0]
+    return _csv_response(EMPTY_CSV if empty_fund_leg else SAMPLE_CSV)
+
+
 class TestFetchStockCount:
     """Test HTTP fetching and CSV parsing."""
 
@@ -156,19 +166,19 @@ class TestFetchStockCount:
     def test_fetch_stock_count_success(self, collector, mocker):
         mock_get = mocker.patch.object(
             collector._session, "get",
-            side_effect=[_csv_response(SAMPLE_CSV), _csv_response(SAMPLE_CSV)],
+            side_effect=[_csv_response(SAMPLE_CSV), _csv_response(EMPTY_CSV), _csv_response(SAMPLE_CSV), _csv_response(EMPTY_CSV)],
         )
         count, total = collector._fetch_stock_count()
         assert count == 3
         assert total == 3
-        assert mock_get.call_count == 2
+        assert mock_get.call_count == 4
 
     def test_fetch_stock_count_retry_on_429(self, collector, mocker):
         resp_429 = _csv_response("", status_code=429)
         resp_ok = _csv_response(SAMPLE_CSV)
         mocker.patch.object(
             collector._session, "get",
-            side_effect=[resp_429, resp_ok, resp_ok],
+            side_effect=[resp_429, resp_ok, _csv_response(EMPTY_CSV), resp_ok, _csv_response(EMPTY_CSV)],
         )
         count, total = collector._fetch_stock_count()
         assert count == 3
@@ -177,7 +187,7 @@ class TestFetchStockCount:
     def test_fetch_stock_count_zero_results(self, collector, mocker):
         mocker.patch.object(
             collector._session, "get",
-            side_effect=[_csv_response(EMPTY_CSV), _csv_response(SAMPLE_CSV)],
+            side_effect=[_csv_response(EMPTY_CSV), _csv_response(EMPTY_CSV), _csv_response(SAMPLE_CSV), _csv_response(EMPTY_CSV)],
         )
         count, total = collector._fetch_stock_count()
         assert count == 0
@@ -197,8 +207,8 @@ class TestFetchStockCount:
             collector._session, "get",
             side_effect=[
                 requests.ConnectionError("network down"),
-                _csv_response(SAMPLE_CSV),
-                _csv_response(SAMPLE_CSV),
+                _csv_response(SAMPLE_CSV), _csv_response(EMPTY_CSV),
+                _csv_response(SAMPLE_CSV), _csv_response(EMPTY_CSV),
             ],
         )
         count, total = collector._fetch_stock_count()
@@ -269,7 +279,7 @@ class TestCollectWorkflow:
     def test_collect_worksheet(self, collector, db_client, mocker):
         mocker.patch.object(
             collector._session, "get",
-            side_effect=[_csv_response(SAMPLE_CSV), _csv_response(SAMPLE_CSV)],
+            side_effect=[_csv_response(SAMPLE_CSV), _csv_response(EMPTY_CSV), _csv_response(SAMPLE_CSV), _csv_response(EMPTY_CSV)],
         )
         count, total = collector.collect_worksheet("all", date="2026-11-13")
         assert count == 3
@@ -284,7 +294,7 @@ class TestCollectWorkflow:
         """total=0 for 'all' or sec_* should raise ValueError (API failure indicator)."""
         mocker.patch.object(
             collector._session, "get",
-            side_effect=[_csv_response(EMPTY_CSV), _csv_response(EMPTY_CSV)],
+            side_effect=[_csv_response(EMPTY_CSV) for _ in range(4)],
         )
         with pytest.raises(ValueError, match="Empty data"):
             collector.collect_worksheet("all", date="2026-11-13")
@@ -315,7 +325,7 @@ class TestCollectWorkflow:
         """dry_run + total=0 should succeed (no raise, no DB write)."""
         mocker.patch.object(
             collector._session, "get",
-            side_effect=[_csv_response(EMPTY_CSV), _csv_response(EMPTY_CSV)],
+            side_effect=[_csv_response(EMPTY_CSV) for _ in range(4)],
         )
         count, total = collector.collect_worksheet("all", date="2026-11-13", dry_run=True)
         assert count == 0
@@ -324,7 +334,7 @@ class TestCollectWorkflow:
     def test_collect_all(self, collector, mocker):
         mocker.patch.object(
             collector._session, "get",
-            return_value=_csv_response(SAMPLE_CSV),
+            side_effect=_routed_csv_response,
         )
         result = collector.collect_all(date="2026-11-13")
         assert isinstance(result, CollectResult)
@@ -344,7 +354,7 @@ class TestCollectWorkflow:
             # Fail on the first call only (first worksheet's uptrend request)
             if call_count == 1:
                 raise requests.ConnectionError("network down")
-            return _csv_response(SAMPLE_CSV)
+            return _routed_csv_response(*args, **kwargs)
 
         mocker.patch.object(collector._session, "get", side_effect=side_effect)
         mocker.patch.object(collector._config, "max_retries", 1)
@@ -377,7 +387,7 @@ class TestCollectWorkflow:
         """Fix 7: dry_run=True should skip DB write but run validation."""
         mocker.patch.object(
             collector._session, "get",
-            side_effect=[_csv_response(SAMPLE_CSV), _csv_response(SAMPLE_CSV)],
+            side_effect=[_csv_response(SAMPLE_CSV), _csv_response(EMPTY_CSV), _csv_response(SAMPLE_CSV), _csv_response(EMPTY_CSV)],
         )
         count, total = collector.collect_worksheet("all", date="2026-11-13", dry_run=True)
         assert count == 3
@@ -390,7 +400,7 @@ class TestCollectWorkflow:
         """Fix 7: collect_all dry_run=True should skip DB writes."""
         mocker.patch.object(
             collector._session, "get",
-            return_value=_csv_response(SAMPLE_CSV),
+            side_effect=_routed_csv_response,
         )
         mock_upsert = mocker.patch.object(collector._db, "upsert_raw_data")
         result = collector.collect_all(date="2026-11-13", dry_run=True)
@@ -413,7 +423,7 @@ class TestCollectWorkflow:
         """scope=SECTORS should collect only 'all' + 11 sectors (12 worksheets)."""
         mocker.patch.object(
             collector._session, "get",
-            return_value=_csv_response(SAMPLE_CSV),
+            side_effect=_routed_csv_response,
         )
         result = collector.collect_all(date="2026-11-13", scope=CollectScope.SECTORS)
         assert len(result.succeeded) == 12
@@ -890,7 +900,7 @@ class TestVerboseSecretLeak:
         caplog.handler.addFilter(RedactingFilter([self.KEY]))
         mocker.patch.object(
             collector._session, "get",
-            side_effect=[_csv_response(SAMPLE_CSV), _csv_response(SAMPLE_CSV)],
+            side_effect=[_csv_response(SAMPLE_CSV), _csv_response(EMPTY_CSV), _csv_response(SAMPLE_CSV), _csv_response(EMPTY_CSV)],
         )
         count, total = collector.collect_worksheet("all", date="2026-11-13")
         assert (count, total) == (3, 3)
@@ -1215,7 +1225,7 @@ class TestInvalidResponseCollection:
 
     def test_invalid_total_response_writes_nothing(self, collector, db_client, mocker):
         mocker.patch.object(collector._session, "get", side_effect=[
-            _csv_response(SAMPLE_CSV), _csv_response("<html>maintenance</html>"),
+            _csv_response(SAMPLE_CSV), _csv_response(EMPTY_CSV), _csv_response("<html>maintenance</html>"),
         ])
         with pytest.raises(dc_module.InvalidFinvizResponse) as excinfo:
             collector.collect_worksheet("all", date="2026-11-13")
@@ -1275,7 +1285,7 @@ def test_cli_invalid_sector_body_exits_2(tmp_db, mocker):
     def fake_get(self, url, timeout):
         if "sec_technology" in url:
             return _csv_response("error\nsubscription expired\n")
-        return _csv_response(SAMPLE_CSV)
+        return _routed_csv_response(url, timeout=timeout)
 
     mocker.patch("requests.Session.get", fake_get)
     from collect import main

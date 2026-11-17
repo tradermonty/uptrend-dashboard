@@ -24,7 +24,18 @@ def offline(mocker):
     response = requests.Response()
     response.status_code = 200
     response._content = b'Ticker,Company\nAAPL,Apple\n'
-    get = mocker.patch('requests.Session.get', return_value=response)
+    # Root/Financial fixtures represent stock-only matches, with a valid empty
+    # ETF leg. Fund industry fixtures still return their own ticker normally.
+    from urllib.parse import parse_qs, urlsplit
+    def routed(url, **kwargs):
+        query = parse_qs(urlsplit(url).query)
+        if query['type'] == ['etf'] and 'ind_' not in query['f'][0]:
+            empty = requests.Response()
+            empty.status_code = 200
+            empty._content = b'Ticker\n'
+            return empty
+        return response
+    get = mocker.patch('requests.Session.get', side_effect=routed)
     close = mocker.spy(requests.Session, 'close')
     return get, close
 
@@ -71,15 +82,15 @@ def test_collection_single_preview_preserves_target(target, tmp_path, mocker, of
 @pytest.mark.parametrize('outcome,expected', [('success', 0), ('partial', 2), ('failure', 1)])
 def test_bulk_preview_status_and_no_mutation(target, tmp_path, mocker, offline, scope, outcome, expected):
     get, close = offline
-    valid = get.return_value
+    valid = get.side_effect
     bad = requests.Response()
     bad.status_code = 200
     bad._content = b'<html>invalid export</html>'
     if outcome == 'failure':
-        get.return_value = bad
+        get.side_effect = lambda *a, **kw: bad
     elif outcome == 'partial':
         # Fail one worksheet, then allow all remaining requests to succeed.
-        get.side_effect = lambda *a, **kw: bad if get.call_count == 1 else valid
+        get.side_effect = lambda *a, **kw: bad if get.call_count == 1 else valid(*a, **kw)
     before = snapshot(tmp_path)
     assert run_collect(mocker, target, '--dry-run', '--scope', scope) == expected
     assert snapshot(tmp_path) == before
