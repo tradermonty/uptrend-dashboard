@@ -54,3 +54,7 @@ Repeat the comparison around the December 7, 2026 cutover and after provider/fil
 - SHA-256 fingerprints of all 11 data files across the original checkout and isolated implementation worktree were unchanged after sampling and the full suite. No production collection or publication was run.
 
 This validates the sampled pre-cutover behavior and offline guards. It does not establish post-December-7 behavior; repeat the documented comparison around the provider cutover.
+
+## Operational cutover tracking
+
+See [the 2026-11-18 cutover ledger and comparison impact](uptrend-cutover-20261118.md). It separates the Dashboard’s verified first new-route session (2026-11-17) from the upstream stocks-only series, whose first production write remains unverified. The 79-fund exclusion belongs to the upstream definition change.
