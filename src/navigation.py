@@ -22,8 +22,8 @@ class PageSpec:
 # their original numbers so URLs and st.switch_page() paths do not change.
 PAGE_SPECS = (
     PageSpec("views/0_Uptrend_Ratio.py", "Uptrend Ratio", "📈", default=True),
-    PageSpec("views/5_Industry_Heatmap.py", "Industry Heatmap", "🗺️"),
     PageSpec("views/1_Sector_Detail.py", "Sector Detail", "🔍"),
+    PageSpec("views/5_Industry_Heatmap.py", "Industry Heatmap", "🗺️"),
     PageSpec("views/2_Sector_Comparison.py", "Sector Comparison", "📊"),
     PageSpec("views/3_Industry_Detail.py", "Industry Detail", "🏭"),
     PageSpec("views/4_Industry_Comparison.py", "Industry Comparison", "📊"),

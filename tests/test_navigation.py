@@ -12,8 +12,8 @@ def test_first_page_is_named_uptrend_ratio_not_app():
     assert PAGE_SPECS[0].default is True
 
 
-def test_industry_heatmap_is_second_most_used_page():
-    assert PAGE_SPECS[1].title == "Industry Heatmap"
+def test_menu_order_uptrend_sector_detail_heatmap():
+    assert [s.title for s in PAGE_SPECS[:3]] == ["Uptrend Ratio", "Sector Detail", "Industry Heatmap"]
 
 
 def test_only_one_default_page():
