@@ -558,7 +558,7 @@ def is_industry(worksheet: str) -> bool:
     return worksheet.startswith("ind_")
 
 
-# Industry constituent snapshot (v5.2). Stored columns, in order.
+# Industry constituent snapshot (v5.9). Stored columns, in order.
 # market_cap is in $M (as exported by Finviz); change/perf_* are fractions (0.05 = 5%).
 CONSTITUENT_COLUMNS = [
     "ticker",

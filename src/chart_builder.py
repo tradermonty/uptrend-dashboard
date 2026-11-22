@@ -1,5 +1,6 @@
 """Plotly chart builders for uptrend dashboard (v2)."""
 
+import html
 import logging
 from typing import Dict, List, Optional
 
@@ -537,7 +538,7 @@ def _heatmap_with_stocks(
       stocks split their industry's value in proportion to market cap.
     - Colors: sectors/industries keep their ratio/status colors (converted to
       explicit colors because stocks use a different scale: daily change).
-    - Text: the ticker is an <a> link to the Finviz weekly chart; uptrend stocks are
+    - Text: plain ticker (customdata holds the Finviz URL opened by the tap handler); uptrend stocks are
       bold with a thick outline.
     - maxdepth=2: the first view stops at industries; tap an industry for stocks.
     """
@@ -587,7 +588,7 @@ def _heatmap_with_stocks(
                 link = f"<b>{link}</b>"
             text.append(f"{link}<br>{_pct(stock['change'])}")
             hovertext.append(
-                f"<b>{ticker}</b> {stock['company'] if pd.notna(stock['company']) else ''}<br>"
+                f"<b>{ticker}</b> {html.escape(str(stock['company'])) if pd.notna(stock['company']) else ''}<br>"
                 f"Market Cap: {_format_market_cap(stock['market_cap'])}<br>"
                 f"Change: {_pct(stock['change'])}<br>"
                 f"Perf Week: {_pct(stock['perf_week'])}<br>"

@@ -76,6 +76,8 @@ trend_counts = summary["Trend"].value_counts()
 # KPI cards double as filters: tapping one reloads the page with ?filter=<key>
 # and both the heatmap and the table show only the matching industries.
 active_filter = parse_heatmap_filter(st.query_params.get("filter"))
+_valid_ratios = summary["Ratio"].dropna()
+full_color_range = (max(0, _valid_ratios.min()), _valid_ratios.max()) if len(_valid_ratios) else None
 
 
 def _kpi(label, share, tone, key):
@@ -132,6 +134,8 @@ elif has_stocks:
 fig = build_industry_heatmap(
     summary, color_mode=color_mode_key, size_mode=size_mode_key, drilldown=is_mobile,
     constituents=constituents if has_stocks else None,
+    # Filtered view keeps the full-market scale, so an oversold industry never turns green
+    color_range=full_color_range if active_filter and not is_mobile else None,
 )
 show_treemap(fig, mobile_height=560)
 

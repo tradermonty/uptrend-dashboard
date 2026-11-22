@@ -182,14 +182,15 @@ def show_treemap(fig: go.Figure, mobile_height: Optional[int] = None) -> None:
     """Render a treemap whose stock tiles open Finviz on tap (no dead-end leaf zoom).
 
     st.plotly_chart cannot attach Plotly event handlers, so the figure is rendered
-    as its own HTML in a component iframe.
+    as its own HTML in st.iframe (st.components.v1.html is deprecated). The HTML is
+    built only from our own figure; company names in it are escaped upstream.
     """
-    import streamlit.components.v1 as components
+    import streamlit as st
 
     if is_mobile_client():
         apply_mobile_layout(fig, height=mobile_height)
     height = int(fig.layout.height or 700)
-    components.html(treemap_html(fig, height), height=height + 10)
+    st.iframe(treemap_html(fig, height), height=height + 10)
 
 
 def show_chart(

@@ -33,6 +33,50 @@ def _constituents(rows):
 # ---------------------------------------------------------------------------
 # DBClient constituent storage
 # ---------------------------------------------------------------------------
+class TestReadPathDoesNotWrite:
+    """The committed DB on main has no industry_constituents table yet.
+
+    Page loads must not change it (schema DDL is a write) and must still work
+    on a read-only DB.
+    """
+
+    def _legacy_db(self, tmp_path):
+        import sqlite3
+        path = tmp_path / "legacy.db"
+        with sqlite3.connect(path) as conn:
+            conn.execute("CREATE TABLE uptrend_raw (date TEXT, worksheet TEXT, count INTEGER, "
+                         "total INTEGER, PRIMARY KEY (date, worksheet))")
+            conn.execute("CREATE INDEX idx_uptrend_raw_worksheet ON uptrend_raw (worksheet, date)")
+            conn.execute("INSERT INTO uptrend_raw VALUES ('2026-11-20', 'all', 1, 2)")
+        return path
+
+    def test_reads_leave_legacy_db_byte_identical(self, tmp_path):
+        from src.db_client import DBClient
+        path = self._legacy_db(tmp_path)
+        before = path.read_bytes()
+        client = DBClient(str(path))
+        assert client.fetch_constituents("ind_copper").empty
+        assert client.fetch_all_constituents().empty
+        assert path.read_bytes() == before
+
+    def test_reads_work_on_read_only_legacy_db(self, tmp_path):
+        import os
+        from src.db_client import DBClient
+        path = self._legacy_db(tmp_path)
+        os.chmod(path, 0o444)
+        try:
+            client = DBClient(str(path))
+            assert client.fetch_all_constituents().empty
+        finally:
+            os.chmod(path, 0o644)
+
+    def test_first_write_creates_the_table(self, tmp_path):
+        from src.db_client import DBClient
+        client = DBClient(str(self._legacy_db(tmp_path)))
+        client.replace_all_constituents("2026-11-20", {"ind_gold": _constituents([("NEM", "N", 2.0, False)])})
+        assert client.fetch_constituents("ind_gold")["ticker"].tolist() == ["NEM"]
+
+
 class TestConstituentStorage:
 
     def test_fetch_all_returns_every_industry_with_worksheet(self, db_client):

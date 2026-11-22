@@ -245,7 +245,7 @@ def style_status_row(row):
     return styles
 
 
-# Stored constituent column -> display column (v5.2), in display order
+# Stored constituent column -> display column (v5.9), in display order
 CONSTITUENT_DISPLAY_COLUMNS = {
     "ticker": "Ticker",
     "company": "Company",

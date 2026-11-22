@@ -58,10 +58,11 @@
 - **KPI cards (`src/kpi_cards.py`)**: `KpiCard(label, value, tone)`, `trend_card()`, `status_card()`, `regime_card()`, `kpi_cards_html()` / `render_kpi_cards()` replace `st.columns` + `st.metric` with emoji on the Uptrend Ratio, Sector Detail, Industry Detail, Heatmap and Dispersion pages. Tone colors: up `#0a8f5a`, down `#d63a2f`, overbought `#d62728`, oversold `#2ca02c`, normal `#1f77b4`; a responsive grid gives 2 cards per row on phones. Page tests read cards via `tests/kpi_helpers.py`
 - **Heatmap KPI filters**: the five Industry Heatmap cards are same-tab links (`KpiCard(href=..., active=...)`) to `?filter=oversold|normal|overbought|trend_up|trend_down`. `parse_heatmap_filter()` validates the query value (unknown → no filter) and `filter_industry_summary(summary, key)` (`HEATMAP_FILTERS` in data_processor) restricts both the treemap and the Industry Summary table. KPI percentages stay market-wide. The active card gets a ring; tapping it again (or "Show all") clears the filter. A status line shows "Filter: X — N of M industries" with "Jump to table" (`#industry-summary`). A filter link reloads the page (new session)
 - **AI skill link (`src/page_footer.py`)**: below Data Download on the Uptrend Ratio page, `render_ai_skill_note()` shows "Want to analyze this uptrend data with AI? Try the Uptrend Analyzer skill for Claude →", linking (new tab, `rel=noopener`) to `UPTREND_ANALYZER_SKILL_URL` = https://tradermonty.github.io/claude-trading-skills/en/skills/uptrend-analyzer/ (same wording/style as the Market Breadth Analysis page)
+- **Review fixes before merge (PR #39)**: (1) the `industry_constituents` DDL runs only on the write path (`DBClient._ensure_constituents_table`, called by `replace_all_constituents`); reads on a DB that predates the table return empty frames and leave the file byte-identical, and work on a read-only DB. (2) `show_treemap` uses `st.iframe` (`st.components.v1.html` is deprecated). (3) With a KPI filter on desktop the heatmap keeps the full-market color range (`color_range`), so an oversold industry is never drawn green. (4) Company names are HTML-escaped in stock hover text
 
 ### v5.8 Key Changes (Mobile Layout & Navigation)
 
-- **Explicit navigation**: `app.py` is now a router that registers pages via `st.navigation()` from `src/navigation.py` (`PageSpec(path, title, icon, default)`, `PAGE_SPECS`). The former main page moved to `views/0_Uptrend_Ratio.py` and appears as "Uptrend Ratio" in the sidebar menu. Existing `st.switch_page("views/...")` paths are unchanged
+- **Explicit navigation**: `app.py` is now a router that registers pages via `st.navigation()` from `src/navigation.py` (`PageSpec(path, title, icon, default)`, `PAGE_SPECS`). The former main page moved to `views/0_Uptrend_Ratio.py` and appears as "Uptrend Ratio" in the sidebar menu. Page URLs are unchanged; `st.switch_page()` targets moved from `pages/...` to `views/...` with the directory rename
 - **Responsive page CSS**: `inject_mobile_css()` (called after `set_page_config` on every page) applies a `@media (max-width: 640px)` block: smaller headings and padding, metric rows kept as a 2-column card grid instead of one tall stack
 - **Mobile chart layout**: `show_chart(fig, mobile_height=None, mobile_hide_annotations=False, **kwargs)` wraps `st.plotly_chart`. When the User-Agent is a phone (`is_mobile_user_agent()` / `is_mobile_client()`), `apply_mobile_layout()` sets `dragmode=False` (finger drag scrolls the page; tap still shows hover), tight margins with axis `automargin`, horizontal x tick labels (`nticks=5`), horizontal legend, smaller fonts, and a horizontal treemap colorbar. Comparison charts hide end-of-line annotations on phones (the legend carries the names)
 - **Plotly toolbar (phones only)**: `PLOTLY_CONFIG` hides the Plotly logo and removes lasso/select/zoom-in/zoom-out/autoscale/download buttons; desktop keeps the full toolbar
@@ -1186,7 +1187,7 @@ uptrend-dashboard/
 │   ├── test_integration.py          # Integration tests (new in v2.2)
 │   └── test_data_collector.py        # data_collector tests (Phase 3)
 ├── views/
-│   ├── 0_Uptrend_Ratio.py            # Main page, menu "Uptrend Ratio" (moved from app.py in v5.1)
+│   ├── 0_Uptrend_Ratio.py            # Main page, menu "Uptrend Ratio" (moved from app.py in v5.8)
 │   ├── 1_Sector_Detail.py            # Sector detail page (+ industry drilldown v4.0)
 │   ├── 2_Sector_Comparison.py        # Sector comparison page
 │   ├── 3_Industry_Detail.py          # Industry detail page (v4.0)
@@ -1231,7 +1232,7 @@ uptrend-dashboard/
 
 | Package | Version | Purpose | v1→v2 |
 |---------|---------|---------|-------|
-| streamlit | >= 1.50.0 | Web framework (`on_select` >=1.35; `st.navigation`, `st.context`, `width="stretch"` used since v5.1) | Retained |
+| streamlit | >= 1.50.0 | Web framework (`on_select` >=1.35; `st.navigation`, `st.context`, `width="stretch"` used since v5.8) | Retained |
 | plotly | >= 5.18.0 | Interactive charts | Retained |
 | pandas | >= 2.0.0 | Data manipulation | Retained |
 | openpyxl | >= 3.1.0 | Excel file reading | **New** |
@@ -1460,7 +1461,7 @@ Implemented with TDD. Tests are written first, and implementation is written to 
 |------|-------------|
 | test_constituent_collector.py (21) | `industry_key_for` mapping; details/uptrend URLs (filters, `c`, `type=stocks`); snapshot grouping, percent parsing, ticker `NA`, empty industries, fund industries skipped, unknown industries ignored; collector writes all stock industries with exactly 2 requests, clears empty industries, rejects uptrend ⊄ details and invalid bodies without writing; safe wrapper never raises |
 | TestConstituentStorage (9) | Round trip; replace drops previous snapshot; other industries untouched; empty clears; NaN → NULL; empty fetch keeps columns; rejects sector worksheet, bad date, missing columns |
-| TestBuildIndustryHeatmapStocks (8), test_kpi_cards.py (12) | Stock nodes under industries, market-cap sizing within the industry, uniform industries, Finviz link text, uptrend outline, change colors, maxdepth; KPI tones, no emoji, HTML escaping, responsive grid |
+| TestBuildIndustryHeatmapStocks (8), test_kpi_cards.py (12) | Stock nodes under industries, market-cap sizing within the industry, uniform industries, Finviz URL in customdata with plain ticker text, uptrend outline, change colors, maxdepth; KPI tones, no emoji, HTML escaping, responsive grid |
 | TestPrepareConstituentsTable (13) | Sort order; Ticker holds the Finviz weekly chart URL; `finviz_chart_url`; `TICKER_LINK_PATTERN` recovers AAPL / BRK-B / NA / BF.B; display columns; empty input; summary counts/date; empty summary; row styling for uptrend ticker and signed returns |
 
 Also: `test_data_loader.py` `test_load_constituents` / `test_load_constituents_empty`; `test_mobile_ui.py` `test_custom_keep_set_for_constituent_table`. `test_validate_counts_negative` / `test_validate_counts_count_exceeds_total` now call `_validate_counts()` directly, since counts come from `len()` of the fetched frames.

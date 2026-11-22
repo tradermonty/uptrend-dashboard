@@ -65,9 +65,17 @@ class DBClient:
                 CREATE INDEX IF NOT EXISTS idx_uptrend_raw_worksheet
                     ON uptrend_raw (worksheet, date)
             """)
-            # Latest constituent snapshot per industry (v5.2). Not historical:
-            # each collect replaces the industry's rows to keep the committed DB small.
-            conn.execute("""
+
+    @staticmethod
+    def _ensure_constituents_table(conn) -> None:
+        """Create the stock-list table on first WRITE only (v5.9).
+
+        Kept out of _init_tables: every page load constructs a DBClient, and DDL
+        on the read path would modify (or, if read-only, fail on) the committed DB
+        that predates this table. Latest snapshot per industry, not historical:
+        each collect replaces the industry's rows to keep the committed DB small.
+        """
+        conn.execute("""
                 CREATE TABLE IF NOT EXISTS industry_constituents (
                     worksheet  TEXT    NOT NULL,
                     ticker     TEXT    NOT NULL,
@@ -100,6 +108,7 @@ class DBClient:
         for worksheet, df in snapshots.items():
             all_rows.extend(self._constituent_rows(worksheet, date, df))
         with self._connection() as conn:
+            self._ensure_constituents_table(conn)
             conn.executemany(
                 "DELETE FROM industry_constituents WHERE worksheet = ?",
                 [(ws,) for ws in snapshots],
@@ -138,33 +147,37 @@ class DBClient:
             for _, row in df.iterrows()
         ]
 
-    def fetch_constituents(self, worksheet: str) -> pd.DataFrame:
-        """Return the stored constituent snapshot of one industry (may be empty)."""
-        columns = ["date"] + CONSTITUENT_COLUMNS
-        with self._connection() as conn:
-            df = pd.read_sql_query(
-                f"SELECT {', '.join(columns)} FROM industry_constituents "
-                "WHERE worksheet = ? ORDER BY ticker",
-                conn,
-                params=(worksheet,),
-            )
+    def _read_constituents(self, sql: str, columns: list, params=()) -> pd.DataFrame:
+        """Run a constituent query; a DB without the table yet reads as empty."""
+        try:
+            with self._connection() as conn:
+                df = pd.read_sql_query(sql, conn, params=params)
+        except Exception as exc:  # pandas wraps sqlite3 errors in DatabaseError
+            if "no such table" not in str(exc):
+                raise
+            return pd.DataFrame(columns=columns)
         if df.empty:
             return pd.DataFrame(columns=columns)
         df["is_uptrend"] = df["is_uptrend"].astype(bool)
         return df
 
+    def fetch_constituents(self, worksheet: str) -> pd.DataFrame:
+        """Return the stored constituent snapshot of one industry (may be empty)."""
+        columns = ["date"] + CONSTITUENT_COLUMNS
+        return self._read_constituents(
+            f"SELECT {', '.join(columns)} FROM industry_constituents "
+            "WHERE worksheet = ? ORDER BY ticker",
+            columns,
+            (worksheet,),
+        )
+
     def fetch_all_constituents(self) -> pd.DataFrame:
         """Return every industry's stock list with a `worksheet` column (heatmap stock level)."""
         columns = ["worksheet", "date"] + CONSTITUENT_COLUMNS
-        with self._connection() as conn:
-            df = pd.read_sql_query(
-                f"SELECT {', '.join(columns)} FROM industry_constituents ORDER BY worksheet, ticker",
-                conn,
-            )
-        if df.empty:
-            return pd.DataFrame(columns=columns)
-        df["is_uptrend"] = df["is_uptrend"].astype(bool)
-        return df
+        return self._read_constituents(
+            f"SELECT {', '.join(columns)} FROM industry_constituents ORDER BY worksheet, ticker",
+            columns,
+        )
 
     @staticmethod
     def _coerce_whole_number(value, field_name: str) -> int:
