@@ -15,6 +15,7 @@ from src.data_processor import (
     style_status_row,
 )
 from src.chart_builder import build_ratio_chart, build_sector_summary_chart
+from src.page_footer import render_ai_skill_note
 from src.kpi_cards import KpiCard, regime_card, render_kpi_cards, status_card, trend_card
 from src.mobile_ui import display_years, inject_mobile_css, is_mobile_client, mobile_columns, show_chart
 
@@ -149,3 +150,6 @@ with col_dl2:
         "sector_summary.csv",
         "text/csv",
     )
+
+# AI analysis: link to the Uptrend Analyzer skill (same note as the Market Breadth page)
+render_ai_skill_note()
