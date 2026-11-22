@@ -15,7 +15,7 @@ from src.data_processor import (
     style_status_row,
 )
 from src.chart_builder import build_ratio_chart, build_sector_summary_chart
-from src.page_footer import render_ai_skill_note
+from src.page_footer import render_ai_skill_note, render_explainer_link
 from src.kpi_cards import KpiCard, regime_card, render_kpi_cards, status_card, trend_card
 from src.mobile_ui import display_years, inject_mobile_css, is_mobile_client, mobile_columns, show_chart
 
@@ -77,6 +77,7 @@ render_kpi_cards([
 ])
 
 st.caption(f"Last updated: {status['date']}")
+render_explainer_link()
 
 # Date filter lives in the main area (not the sidebar) so it is reachable on phones
 min_date = df_all["date"].min().date()

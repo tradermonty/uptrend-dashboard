@@ -6,7 +6,7 @@
 | Project Name | uptrend-dashboard |
 | Created | 2026-02-08 |
 | Revised | 2026-11-22 |
-| Status | v6.1 Daily Explainer Pages (Python brief) |
+| Status | v6.2 Daily Explainer Pages (English first, linked from the dashboard) |
 
 ---
 
@@ -14,6 +14,7 @@
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2026-11-22 | v6.2 | Explainer GitHub Pages index is English first ("Read today's explainer" → `latest/en.html`, "日本語で読む" → `latest/ja.html`). The Uptrend Ratio page links to the explainer below "Last updated" (`render_explainer_link()` in `src/page_footer.py`, `EXPLAINER_URL` = https://tradermonty.github.io/uptrend-dashboard/) |
 | 2026-11-22 | v6.1 | Explainer cost fix: the first live run (container + skills + code execution) used 4,982,664 input tokens (about $20.4). Python now does all analysis (`explainer.brief`) and Claude only writes each page in one plain Messages request with the eli5 skill text in the system prompt; no container, Skills API, CSV upload or registry. Cost budget $3 per run across all requests |
 | 2026-11-22 | v6.0 | Daily ELI5 explainer pages: after each collection, `run_explainer.py` asks Claude (Opus 5.5, Skills API with vendored `uptrend-analyzer` + `eli5`, code execution) to write Japanese and English pages; `explainer.verify` checks the embedded facts block and visible numbers against the analyzer run locally, then `explainer.site` publishes to the `gh-pages` branch with a dated archive, `latest/`, `manifest.json` and an index page (`.github/workflows/publish-explainer.yml`) |
 | 2026-11-22 | v5.9 | Industry stock list: a separate daily details export (2 extra Finviz requests) stores each industry's constituent snapshot (`industry_constituents`); Industry Detail shows a "Stocks in this Industry" table; the heatmap gains a stock level (size = market cap, color = daily change, tap → Finviz chart); KPI metrics become color-coded cards without emoji |
