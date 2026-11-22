@@ -66,7 +66,7 @@
 - **Responsive page CSS**: `inject_mobile_css()` (called after `set_page_config` on every page) applies a `@media (max-width: 640px)` block: smaller headings and padding, metric rows kept as a 2-column card grid instead of one tall stack
 - **Mobile chart layout**: `show_chart(fig, mobile_height=None, mobile_hide_annotations=False, **kwargs)` wraps `st.plotly_chart`. When the User-Agent is a phone (`is_mobile_user_agent()` / `is_mobile_client()`), `apply_mobile_layout()` sets `dragmode=False` (finger drag scrolls the page; tap still shows hover), tight margins with axis `automargin`, horizontal x tick labels (`nticks=5`), horizontal legend, smaller fonts, and a horizontal treemap colorbar. Comparison charts hide end-of-line annotations on phones (the legend carries the names)
 - **Plotly toolbar (phones only)**: `PLOTLY_CONFIG` hides the Plotly logo and removes lasso/select/zoom-in/zoom-out/autoscale/download buttons; desktop keeps the full toolbar
-- **Width API**: `use_container_width=True` (deprecated in Streamlit 1.56) replaced with `width="stretch"` for charts and tables; `requirements.txt` floor raised to `streamlit>=1.50.0` (`st.navigation`, `st.context`, `width=`)
+- **Width API**: `use_container_width=True` (deprecated in Streamlit 1.56) replaced with `width="stretch"` for charts and tables; `requirements.txt` floor raised to `streamlit>=1.56.0` (`st.navigation`, `st.context`, `width=`, `st.iframe`)
 - **Compact tables on phones**: `mobile_columns(columns, is_mobile)` → `st.dataframe(column_order=...)` keeps only Sector/Industry/Ratio/Current Ratio/Trend/Status/Regime on phones; all columns on desktop
 - **Chart changes (all devices)**: ratio and comparison charts use a horizontal legend below the plot (`HORIZONTAL_LEGEND`) instead of a right-side column, drop the redundant "Date" x-axis title, and the ratio chart Y axis uses `.0%`
 - **Shorter default range on phones**: `default_start_date(min_date, max_date, years=None)` gained a `years` override; pages pass `display_years(is_mobile_client())` → `MOBILE_DISPLAY_YEARS = 1` on phones, `DEFAULT_DISPLAY_YEARS = 2` on desktop. Users can still widen the range with the Date Range input
@@ -1232,7 +1232,7 @@ uptrend-dashboard/
 
 | Package | Version | Purpose | v1→v2 |
 |---------|---------|---------|-------|
-| streamlit | >= 1.50.0 | Web framework (`on_select` >=1.35; `st.navigation`, `st.context`, `width="stretch"` used since v5.8) | Retained |
+| streamlit | >= 1.56.0 | Web framework (`on_select` >=1.35; `st.navigation`, `st.context`, `width="stretch"` since v5.8; `st.iframe` needs 1.56) | Retained |
 | plotly | >= 5.18.0 | Interactive charts | Retained |
 | pandas | >= 2.0.0 | Data manipulation | Retained |
 | openpyxl | >= 3.1.0 | Excel file reading | **New** |
