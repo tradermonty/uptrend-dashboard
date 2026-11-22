@@ -113,6 +113,21 @@ class TestVerifyHtml:
         problems = verify_html(_page(body=GOOD_BODY, extra_head=head), FACTS, "ja")
         assert any("external" in p for p in problems)
 
+    def test_missing_doctype(self):
+        html = _page(body=GOOD_BODY).replace("<!doctype html>", "")
+        assert any("doctype" in p for p in verify_html(html, FACTS, "ja"))
+
+    def test_text_after_closing_html(self):
+        html = _page(body=GOOD_BODY) + "\n```"
+        assert any("</html>" in p for p in verify_html(html, FACTS, "ja"))
+
+    def test_half_score_accepts_either_rounding(self):
+        half = Facts(**{**FACTS.to_dict(), "score": 22.5})
+        data = {"date": "2026-11-20", "ratio_pct": 6.9, "count": 183, "total": 2661, "score": 22.5}
+        for shown in ("22", "23", "22.5"):
+            body = GOOD_BODY.replace('data-fact="score">22<', f'data-fact="score">{shown}<')
+            assert verify_html(_page(facts=data, body=body), half, "ja") == [], shown
+
     def test_missing_title(self):
         html = _page(body=GOOD_BODY).replace("<title>Uptrend</title>", "")
         assert any("title" in p for p in verify_html(html, FACTS, "ja"))
