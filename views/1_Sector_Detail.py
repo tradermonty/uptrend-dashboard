@@ -128,7 +128,7 @@ if has_industry_data:
             customdata = point.get("customdata")
             if customdata:
                 st.session_state["selected_industry"] = customdata
-                st.switch_page("pages/3_Industry_Detail.py")
+                st.switch_page("views/3_Industry_Detail.py")
 
         ind_table_event = st.dataframe(
             ind_summary.drop(columns=["_key"]).style
@@ -146,7 +146,7 @@ if has_industry_data:
             selected_ind_row = ind_table_event.selection.rows[0]
             selected_ind_key = ind_summary.iloc[selected_ind_row]["_key"]
             st.session_state["selected_industry"] = selected_ind_key
-            st.switch_page("pages/3_Industry_Detail.py")
+            st.switch_page("views/3_Industry_Detail.py")
 else:
     st.info("No industry data available for this sector yet.")
 

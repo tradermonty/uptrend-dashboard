@@ -25,7 +25,7 @@ with st.sidebar:
     )
 
     st.markdown("---")
-    st.page_link("pages/6_Dispersion_Monitor.py", label="📡 Dispersion Monitor")
+    st.page_link("views/6_Dispersion_Monitor.py", label="📡 Dispersion Monitor")
     st.markdown("---")
     st.markdown(
         'Made with <img src="https://streamlit.io/images/brand/streamlit-mark-color.png" alt="Streamlit" height="16"> by <a href="https://github.com/tradermonty">@tradermonty</a>',

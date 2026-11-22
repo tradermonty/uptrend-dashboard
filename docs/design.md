@@ -52,12 +52,14 @@
 - **Write rules**: nothing is written unless both exports parse, details has at least one stock, uptrend ⊆ details, and at most 5% of stocks fall in unknown industries (`MAX_UNKNOWN_INDUSTRY_SHARE`; guards against renamed Finviz labels wiping every list). All industries are replaced in ONE transaction (`DBClient.replace_all_constituents(date, snapshots)`), so a storage error leaves every industry on its previous snapshot. `collect.py` calls `collect_constituents_safely()` after `collect_all()` for scopes `all`/`industries`, never on dry run (tested in `tests/test_dry_run_filesystem.py`). Any failure is logged and never changes the exit status; a `SessionPolicyError`/`MigrationEvidenceError` is logged at ERROR and still blocks the write, but is not re-raised because the day's validated count rows would otherwise not be committed. The route is documented in docs/finviz-migration.md as separately governed (not in the policy fingerprint). Local 2026-11-20 check: 2,581 stocks / 181 uptrend across 145 industries, matching the stored `all` row (183/2,661 including ETFs)
 - **UI**: Industry Detail adds "Stocks in this Industry" below the ratio chart: caption "N of M stocks in uptrend · as of DATE", table sorted uptrend-first then market cap desc, uptrend tickers bold green, Change/Perf columns green/red by sign. Phones show Ticker/Uptrend/Change/Perf YTD (`MOBILE_CONSTITUENT_COLUMNS`). Before the first collect after deploy, an info message is shown instead. Heatmap table caption now says a row click opens the industry with its stock list
 - **Loader**: `load_constituents(worksheet)` / `cached_load_constituents()`, plus `DBClient.fetch_all_constituents()` and `load_all_constituents()` / `cached_load_all_constituents()` (with a `worksheet` column) for the heatmap
-- **Heatmap stock level**: `build_industry_heatmap(..., constituents=None)`. When given, `_heatmap_with_stocks()` adds `TICKER|ind_key` nodes under each industry with `branchvalues="total"`: industries keep their uniform/count size and stocks split it by market cap. Stock colors follow the daily change (red–grey–green, saturating at ±3%), sectors/industries keep ratio/status colors as explicit colors (no colorbar). Ticker text is an `<a target="_blank">` to the Finviz weekly chart; uptrend stocks are bold with a 3px outline. `maxdepth=2` so the first view stops at industries (desktop) or sectors (phone drilldown)
+- **Heatmap stock level**: `build_industry_heatmap(..., constituents=None)`. When given, `_heatmap_with_stocks()` adds `TICKER|ind_key` nodes under each industry with `branchvalues="total"`: industries keep their uniform/count size and stocks split it by market cap. Stock colors follow the daily change (red–grey–green, saturating at ±3%), sectors/industries keep ratio/status colors as explicit colors (no colorbar). Each stock's `customdata` is its Finviz weekly-chart URL and the tile text is the plain ticker; uptrend stocks are bold with a 3px outline. `maxdepth=2` so the first view stops at industries (desktop) or sectors (phone drilldown)
+- **Stock tap opens Finviz (no dead-end zoom)**: Plotly zooms into a tapped leaf and then shows no pathbar, leaving no way back. `mobile_ui.show_treemap(fig, mobile_height)` renders the heatmap via `components.html(treemap_html(fig, height))` (st.plotly_chart cannot attach Plotly events). A `plotly_treemapclick` handler opens `customdata` URLs starting with `https://finviz.com/` in a new tab and returns false to cancel the zoom; sector/industry taps still zoom and the pathbar returns
+- **Menu order and page directory**: `PAGE_SPECS` is ordered by use — Uptrend Ratio, Industry Heatmap, then the rest. Page scripts moved from `pages/` to `views/`: with a `pages/` directory Streamlit could still show its auto-discovered menu (with "app" and file-order entries) before `st.navigation` ran. `tests/test_navigation.py` asserts no `pages/` directory exists. URL paths (derived from file names) are unchanged
 - **KPI cards (`src/kpi_cards.py`)**: `KpiCard(label, value, tone)`, `trend_card()`, `status_card()`, `regime_card()`, `kpi_cards_html()` / `render_kpi_cards()` replace `st.columns` + `st.metric` with emoji on the Uptrend Ratio, Sector Detail, Industry Detail, Heatmap and Dispersion pages. Tone colors: up `#0a8f5a`, down `#d63a2f`, overbought `#d62728`, oversold `#2ca02c`, normal `#1f77b4`; a responsive grid gives 2 cards per row on phones. Page tests read cards via `tests/kpi_helpers.py`
 
 ### v5.8 Key Changes (Mobile Layout & Navigation)
 
-- **Explicit navigation**: `app.py` is now a router that registers pages via `st.navigation()` from `src/navigation.py` (`PageSpec(path, title, icon, default)`, `PAGE_SPECS`). The former main page moved to `pages/0_Uptrend_Ratio.py` and appears as "Uptrend Ratio" in the sidebar menu. Existing `st.switch_page("pages/...")` paths are unchanged
+- **Explicit navigation**: `app.py` is now a router that registers pages via `st.navigation()` from `src/navigation.py` (`PageSpec(path, title, icon, default)`, `PAGE_SPECS`). The former main page moved to `views/0_Uptrend_Ratio.py` and appears as "Uptrend Ratio" in the sidebar menu. Existing `st.switch_page("views/...")` paths are unchanged
 - **Responsive page CSS**: `inject_mobile_css()` (called after `set_page_config` on every page) applies a `@media (max-width: 640px)` block: smaller headings and padding, metric rows kept as a 2-column card grid instead of one tall stack
 - **Mobile chart layout**: `show_chart(fig, mobile_height=None, mobile_hide_annotations=False, **kwargs)` wraps `st.plotly_chart`. When the User-Agent is a phone (`is_mobile_user_agent()` / `is_mobile_client()`), `apply_mobile_layout()` sets `dragmode=False` (finger drag scrolls the page; tap still shows hover), tight margins with axis `automargin`, horizontal x tick labels (`nticks=5`), horizontal legend, smaller fonts, and a horizontal treemap colorbar. Comparison charts hide end-of-line annotations on phones (the legend carries the names)
 - **Plotly toolbar (phones only)**: `PLOTLY_CONFIG` hides the Plotly logo and removes lasso/select/zoom-in/zoom-out/autoscale/download buttons; desktop keeps the full toolbar
@@ -128,7 +130,7 @@
 - **Signal detection**: `detect_dispersion_signals()` with 3 signals: CAPITULATION (converged+low), DIVERGENCE_WARNING (diverged), BREAKOUT_VELOCITY (velocity > p90 & dispersion < median)
 - **Forward returns**: `calculate_forward_returns()` using composite state transition events (not daily samples) to avoid overlapping-sample bias
 - **Sector edge**: `calculate_sector_edge()` computes per-sector performance after regime transitions, keyed by (regime, level_regime) for CAPITULATION-specific ranking
-- **New page**: `pages/6_Dispersion_Monitor.py` — Signal banner, dual-axis dispersion chart, regime timeline, regime-aware sector ranking, historical stats
+- **New page**: `views/6_Dispersion_Monitor.py` — Signal banner, dual-axis dispersion chart, regime timeline, regime-aware sector ranking, historical stats
 - **Sector Comparison integration**: Sidebar dispersion gauge with regime badge and link to Dispersion Monitor
 - **New data processor functions**: `build_sector_ranking_table()` (regime-aware sort), `prepare_dispersion_csv()`
 - **New chart functions**: `build_dispersion_chart()` (dual-axis with time-series p25/p75 traces), `build_regime_timeline_chart()` (horizontal bar regime visualization)
@@ -177,7 +179,7 @@
 - **`_key` column**: Added internal worksheet key column to `build_sector_summary()` output for chart `customdata` mapping (hidden from `st.dataframe` display)
 - **`customdata` on bar trace**: `build_sector_summary_chart()` passes `_key` values as `customdata` on the `go.Bar` trace
 - **`on_select` event**: `app.py` uses `st.plotly_chart(on_select="rerun")` and `st.dataframe(on_select="rerun", selection_mode="single-row")` to capture click events, sets `st.session_state["selected_sector"]`, and calls `st.switch_page()`
-- **Sector Detail pre-selection**: `pages/1_Sector_Detail.py` applies a validated `selected_sector` intent to canonical widget state before creating the selector and consumes it only after the requested sector is selected (Issue #12).
+- **Sector Detail pre-selection**: `views/1_Sector_Detail.py` applies a validated `selected_sector` intent to canonical widget state before creating the selector and consumes it only after the requested sector is selected (Issue #12).
 - **Streamlit version**: Bumped minimum to `>=1.35.0` for `on_select` parameter support
 - **Tests**: 114 tests (added `test_sector_summary_chart_customdata`)
 
@@ -212,7 +214,7 @@
 - **Worksheet validation**: Added `VALID_WORKSHEETS` check in `upsert_raw_data()`, `upsert_bulk()`
 - **NaN handling**: `_calc_ratio()` handles NaN in count/total with `fillna(0)`
 - **MarketStatus dataclass**: Changed `get_current_status()` return value from dict to `MarketStatus` dataclass (maintaining dict compatibility)
-- **Date filter helper**: Extracted `filter_by_date_range()` shared by `app.py` / `pages/*.py`
+- **Date filter helper**: Extracted `filter_by_date_range()` shared by `app.py` / `views/*.py`
 - **Chart function decomposition**: Split `build_ratio_chart()` into 5 smaller functions
 - **Magic number constants**: Consolidated chart heights, thresholds, etc. into `src/constants.py`
 - **Public API cleanup**: Renamed `_sector_display_name` to `get_sector_display_name`
@@ -314,7 +316,7 @@ Data is read from raw data (Count, Total) stored in SQLite, derived indicators (
 
 | Layer | File | Responsibility |
 |-------|------|----------------|
-| Presentation | `app.py`, `pages/*.py` | Streamlit UI, user interaction |
+| Presentation | `app.py`, `views/*.py` | Streamlit UI, user interaction |
 | Chart | `src/chart_builder.py` | Plotly Figure object generation |
 | Processing | `src/data_processor.py` | Status aggregation, sector summary building |
 | Calculation | `src/indicator_calculator.py` | Derived indicator calculation (Ratio, 10MA, Slope, Trend) |
@@ -893,7 +895,7 @@ On phones (viewport ≤ 640px / phone User-Agent), every page stacks vertically 
 └───────────────────────────┘
 ```
 
-### 5.1 Main Page (pages/0_Uptrend_Ratio.py, menu label "Uptrend Ratio")
+### 5.1 Main Page (views/0_Uptrend_Ratio.py, menu label "Uptrend Ratio")
 
 Since v5.8 the Date Range input is in the main area below "Last updated" (not in the sidebar).
 
@@ -929,7 +931,7 @@ Since v5.8 the Date Range input is in the main area below "Last updated" (not in
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 5.2 Sector Detail Page (pages/1_Sector_Detail.py)
+### 5.2 Sector Detail Page (views/1_Sector_Detail.py)
 
 **Detail navigation revision history:**
 
@@ -972,7 +974,7 @@ Since v5.8 the Date Range input is in the main area below "Last updated" (not in
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 5.3 Sector Comparison Page (pages/2_Sector_Comparison.py)
+### 5.3 Sector Comparison Page (views/2_Sector_Comparison.py)
 
 Issue #13: the date selector uses union bounds across all selected series. Below it, an observed-coverage table lists each series with row count and first/last observed date; unavailable series and absent common dates are explicit. Empty or incomplete ranges pause chart rendering. See the shared filter contract below.
 
@@ -1002,7 +1004,7 @@ Issue #13: the date selector uses union bounds across all selected series. Below
 
 v2.3 revision: Display mode radio buttons, 10MA/Raw toggle, threshold dashed lines, latest value annotations, Y-axis % format, legend sorting (latest value descending).
 
-### 5.4 Industry Detail Page (pages/3_Industry_Detail.py, v4.0)
+### 5.4 Industry Detail Page (views/3_Industry_Detail.py, v4.0)
 
 Issue #12: the destination inspects `selected_industry` **before either selector exists**. A valid configured target sets `industry_detail_sector_filter` to its configured parent (or `None` for All Sectors if no parent exists) and `industry_detail_industry` to the canonical industry key. Both widgets use canonical option values with display-name formatting. `None` is the explicit All Sectors value. The pending target is consumed only after industry and parent context have applied. Thus a previous Healthcare filter cannot hide Semiconductors or consume its intent while displaying Biotechnology.
 
@@ -1045,7 +1047,7 @@ Without a target, valid manual filter/industry state persists; changing to a fil
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 5.5 Industry Comparison Page (pages/4_Industry_Comparison.py, v4.0)
+### 5.5 Industry Comparison Page (views/4_Industry_Comparison.py, v4.0)
 
 Issue #13: the date selector uses union bounds across all selected series. Below it, an observed-coverage table lists each series with row count and first/last observed date; unavailable series and absent common dates are explicit. Empty or incomplete ranges pause chart rendering. See the shared filter contract below.
 
@@ -1072,7 +1074,7 @@ Issue #13: the date selector uses union bounds across all selected series. Below
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 5.6 Industry Heatmap Page (pages/5_Industry_Heatmap.py, v4.2)
+### 5.6 Industry Heatmap Page (views/5_Industry_Heatmap.py, v4.2)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -1181,7 +1183,7 @@ uptrend-dashboard/
 │   ├── test_constituents.py          # industry stock list tests (v5.9)
 │   ├── test_integration.py          # Integration tests (new in v2.2)
 │   └── test_data_collector.py        # data_collector tests (Phase 3)
-├── pages/
+├── views/
 │   ├── 0_Uptrend_Ratio.py            # Main page, menu "Uptrend Ratio" (moved from app.py in v5.1)
 │   ├── 1_Sector_Detail.py            # Sector detail page (+ industry drilldown v4.0)
 │   ├── 2_Sector_Comparison.py        # Sector comparison page
@@ -1213,7 +1215,7 @@ uptrend-dashboard/
 | New | `data/` directory | SQLite DB storage location |
 | Modified | `src/data_processor.py` | Removed type conversion logic, updated column names |
 | Modified | `src/chart_builder.py` | Updated column names to v2 |
-| Modified | `app.py`, `pages/*.py` | Changed data source to db_client |
+| Modified | `app.py`, `views/*.py` | Changed data source to db_client |
 | Deleted | `tests/test_sheets_client.py` | Removed with sheets_client |
 | New | `tests/test_db_client.py` | db_client tests |
 | New | `tests/test_indicator_calculator.py` | Derived indicator calculation tests |

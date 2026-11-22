@@ -12,7 +12,7 @@ from src.data_processor import (
 )
 from src.chart_builder import build_industry_heatmap
 from src.kpi_cards import KpiCard, render_kpi_cards
-from src.mobile_ui import inject_mobile_css, is_mobile_client, mobile_columns, show_chart
+from src.mobile_ui import inject_mobile_css, is_mobile_client, mobile_columns, show_treemap
 
 st.set_page_config(page_title="Industry Heatmap", page_icon="🗺️", layout="wide")
 inject_mobile_css()
@@ -89,19 +89,19 @@ if is_mobile:
     st.caption(
         "Tap a sector to see its industries"
         + (", then an industry to see its stocks (size = market cap, color = today's change; "
-           "bold outline = uptrend). Tap a ticker to open its Finviz chart" if has_stocks else "")
+           "bold outline = uptrend). Tap a stock to open its Finviz chart" if has_stocks else "")
         + ". Tap the bar at the top to go back."
     )
 elif has_stocks:
     st.caption(
         "Click an industry to see its stocks (size = market cap, color = today's change; "
-        "bold outline = uptrend). Click a ticker to open its Finviz chart."
+        "bold outline = uptrend). Click a stock to open its Finviz chart."
     )
 fig = build_industry_heatmap(
     summary, color_mode=color_mode_key, size_mode=size_mode_key, drilldown=is_mobile,
     constituents=constituents if has_stocks else None,
 )
-show_chart(fig, mobile_height=560)
+show_treemap(fig, mobile_height=560)
 
 # Industry Summary Table
 st.markdown("---")
@@ -126,4 +126,4 @@ if table_event and table_event.selection and table_event.selection.rows:
     selected_row = table_event.selection.rows[0]
     selected_key = display_df.iloc[selected_row]["_key"]
     st.session_state["selected_industry"] = selected_key
-    st.switch_page("pages/3_Industry_Detail.py")
+    st.switch_page("views/3_Industry_Detail.py")

@@ -150,6 +150,48 @@ def inject_mobile_css() -> None:
     st.markdown(build_mobile_css(), unsafe_allow_html=True)
 
 
+# Plotly zooms into a leaf on tap and then shows no pathbar, leaving no way back.
+# For stock tiles (customdata = Finviz URL) open the chart instead and cancel the zoom.
+_TREEMAP_TAP_SCRIPT = """
+var gd = document.getElementById('{plot_id}');
+gd.on('plotly_treemapclick', function (ev) {
+  var pt = ev && ev.points && ev.points[0];
+  var url = pt && pt.customdata;
+  if (typeof url === 'string' && url.indexOf('https://finviz.com/') === 0) {
+    window.open(url, '_blank', 'noopener');
+    return false;
+  }
+});
+"""
+
+
+def treemap_html(fig: go.Figure, height: int) -> str:
+    """Standalone HTML for a treemap with the leaf-tap handler (for components.html)."""
+    fig.update_layout(height=height)
+    return fig.to_html(
+        full_html=True,
+        include_plotlyjs="cdn",
+        config={"displaylogo": False, "displayModeBar": False, "responsive": True},
+        post_script=_TREEMAP_TAP_SCRIPT,
+        default_width="100%",
+        default_height=f"{height}px",
+    )
+
+
+def show_treemap(fig: go.Figure, mobile_height: Optional[int] = None) -> None:
+    """Render a treemap whose stock tiles open Finviz on tap (no dead-end leaf zoom).
+
+    st.plotly_chart cannot attach Plotly event handlers, so the figure is rendered
+    as its own HTML in a component iframe.
+    """
+    import streamlit.components.v1 as components
+
+    if is_mobile_client():
+        apply_mobile_layout(fig, height=mobile_height)
+    height = int(fig.layout.height or 700)
+    components.html(treemap_html(fig, height), height=height + 10)
+
+
 def show_chart(
     fig: go.Figure,
     mobile_height: Optional[int] = None,

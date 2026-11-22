@@ -580,9 +580,9 @@ def _heatmap_with_stocks(
             labels.append(ticker)
             parents.append(ids[parent_i])
             values.append(budget * cap / caps.sum())
-            customdata.append(ticker)
+            customdata.append(finviz_chart_url(ticker))  # opened by the tap handler
             node_colors.append(_stock_change_color(stock["change"]))
-            link = f'<a href="{finviz_chart_url(ticker)}" target="_blank" style="color:#ffffff">{ticker}</a>'
+            link = ticker
             if stock["is_uptrend"]:
                 link = f"<b>{link}</b>"
             text.append(f"{link}<br>{_pct(stock['change'])}")
@@ -620,6 +620,7 @@ def _heatmap_with_stocks(
             hovertext=hovertext,
             hoverinfo="text",
             maxdepth=2,
+            pathbar=dict(visible=True, side="top", thickness=22),
         )
     )
     fig.update_layout(

@@ -35,7 +35,7 @@ def detail_app(default="3_Industry_Detail.py"):
     # Start from the actual multipage entrypoint so registration and page
     # revisits use the production context across supported AppTest versions.
     app = AppTest.from_file(ROOT / "app.py", default_timeout=20).run()
-    return app.switch_page(f"pages/{default}")
+    return app.switch_page(f"views/{default}")
 
 
 def selector(app, label):
@@ -53,7 +53,7 @@ def select_label(app, label, value):
 
 
 def visit(app, number):
-    path = "app.py" if number == "0" else next(f"pages/{p}" for p in PAGES if p.startswith(number))
+    path = "app.py" if number == "0" else next(f"views/{p}" for p in PAGES if p.startswith(number))
     return app.switch_page(path).run()
 
 

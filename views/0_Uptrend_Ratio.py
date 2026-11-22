@@ -109,7 +109,7 @@ if event and event.selection and event.selection.points:
     customdata = point.get("customdata")
     if customdata:
         st.session_state["selected_sector"] = customdata
-        st.switch_page("pages/1_Sector_Detail.py")
+        st.switch_page("views/1_Sector_Detail.py")
 
 table_event = st.dataframe(
     summary.drop(columns=["_key"]).style
@@ -127,7 +127,7 @@ if table_event and table_event.selection and table_event.selection.rows:
     selected_row = table_event.selection.rows[0]
     selected_key = summary.iloc[selected_row]["_key"]
     st.session_state["selected_sector"] = selected_key
-    st.switch_page("pages/1_Sector_Detail.py")
+    st.switch_page("views/1_Sector_Detail.py")
 
 # Data Download
 st.markdown("---")

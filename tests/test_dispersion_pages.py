@@ -33,13 +33,13 @@ def page_data(state):
 def render_page(filename, state, tmp_path):
     # Register both real pages: standalone AppTest lacks page_link navigation
     # metadata. A temporary entrypoint keeps production scripts unmodified.
-    (tmp_path / "pages").symlink_to(ROOT / "pages", target_is_directory=True)
+    (tmp_path / "views").symlink_to(ROOT / "views", target_is_directory=True)
     other = "2_Sector_Comparison.py" if filename.startswith("6_") else "6_Dispersion_Monitor.py"
     entrypoint = tmp_path / "app.py"
     entrypoint.write_text(
         "import streamlit as st\n"
-        f"st.navigation([st.Page('pages/{filename}', default=True), "
-        f"st.Page('pages/{other}')]).run()\n"
+        f"st.navigation([st.Page('views/{filename}', default=True), "
+        f"st.Page('views/{other}')]).run()\n"
     )
     with patch("src.data_loader.cached_load_sector_data", return_value=page_data(state)):
         return AppTest.from_file(entrypoint, default_timeout=20).run()

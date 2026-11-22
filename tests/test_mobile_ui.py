@@ -10,6 +10,7 @@ from src.mobile_ui import (
     display_years,
     is_mobile_user_agent,
     mobile_columns,
+    treemap_html,
     MOBILE_CONSTITUENT_COLUMNS,
 )
 
@@ -161,6 +162,29 @@ class TestApplyMobileLayout:
         )
         apply_mobile_layout(fig)
         assert fig.data[0].marker.colorbar.orientation == "h"
+
+
+class TestTreemapHtml:
+    def _fig(self):
+        return go.Figure(go.Treemap(
+            ids=["root", "AAA|ind_x"], labels=["root", "AAA"], parents=["", "root"],
+            values=[1, 1], customdata=["", "https://finviz.com/quote.ashx?t=AAA&p=w"],
+        ))
+
+    def test_leaf_tap_opens_url_instead_of_zooming(self):
+        html = treemap_html(self._fig(), height=500)
+        assert "plotly_treemapclick" in html
+        assert "window.open" in html
+        assert "return false" in html  # cancels Plotly's zoom into the leaf
+
+    def test_only_finviz_urls_are_opened(self):
+        html = treemap_html(self._fig(), height=500)
+        assert "https://finviz.com/" in html
+
+    def test_height_and_no_plotly_logo(self):
+        html = treemap_html(self._fig(), height=480)
+        assert "480" in html
+        assert '"displaylogo": false' in html
 
 
 class TestDisplayYears:

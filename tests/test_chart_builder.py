@@ -212,12 +212,20 @@ class TestBuildIndustryHeatmapStocks:
         trace = fig.data[0]
         assert trace.values[self._idx(trace, "Copper")] == trace.values[self._idx(trace, "Gold")]
 
-    def test_stock_text_links_to_finviz_chart(self):
+    def test_stock_tile_carries_finviz_url_for_tap_handler(self):
+        """The tap handler opens customdata URLs, so a tile tap opens the chart."""
+        fig = build_industry_heatmap(self._summary(), constituents=self._stocks())
+        trace = fig.data[0]
+        assert trace.customdata[self._idx(trace, "SCCO|ind_copper")] == (
+            "https://finviz.com/quote.ashx?t=SCCO&p=w"
+        )
+
+    def test_stock_text_is_plain_so_one_tap_opens_one_tab(self):
         fig = build_industry_heatmap(self._summary(), constituents=self._stocks())
         trace = fig.data[0]
         text = trace.text[self._idx(trace, "SCCO|ind_copper")]
-        assert 'href="https://finviz.com/quote.ashx?t=SCCO&p=w"' in text
-        assert "-1.0%" in text
+        assert "<a " not in text
+        assert "SCCO" in text and "-1.0%" in text
 
     def test_uptrend_stocks_are_outlined(self):
         fig = build_industry_heatmap(self._summary(), constituents=self._stocks())
