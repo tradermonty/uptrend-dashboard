@@ -5,7 +5,9 @@ Usage (GitHub Actions runs this after data collection):
     python run_explainer.py --site site/            # site/ = gh-pages checkout
     python run_explainer.py --site site/ --force    # regenerate a date already published
 
-Needs ANTHROPIC_API_KEY. Exit codes: 0 published or nothing to do, 1 failed (site untouched).
+Python does the analysis (uptrend-analyzer script + explainer.brief); Claude only
+writes the pages, following the eli5 skill. Needs ANTHROPIC_API_KEY.
+Exit codes: 0 published or nothing to do, 1 failed (site untouched).
 """
 
 import argparse
@@ -17,8 +19,9 @@ import sys
 import tempfile
 from pathlib import Path
 
+from explainer.brief import build_brief
 from explainer.facts import build_facts
-from explainer.generate import GenerationError, generate_pages, sync_skills
+from explainer.generate import GenerationError, cost_usd, generate_pages
 from explainer.site import publish
 
 ROOT = Path(__file__).resolve().parent
@@ -59,8 +62,7 @@ def parse_args(argv):
     p.add_argument("--site", type=Path, required=True, help="GitHub Pages tree (gh-pages checkout)")
     p.add_argument("--timeseries-csv", type=Path, default=ROOT / "data" / "uptrend_ratio_timeseries.csv")
     p.add_argument("--sector-csv", type=Path, default=ROOT / "data" / "sector_summary.csv")
-    p.add_argument("--skills-dir", type=Path, default=ROOT / "claude_skills")
-    p.add_argument("--registry", type=Path, default=ROOT / "claude_skills" / "registry.json")
+    p.add_argument("--skill", type=Path, default=ROOT / "claude_skills" / "eli5" / "SKILL.md")
     p.add_argument("--force", action="store_true", help="regenerate even if the date is published")
     return p.parse_args(argv)
 
@@ -78,14 +80,15 @@ def main(argv=None) -> int:
         log.info("%s is already published; nothing to do", facts.date)
         return 0
 
+    brief = build_brief(args.timeseries_csv, report, facts)
     client = make_client()
-    skills = sync_skills(client, args.skills_dir, args.registry)
     usage: list = []
     try:
-        pages = generate_pages(client, skills, args.timeseries_csv, args.sector_csv, facts,
-                               usage_log=usage)
-    except GenerationError as e:
-        log.error("not published: %s", e)
+        pages = generate_pages(client, args.skill, brief, facts, usage_log=usage)
+    except Exception as e:
+        if not (isinstance(e, GenerationError) or _is_api_error(e)):
+            raise
+        log.error("not published: %s: %s", type(e).__name__, e)
         return 1
     finally:
         _log_usage(usage)
@@ -99,12 +102,21 @@ def main(argv=None) -> int:
     return 0
 
 
+def _is_api_error(e: Exception) -> bool:
+    try:
+        import anthropic
+    except ImportError:
+        return False
+    return isinstance(e, anthropic.APIError)
+
+
 def _log_usage(responses: list) -> None:
     tin = sum(getattr(r.usage, "input_tokens", 0) or 0 for r in responses)
     tout = sum(getattr(r.usage, "output_tokens", 0) or 0 for r in responses)
     cache = sum(getattr(r.usage, "cache_read_input_tokens", 0) or 0 for r in responses)
-    log.info("usage: %d requests, input %d, cache read %d, output %d tokens",
-             len(responses), tin, cache, tout)
+    cost = sum(cost_usd(r.usage) for r in responses)
+    log.info("usage: %d requests, input %d, cache read %d, output %d tokens, about $%.2f",
+             len(responses), tin, cache, tout, cost)
 
 
 if __name__ == "__main__":

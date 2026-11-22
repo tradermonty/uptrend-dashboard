@@ -43,13 +43,30 @@ def test_main_publishes_generated_pages(tmp_path, monkeypatch):
     monkeypatch.setattr(run_explainer, "run_analyzer", lambda *a: {})
     monkeypatch.setattr(run_explainer, "build_facts", lambda *a: FACTS)
     monkeypatch.setattr(run_explainer, "make_client", lambda: object())
-    monkeypatch.setattr(run_explainer, "sync_skills", lambda *a: [])
+    monkeypatch.setattr(run_explainer, "build_brief", lambda *a: {})
     monkeypatch.setattr(run_explainer, "generate_pages", lambda *a, **k: pages)
     out = tmp_path / "gh_output"
     monkeypatch.setenv("GITHUB_OUTPUT", str(out))
-    assert run_explainer.main(["--site", str(site), "--registry", str(tmp_path / "r.json")]) == 0
+    assert run_explainer.main(["--site", str(site)]) == 0
     assert (site / "2026" / "11" / "2026-11-20-en.html").exists()
     assert "published_date=2026-11-20" in out.read_text()
+
+
+def test_main_returns_1_on_api_error(tmp_path, monkeypatch):
+    anthropic = pytest.importorskip("anthropic")  # CI installs requirements.txt only
+    import httpx2
+
+    def boom(*a, **k):
+        raise anthropic.APIConnectionError(request=httpx2.Request("POST", "https://x"))
+
+    site = tmp_path / "site"
+    monkeypatch.setattr(run_explainer, "run_analyzer", lambda *a: {})
+    monkeypatch.setattr(run_explainer, "build_facts", lambda *a: FACTS)
+    monkeypatch.setattr(run_explainer, "build_brief", lambda *a: {})
+    monkeypatch.setattr(run_explainer, "make_client", lambda: object())
+    monkeypatch.setattr(run_explainer, "generate_pages", boom)
+    assert run_explainer.main(["--site", str(site)]) == 1
+    assert not (site / "manifest.json").exists()
 
 
 def test_main_returns_1_and_leaves_site_alone_on_failure(tmp_path, monkeypatch):
@@ -61,7 +78,7 @@ def test_main_returns_1_and_leaves_site_alone_on_failure(tmp_path, monkeypatch):
     monkeypatch.setattr(run_explainer, "run_analyzer", lambda *a: {})
     monkeypatch.setattr(run_explainer, "build_facts", lambda *a: FACTS)
     monkeypatch.setattr(run_explainer, "make_client", lambda: object())
-    monkeypatch.setattr(run_explainer, "sync_skills", lambda *a: [])
+    monkeypatch.setattr(run_explainer, "build_brief", lambda *a: {})
     monkeypatch.setattr(run_explainer, "generate_pages", boom)
-    assert run_explainer.main(["--site", str(site), "--registry", str(tmp_path / "r.json")]) == 1
+    assert run_explainer.main(["--site", str(site)]) == 1
     assert not (site / "manifest.json").exists()

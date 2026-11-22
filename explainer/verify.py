@@ -7,6 +7,7 @@ that the page is self-contained.
 """
 
 import json
+import math
 import re
 from html.parser import HTMLParser
 
@@ -115,7 +116,8 @@ def _shows(key: str, text: str, facts: Facts) -> bool:
                    for n in re.findall(r"(\d+(?:\.\d+)?)\s*%", text))
     if key == "count":
         return facts.count in _numbers(text)
-    return any(abs(n - facts.score) < 0.05 or n == round(facts.score) for n in _numbers(text))
+    whole = {math.floor(facts.score), math.ceil(facts.score)}  # either rounding of x.5
+    return any(abs(n - facts.score) < 0.05 or n in whole for n in _numbers(text))
 
 
 def _check_visible_numbers(page: _Page, facts: Facts) -> list[str]:
@@ -137,6 +139,13 @@ def verify_html(html: str, facts: Facts, lang: str) -> list[str]:
     problems = []
     if len(html.encode("utf-8")) > MAX_BYTES:
         problems.append(f"page is larger than {MAX_BYTES} bytes")
+    if not html.lstrip().lower().startswith("<!doctype html"):
+        problems.append("page must start with <!doctype html>")
+    end = html.lower().rfind("</html>")
+    if end < 0:
+        problems.append("missing </html>")
+    elif html[end + len("</html>"):].strip():
+        problems.append("text after </html> would show on the page")
     page = _Page()
     page.feed(html)
     page_lang = (page.lang or "").lower()

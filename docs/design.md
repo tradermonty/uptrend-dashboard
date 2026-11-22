@@ -6,7 +6,7 @@
 | Project Name | uptrend-dashboard |
 | Created | 2026-02-08 |
 | Revised | 2026-11-22 |
-| Status | v6.0 Daily Explainer Pages |
+| Status | v6.1 Daily Explainer Pages (Python brief) |
 
 ---
 
@@ -14,6 +14,7 @@
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2026-11-22 | v6.1 | Explainer cost fix: the first live run (container + skills + code execution) used 4,982,664 input tokens (about $20.4). Python now does all analysis (`explainer.brief`) and Claude only writes each page in one plain Messages request with the eli5 skill text in the system prompt; no container, Skills API, CSV upload or registry. Cost budget $3 per run across all requests |
 | 2026-11-22 | v6.0 | Daily ELI5 explainer pages: after each collection, `run_explainer.py` asks Claude (Opus 5.5, Skills API with vendored `uptrend-analyzer` + `eli5`, code execution) to write Japanese and English pages; `explainer.verify` checks the embedded facts block and visible numbers against the analyzer run locally, then `explainer.site` publishes to the `gh-pages` branch with a dated archive, `latest/`, `manifest.json` and an index page (`.github/workflows/publish-explainer.yml`) |
 | 2026-11-22 | v5.9 | Industry stock list: a separate daily details export (2 extra Finviz requests) stores each industry's constituent snapshot (`industry_constituents`); Industry Detail shows a "Stocks in this Industry" table; the heatmap gains a stock level (size = market cap, color = daily change, tap → Finviz chart); KPI metrics become color-coded cards without emoji |
 | 2026-11-22 | v5.8 | Mobile-friendly layout across all pages (`src/mobile_ui.py`), explicit `st.navigation` so the main page is labeled "Uptrend Ratio" instead of "app", horizontal chart legends, date filter moved out of the sidebar on main/Dispersion pages |
@@ -43,16 +44,16 @@
 | 2026-02-11 | v3.3 | Sector summary bar chart click → Sector Detail page navigation |
 | 2026-02-11 | v3.2 | Data validation hardening, secret masking, CI test workflow. DB CHECK constraints, Python-level count/total validation, import_excel row filtering, mask_secrets/safe_http_error, GitHub Actions pytest |
 
-### v6.0 Key Changes (Daily Explainer Pages)
+### v6.0 / v6.1 Key Changes (Daily Explainer Pages)
 
 **Purpose**: publish a one-minute, picture-first explanation of the latest uptrend ratio every trading day, in Japanese and English, with every past day kept and browsable.
 
 **Flow** (`.github/workflows/publish-explainer.yml`, runs on `workflow_run` of "Collect Finviz Data" and on manual dispatch):
 
 1. `run_explainer.py` runs the vendored `claude_skills/uptrend-analyzer` script locally on `data/uptrend_ratio_timeseries.csv` + `data/sector_summary.csv` and builds `Facts` (date, ratio_pct, count, total, score, zone, exposure). If `manifest.json` already lists that date, it stops without calling the API (`--force` overrides).
-2. `explainer.generate.sync_skills` uploads `claude_skills/*` to the Skills API the first time and a new version only when the files' SHA-256 changes; IDs, pinned version and hash live in `claude_skills/registry.json` (committed back to `main` by an `if: always()` step with push retries). If the registry is lost, a skill with the same display name is found via `skills.list` and gets a new version instead of a duplicate.
-3. `generate_pages` uploads both CSVs (`container_upload`), calls `client.beta.messages.stream` with `model=claude-opus-5-5`, effort `high`, `container={"skills": [...]}`, tool `code_execution_20260521`, server-side fallbacks (`fallbacks="default"`). It continues through `pause_turn` in the same container (max 10 per turn), stops when the whole run passes 400K output tokens, and downloads `uptrend-ja.html` / `uptrend-en.html` from `$OUTPUT_DIR` (both `bash_code_execution_tool_result` and `code_execution_tool_result` blocks). A `max_tokens` stop still checks the files saved so far. The uploaded CSVs are deleted afterwards; the SDK client retries at most once.
-4. `explainer.verify.verify_html` rejects a page unless: the primary `<html lang>` subtag matches, `<body>` and `<title>` exist, the `<script type="application/json" id="uptrend-facts">` object equals the local facts, every element marked `data-fact="ratio_pct" | "count" | "score"` shows the right value (at least one each; `％` accepted), nothing loads from outside (including protocol-relative `//` URLs), and it is under 1 MB. Other numbers on the page are not machine-checked. Problems are sent back for up to 2 fix rounds; if they remain, the run exits 1 and the site is not touched.
+2. `explainer.brief.build_brief` (v6.1) precomputes everything a page shows: facts; the score with its 5 components (name, score, weight, signal); thresholds 37 / 9.7 %; the last 30 trading days (ratio, count, 10MA, trend); the 11 sectors sorted by ratio with status; history stats (first date, days, min with date, max, median, days lower than today, the analyzer's percentile); a 5-day-step history series; and past oversold episodes (runs below 9.7 % merged when within 10 trading days, excluding the one still open) with the ratio 20 trading days after each low.
+3. `explainer.generate.generate_pages` makes one `client.beta.messages.stream` request per language (`claude-opus-5-5`, effort `high`, max_tokens 48000, `fallbacks="default"`). The system prompt holds the hard rules, the page requirements and the text of `claude_skills/eli5/SKILL.md` (cached with `cache_control`); the user message holds the brief as JSON. The answer is cut from the first `<!doctype` (or `<html`) to the last `</html>`, so a fence, preamble or trailing note is dropped. There is no container, code execution, Skills API or file upload. A refusal or `max_tokens` stop fails the run, and `run_explainer` also turns `anthropic.APIError` into exit 1 with the usage logged. `COST_BUDGET_USD = 3.0` is a hard cap: a request is sent only if the cost so far plus its worst case (max_tokens at the output price) fits. A response served by a fallback model is logged. The brief's `score.composite` is the rounded `facts.score`, and sectors without a row for the latest market date are left out.
+4. `explainer.verify.verify_html` rejects a page unless it starts with `<!doctype html`, ends at `</html>` with nothing after it, and: the primary `<html lang>` subtag matches, `<body>` and `<title>` exist, the `<script type="application/json" id="uptrend-facts">` object equals the local facts, every element marked `data-fact="ratio_pct" | "count" | "score"` shows the right value (at least one each; `％` accepted; a score of x.5 may be shown rounded either way), nothing loads from outside (including protocol-relative `//` URLs), and it is under 1 MB. Other numbers on the page are not machine-checked. Problems are sent back for up to 2 fix rounds; if they remain, the run exits 1 and the site is not touched.
 5. `explainer.site.publish` writes into the `gh-pages` checkout.
 
 **Site layout** (`gh-pages` branch, served by GitHub Pages):
@@ -67,9 +68,9 @@
 
 Each page gets a `<nav id="explainer-nav">` right after `<body>` with relative links (index, latest, previous day, other language), so the site works under the project path. Archived pages are not rewritten, so after a backfill or `--force` of an older date the next day's "previous day" link still points to the date it had; the index is always complete. The gh-pages commit message uses the date just published (`published_date` step output).
 
-**Offline analyzer**: the code execution container has no internet, so the vendored `data_fetcher.UptrendDataFetcher(timeseries_path=, sector_summary_path=)` and CLI flags `--timeseries-csv` / `--sector-summary-csv` read local files; `requests` is imported only for the GitHub download path.
+**Offline analyzer**: added for v6.0's container (no internet) and still used by `run_explainer.run_analyzer`: the vendored `data_fetcher.UptrendDataFetcher(timeseries_path=, sector_summary_path=)` and CLI flags `--timeseries-csv` / `--sector-summary-csv` read local files; `requests` is imported only for the GitHub download path.
 
-**Secrets / cost**: `ANTHROPIC_API_KEY` repository secret. Estimated ~$1 per trading day (about 100K input + 30K output tokens at $4 / $20 per MTok, unverified until the first run logs `usage`); code execution hours are within the monthly free allowance.
+**Secrets / cost**: `ANTHROPIC_API_KEY` repository secret. v6.0's first run (2026-11-22, run 45050627938) cost about $20.4, almost all input tokens from the code execution loop. v6.1 sends about 10K input tokens per page; output (page plus thinking) dominates. The run logs requests, tokens and an approximate dollar cost. The workflow was disabled after the v6.0 run and is re-enabled only after a measured v6.1 run.
 
 ---
 
@@ -1271,7 +1272,7 @@ uptrend-dashboard/
 | requests | >= 2.31.0 | Finviz API HTTP requests (Phase 3) | **New** |
 | python-dateutil | >= 2.8.0 | Accurate year arithmetic via `relativedelta` (v4.3) | **New** |
 | python-dotenv | >= 1.0.0 | Environment variable loading | Retained |
-| anthropic | == 2.12.0 | Claude API for daily explainer pages; `requirements-explainer.txt` only, not installed by the Streamlit app (v6.0) | **New** |
+| anthropic | == 2.12.0 | Claude API for daily explainer pages (Messages API only since v6.1); `requirements-explainer.txt` only, not installed by the Streamlit app (v6.0) | **New** |
 | pytest | >= 8.0.0 | Test framework | Retained |
 | pytest-mock | >= 3.12.0 | Mock library | Retained |
 | ~~gspread~~ | — | — | **Removed** |
@@ -1605,7 +1606,8 @@ Also: `test_data_loader.py` `test_load_constituents` / `test_load_constituents_e
 | tests/test_explainer_analyzer.py | Vendored analyzer reads local CSVs without network; CLI writes a JSON report offline |
 | tests/test_explainer_verify.py | `build_facts`; `verify_html` passes good JA/EN pages (also `ja-JP`, `％`) and rejects wrong lang, missing/mismatched/non-object facts block, missing or wrong `data-fact` numbers, numbers outside labelled elements, external (incl. `//`) resources, missing title or body |
 | tests/test_explainer_site.py | Archive + latest, backfill keeps latest, manifest upsert/sort, index links, relative nav, nav not duplicated, missing language rejected |
-| tests/test_explainer_generate.py | Fake client: skills + code execution request, pause_turn continuation in the same container, fix round on failed checks, give-up, refusal (also without container), missing page, Python-saved files, max_tokens after files saved, output token budget, uploaded CSVs deleted, output file collection, skill create/reuse/version, lost registry reuses the skill by name, pycache ignored |
+| tests/test_explainer_brief.py | Brief from a small CSV: facts and score components, thresholds, 30-day window, sectors sorted with industries excluded, history stats (analyzer percentile), downsampled history keeps both ends, past episodes exclude the open one, nearby dips merge into one episode |
+| tests/test_explainer_generate.py | Fake client: one request per language with no container/tools, skill text and cache_control in system, brief and lang in the request; fix round on failed checks, give-up, refusal, max_tokens, cost budget stops further requests, usage log; HTML extraction from fenced or prefixed answers; cost arithmetic |
 | tests/test_explainer_cli.py | Analyzer on repo data, skip when already published (no API call), publish on success with `published_date` in `GITHUB_OUTPUT`, exit 1 with site untouched on failure |
 
 ## 10. Relationship with Existing Systems

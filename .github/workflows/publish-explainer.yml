@@ -1,7 +1,7 @@
 name: Publish Explainer
 
-# After each data collection, ask Claude (uptrend-analyzer + eli5 skills) to write
-# the day's explainer pages and commit them to the gh-pages branch.
+# After each data collection, Python prepares the analysis and Claude (eli5 skill) writes
+# the day's explainer pages; they are committed to the gh-pages branch.
 # A date that is already published is skipped without calling the API.
 on:
   workflow_run:
@@ -71,21 +71,3 @@ jobs:
             git commit -m "Explainer ${PUBLISHED_DATE}"
             git push origin gh-pages
           fi
-
-      # Runs even when generation failed: skills may already have been created,
-      # and losing their IDs would create duplicates on the next run.
-      - name: Save skill registry on main
-        if: always()
-        run: |
-          git add claude_skills/registry.json 2>/dev/null || exit 0
-          if git diff --cached --quiet; then
-            echo "Skill registry unchanged"
-            exit 0
-          fi
-          git commit -m "Update Claude skill registry"
-          for attempt in 1 2 3; do
-            git pull --rebase origin main && git push origin HEAD:main && exit 0
-            echo "push attempt ${attempt} failed; retrying"
-            sleep $((attempt * 10))
-          done
-          echo "::warning::could not push claude_skills/registry.json; next run reuses skills by name"
