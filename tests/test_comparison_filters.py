@@ -138,7 +138,7 @@ def test_pages_keep_configured_default_and_recover_after_revisit(comparison):
     assert app.date_input[0].min == date(2020, 1, 1)
     assert app.date_input[0].value == (date(2022, 2, 5), date(2024, 2, 5))
     page = 'views/2_Sector_Comparison.py' if keys[0].startswith('sec_') else 'views/4_Industry_Comparison.py'
-    app.switch_page('app.py').run()
+    app.switch_page('views/0_Uptrend_Ratio.py').run()
     app.switch_page(page).run()
     # Cross-sector mode may reset to Within Sector on revisit; either mode must
     # recover valid range state instead of defaulting to an out-of-bound today.

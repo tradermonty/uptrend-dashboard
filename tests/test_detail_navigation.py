@@ -53,7 +53,7 @@ def select_label(app, label, value):
 
 
 def visit(app, number):
-    path = "app.py" if number == "0" else next(f"views/{p}" for p in PAGES if p.startswith(number))
+    path = "views/0_Uptrend_Ratio.py" if number == "0" else next(f"views/{p}" for p in PAGES if p.startswith(number))
     return app.switch_page(path).run()
 
 
