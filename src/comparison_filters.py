@@ -28,6 +28,7 @@ def comparison_date_bounds(
 def comparison_date_filter(
     all_data: Dict[str, pd.DataFrame], selected_keys: Sequence[str],
     display_name: Callable[[str], str], widget_key: str,
+    default_years: Optional[int] = None,
 ) -> Dict[str, pd.DataFrame]:
     """Render union date input and coverage; stop rather than chart an empty range.
 
@@ -40,10 +41,10 @@ def comparison_date_filter(
         st.warning(f'No dated observations available for the selected series: {names}.')
         st.stop()
     minimum, maximum = bounds
-    context = (tuple(sorted(set(selected_keys))), minimum, maximum)
+    context = (tuple(sorted(set(selected_keys))), minimum, maximum, default_years)
     context_key = widget_key + '_context'
     if st.session_state.get(context_key) != context or widget_key not in st.session_state:
-        st.session_state[widget_key] = (default_start_date(minimum, maximum), maximum)
+        st.session_state[widget_key] = (default_start_date(minimum, maximum, years=default_years), maximum)
         st.session_state[context_key] = context
     dates = st.date_input('Date Range', min_value=minimum, max_value=maximum, key=widget_key)
     st.caption('Date bounds use the union of selected series. Coverage lists observed dates and counts; missing observations are not filled.')
@@ -69,7 +70,7 @@ def comparison_date_filter(
         coverage.append(row)
         observed_dates = set(observed.dt.date)
         common_dates = observed_dates if common_dates is None else common_dates & observed_dates
-    st.dataframe(pd.DataFrame(coverage), hide_index=True, use_container_width=True)
+    st.dataframe(pd.DataFrame(coverage), hide_index=True, width="stretch")
     if unavailable:
         st.warning('No observations in this range for: ' + ', '.join(unavailable) + '.')
     if not filtered:

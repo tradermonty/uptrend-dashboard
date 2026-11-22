@@ -11,7 +11,7 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from src.constants import VALID_WORKSHEETS
+from src.constants import CONSTITUENT_COLUMNS, INDUSTRIES, VALID_WORKSHEETS
 
 
 logger = logging.getLogger(__name__)
@@ -65,6 +65,119 @@ class DBClient:
                 CREATE INDEX IF NOT EXISTS idx_uptrend_raw_worksheet
                     ON uptrend_raw (worksheet, date)
             """)
+
+    @staticmethod
+    def _ensure_constituents_table(conn) -> None:
+        """Create the stock-list table on first WRITE only (v5.9).
+
+        Kept out of _init_tables: every page load constructs a DBClient, and DDL
+        on the read path would modify (or, if read-only, fail on) the committed DB
+        that predates this table. Latest snapshot per industry, not historical:
+        each collect replaces the industry's rows to keep the committed DB small.
+        """
+        conn.execute("""
+                CREATE TABLE IF NOT EXISTS industry_constituents (
+                    worksheet  TEXT    NOT NULL,
+                    ticker     TEXT    NOT NULL,
+                    date       TEXT    NOT NULL,
+                    company    TEXT,
+                    market_cap REAL,
+                    change     REAL,
+                    perf_week  REAL,
+                    perf_ytd   REAL,
+                    is_uptrend INTEGER NOT NULL CHECK (is_uptrend IN (0, 1)),
+                    PRIMARY KEY (worksheet, ticker)
+                )
+            """)
+
+    def replace_constituents(self, worksheet: str, date: str, df: pd.DataFrame) -> None:
+        """Atomically replace the constituent snapshot of one industry.
+
+        An empty df clears the industry (e.g. no stocks passed the base filters).
+        """
+        self.replace_all_constituents(date, {worksheet: df})
+
+    def replace_all_constituents(self, date: str, snapshots: Dict[str, pd.DataFrame]) -> None:
+        """Replace several industries' snapshots in ONE transaction (all or nothing).
+
+        Every frame is validated before anything is written, so a bad frame or a
+        storage error leaves all industries on their previous snapshot.
+        """
+        self._validate_date(date)
+        all_rows = []
+        for worksheet, df in snapshots.items():
+            all_rows.extend(self._constituent_rows(worksheet, date, df))
+        with self._connection() as conn:
+            self._ensure_constituents_table(conn)
+            conn.executemany(
+                "DELETE FROM industry_constituents WHERE worksheet = ?",
+                [(ws,) for ws in snapshots],
+            )
+            conn.executemany(
+                "INSERT INTO industry_constituents "
+                "(worksheet, ticker, date, company, market_cap, change, perf_week, perf_ytd, is_uptrend) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                all_rows,
+            )
+        logger.debug("Replaced %d constituents across %d industries", len(all_rows), len(snapshots))
+
+    @staticmethod
+    def _constituent_rows(worksheet: str, date: str, df: pd.DataFrame) -> list:
+        if worksheet not in INDUSTRIES:
+            raise ValueError(f"Constituents are stored for industry worksheets only: '{worksheet}'")
+        missing = set(CONSTITUENT_COLUMNS) - set(df.columns)
+        if missing:
+            raise ValueError(f"Constituent DataFrame missing columns: {sorted(missing)}")
+
+        def _num(value):
+            return None if pd.isna(value) else float(value)
+
+        return [
+            (
+                worksheet,
+                str(row["ticker"]),
+                date,
+                None if pd.isna(row["company"]) else str(row["company"]),
+                _num(row["market_cap"]),
+                _num(row["change"]),
+                _num(row["perf_week"]),
+                _num(row["perf_ytd"]),
+                int(bool(row["is_uptrend"])),
+            )
+            for _, row in df.iterrows()
+        ]
+
+    def _read_constituents(self, sql: str, columns: list, params=()) -> pd.DataFrame:
+        """Run a constituent query; a DB without the table yet reads as empty."""
+        try:
+            with self._connection() as conn:
+                df = pd.read_sql_query(sql, conn, params=params)
+        except Exception as exc:  # pandas wraps sqlite3 errors in DatabaseError
+            if "no such table" not in str(exc):
+                raise
+            return pd.DataFrame(columns=columns)
+        if df.empty:
+            return pd.DataFrame(columns=columns)
+        df["is_uptrend"] = df["is_uptrend"].astype(bool)
+        return df
+
+    def fetch_constituents(self, worksheet: str) -> pd.DataFrame:
+        """Return the stored constituent snapshot of one industry (may be empty)."""
+        columns = ["date"] + CONSTITUENT_COLUMNS
+        return self._read_constituents(
+            f"SELECT {', '.join(columns)} FROM industry_constituents "
+            "WHERE worksheet = ? ORDER BY ticker",
+            columns,
+            (worksheet,),
+        )
+
+    def fetch_all_constituents(self) -> pd.DataFrame:
+        """Return every industry's stock list with a `worksheet` column (heatmap stock level)."""
+        columns = ["worksheet", "date"] + CONSTITUENT_COLUMNS
+        return self._read_constituents(
+            f"SELECT {', '.join(columns)} FROM industry_constituents ORDER BY worksheet, ticker",
+            columns,
+        )
 
     @staticmethod
     def _coerce_whole_number(value, field_name: str) -> int:

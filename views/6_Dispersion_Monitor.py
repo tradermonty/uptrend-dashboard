@@ -13,6 +13,8 @@ from src.indicator_calculator import (
     detect_dispersion_signals,
 )
 from src.chart_builder import build_dispersion_chart, build_regime_timeline_chart
+from src.kpi_cards import KpiCard, regime_card, render_kpi_cards
+from src.mobile_ui import display_years, inject_mobile_css, is_mobile_client, mobile_columns, show_chart
 from src.data_processor import (
     build_sector_ranking_table,
     default_start_date,
@@ -21,6 +23,7 @@ from src.data_processor import (
 )
 
 st.set_page_config(page_title="Dispersion Monitor", page_icon="📡", layout="wide")
+inject_mobile_css()
 st.title("Sector Dispersion Monitor")
 
 with st.sidebar:
@@ -106,34 +109,29 @@ if current_available:
                 )
 
     # --- Status metrics ---
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Dispersion (σ)", f"{latest_valid['dispersion']:.4f}")
-    with col2:
-        st.metric("Mean Ratio", f"{latest_valid['mean_ratio']:.1%}")
-    with col3:
-        regime_emoji = {"converged": "🟢", "normal": "🔵", "diverged": "🔴"}
-        st.metric("Regime", f"{regime_emoji.get(current_regime, '')} {current_regime.title()}")
-    with col4:
-        st.metric("Level", current_level.title())
+    render_kpi_cards([
+        KpiCard("Dispersion (σ)", f"{latest_valid['dispersion']:.4f}"),
+        KpiCard("Mean Ratio", f"{latest_valid['mean_ratio']:.1%}"),
+        regime_card(current_regime),
+        KpiCard("Level", current_level.title()),
+    ])
 
-# === Date filter (chart/table display only) ===
-with st.sidebar:
-    if not dispersion_df.empty and "date" in dispersion_df.columns:
-        min_date = dispersion_df["date"].min()
-        max_date = dispersion_df["date"].max()
-        if hasattr(min_date, "date"):
-            min_date = min_date.date()
-            max_date = max_date.date()
-        default_start = default_start_date(min_date, max_date)
-        date_range = st.date_input(
-            "Date Range",
-            value=(default_start, max_date),
-            min_value=min_date,
-            max_value=max_date,
-        )
-    else:
-        date_range = None
+# === Date filter (main area so it is reachable on phones) ===
+if not dispersion_df.empty and "date" in dispersion_df.columns:
+    min_date = dispersion_df["date"].min()
+    max_date = dispersion_df["date"].max()
+    if hasattr(min_date, "date"):
+        min_date = min_date.date()
+        max_date = max_date.date()
+    default_start = default_start_date(min_date, max_date, years=display_years(is_mobile_client()))
+    date_range = st.date_input(
+        "Date Range",
+        value=(default_start, max_date),
+        min_value=min_date,
+        max_value=max_date,
+    )
+else:
+    date_range = None
 
 if date_range and len(date_range) == 2:
     start, end = date_range
@@ -147,12 +145,12 @@ else:
 # --- 2. Dispersion Chart ---
 st.subheader("Dispersion Chart")
 fig = build_dispersion_chart(filtered_df)
-st.plotly_chart(fig, use_container_width=True)
+show_chart(fig, mobile_height=420)
 
 # --- 3. Regime Timeline ---
 st.subheader("Regime Timeline")
 fig_timeline = build_regime_timeline_chart(filtered_df)
-st.plotly_chart(fig_timeline, use_container_width=True)
+show_chart(fig_timeline)
 
 # --- 4. Sector Ranking Table ---
 st.subheader("Sector Ranking")
@@ -175,8 +173,9 @@ else:
                 "10MA": "{:.1%}",
                 "Historical Edge": lambda x: f"{x:+.4f}" if x is not None and x == x else "N/A",
             }),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
+            column_order=mobile_columns(ranking.columns, is_mobile_client()),
         )
 
 # --- 5. Historical Stats (Expander) ---
@@ -189,7 +188,7 @@ with st.expander("Historical Stats (Regime Transition Events)"):
                 "win_rate": "{:.1%}",
                 "count": "{:.0f}",
             }),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
     else:

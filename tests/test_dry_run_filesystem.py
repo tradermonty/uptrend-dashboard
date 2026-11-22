@@ -164,3 +164,20 @@ def test_setup_failure_leaves_target_untouched(target, tmp_path, mocker, offline
     assert run_collect(mocker, target, '--dry-run') == 1
     assert snapshot(tmp_path) == before
     offline[0].assert_not_called()
+
+
+@pytest.mark.parametrize('scope', ['sectors', 'industries', 'all'])
+def test_preview_never_collects_constituents(tmp_path, mocker, offline, scope):
+    """Stock-list exports (v5.9) are live-only: a preview adds no requests or writes."""
+    spy = mocker.patch('collect.collect_constituents_safely')
+    run_collect(mocker, tmp_path / 'preview.db', '--dry-run', '--scope', scope)
+    spy.assert_not_called()
+
+
+@pytest.mark.parametrize('scope,expected', [('sectors', False), ('industries', True), ('all', True)])
+def test_live_collection_wires_constituents_by_scope(tmp_path, mocker, offline, scope, expected):
+    result = CollectResult(succeeded={key: (1, 2) for key in INDUSTRIES}, failed=[])
+    mocker.patch('src.data_collector.DataCollector.collect_all', return_value=result)
+    spy = mocker.patch('collect.collect_constituents_safely', return_value=True)
+    run_collect(mocker, tmp_path / 'real.db', '--scope', scope)
+    assert spy.called is expected

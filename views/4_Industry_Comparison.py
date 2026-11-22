@@ -13,8 +13,10 @@ from src.data_processor import (
 )
 from src.comparison_filters import comparison_date_filter
 from src.chart_builder import build_industry_comparison_chart
+from src.mobile_ui import display_years, inject_mobile_css, is_mobile_client, mobile_columns, show_chart
 
 st.set_page_config(page_title="Industry Comparison", page_icon="📊", layout="wide")
+inject_mobile_css()
 st.title("Industry Comparison")
 
 with st.sidebar:
@@ -85,7 +87,8 @@ if not selected_keys:
     st.stop()
 
 filtered_data = comparison_date_filter(
-    all_data, selected_keys, get_industry_display_name, "industry_comparison_dates"
+    all_data, selected_keys, get_industry_display_name, "industry_comparison_dates",
+    default_years=display_years(is_mobile_client()),
 )
 
 # Display mode toggle
@@ -98,4 +101,4 @@ use_ma = display_mode == "Smoothed (10MA)"
 
 # Chart
 fig = build_industry_comparison_chart(filtered_data, selected_industries=selected_keys, use_ma=use_ma)
-st.plotly_chart(fig, use_container_width=True)
+show_chart(fig, mobile_height=520, mobile_hide_annotations=True)

@@ -4,6 +4,7 @@ import datetime
 import logging
 from dataclasses import dataclass, asdict
 from typing import Dict, Optional
+from urllib.parse import quote
 
 import pandas as pd
 import numpy as np
@@ -244,6 +245,76 @@ def style_status_row(row):
     return styles
 
 
+# Stored constituent column -> display column (v5.9), in display order
+CONSTITUENT_DISPLAY_COLUMNS = {
+    "ticker": "Ticker",
+    "company": "Company",
+    "is_uptrend": "Uptrend",
+    "market_cap": "Market Cap ($M)",
+    "change": "Change",
+    "perf_week": "Perf Week",
+    "perf_ytd": "Perf YTD",
+}
+
+
+_FINVIZ_QUOTE_URL = "https://finviz.com/quote.ashx?t={ticker}&p=w"
+# For st.column_config.LinkColumn(display_text=...): shows the ticker, not the URL
+TICKER_LINK_PATTERN = r"t=([^&]+)"
+
+
+def finviz_chart_url(ticker: str) -> str:
+    """Finviz quote page opened on the weekly chart (p=w)."""
+    return _FINVIZ_QUOTE_URL.format(ticker=quote(str(ticker), safe="-."))
+
+
+def prepare_constituents_table(constituents: pd.DataFrame) -> pd.DataFrame:
+    """Format an industry's stock list for display.
+
+    Uptrend stocks come first; within each group, larger market cap first.
+    The Ticker column holds the Finviz weekly chart URL; the page renders it as a
+    link labelled with the ticker (TICKER_LINK_PATTERN).
+    """
+    columns = list(CONSTITUENT_DISPLAY_COLUMNS.values())
+    if constituents.empty:
+        return pd.DataFrame(columns=columns)
+    ordered = constituents.sort_values(
+        ["is_uptrend", "market_cap"], ascending=[False, False], na_position="last",
+    )
+    table = ordered[list(CONSTITUENT_DISPLAY_COLUMNS)].rename(columns=CONSTITUENT_DISPLAY_COLUMNS)
+    table["Ticker"] = table["Ticker"].map(finviz_chart_url)
+    return table.reset_index(drop=True)
+
+
+_UP_COLOR = "color: #00cc96"
+_DOWN_COLOR = "color: #ef553b"
+_SIGNED_DISPLAY_COLUMNS = ("Change", "Perf Week", "Perf YTD")
+
+
+def style_constituent_row(row):
+    """Color a constituent table row: uptrend ticker in green, returns by sign."""
+    styles = []
+    for col in row.index:
+        value = row[col]
+        if col == "Ticker":
+            styles.append(f"{_UP_COLOR}; font-weight: bold" if row.get("Uptrend") else "")
+        elif col in _SIGNED_DISPLAY_COLUMNS and pd.notna(value) and value != 0:
+            styles.append(_UP_COLOR if value > 0 else _DOWN_COLOR)
+        else:
+            styles.append("")
+    return styles
+
+
+def summarize_constituents(constituents: pd.DataFrame) -> dict:
+    """Return total / uptrend stock counts and the snapshot date."""
+    if constituents.empty:
+        return {"total": 0, "uptrend": 0, "as_of": None}
+    return {
+        "total": len(constituents),
+        "uptrend": int(constituents["is_uptrend"].sum()),
+        "as_of": str(constituents["date"].max()),
+    }
+
+
 def prepare_timeseries_csv(df: pd.DataFrame) -> pd.DataFrame:
     """Select and format columns for time series CSV export."""
     result = df[["date", "count", "total", "ratio", "ma_10", "slope"]].copy()
@@ -367,8 +438,31 @@ def filter_by_date_range(df: pd.DataFrame, start, end) -> pd.DataFrame:
 
 
 def default_start_date(
-    min_date: datetime.date, max_date: datetime.date
+    min_date: datetime.date, max_date: datetime.date, years: Optional[int] = None
 ) -> datetime.date:
-    """Return the default start date, clamped to at most DEFAULT_DISPLAY_YEARS years before max_date."""
-    cutoff = max_date - relativedelta(years=DEFAULT_DISPLAY_YEARS)
+    """Return the default start date, at most `years` (default DEFAULT_DISPLAY_YEARS) before max_date."""
+    cutoff = max_date - relativedelta(years=years if years is not None else DEFAULT_DISPLAY_YEARS)
     return max(min_date, cutoff)
+
+
+# Industry Heatmap KPI filters: query-param key -> (column, value)
+HEATMAP_FILTERS = {
+    "oversold": ("Status", "Oversold"),
+    "normal": ("Status", "Normal"),
+    "overbought": ("Status", "Overbought"),
+    "trend_up": ("Trend", "Up"),
+    "trend_down": ("Trend", "Down"),
+}
+
+
+def parse_heatmap_filter(value) -> Optional[str]:
+    """Validate a ?filter= query value; anything unknown means no filter."""
+    return value if isinstance(value, str) and value in HEATMAP_FILTERS else None
+
+
+def filter_industry_summary(summary: pd.DataFrame, key: Optional[str]) -> pd.DataFrame:
+    """Rows of the industry summary that match a KPI filter (all rows when key is None)."""
+    if key is None:
+        return summary
+    column, value = HEATMAP_FILTERS[key]
+    return summary[summary[column] == value].reset_index(drop=True)

@@ -109,7 +109,7 @@ uptrend-dashboard/
 │   ├── test_export_csv.py
 │   ├── test_import_excel.py
 │   └── test_integration.py
-├── pages/
+├── views/
 │   ├── 1_Sector_Detail.py          # Sector detail + industry drilldown
 │   ├── 2_Sector_Comparison.py      # Sector comparison page
 │   ├── 3_Industry_Detail.py        # Industry detail page

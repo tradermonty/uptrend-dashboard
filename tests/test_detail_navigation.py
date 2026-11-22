@@ -6,6 +6,8 @@ from types import SimpleNamespace
 
 import pandas as pd
 import pytest
+
+from tests.kpi_helpers import kpi_cards
 import streamlit as st
 from streamlit.testing.v1 import AppTest
 
@@ -33,7 +35,7 @@ def detail_app(default="3_Industry_Detail.py"):
     # Start from the actual multipage entrypoint so registration and page
     # revisits use the production context across supported AppTest versions.
     app = AppTest.from_file(ROOT / "app.py", default_timeout=20).run()
-    return app.switch_page(f"pages/{default}")
+    return app.switch_page(f"views/{default}")
 
 
 def selector(app, label):
@@ -51,7 +53,7 @@ def select_label(app, label, value):
 
 
 def visit(app, number):
-    path = "app.py" if number == "0" else next(f"pages/{p}" for p in PAGES if p.startswith(number))
+    path = "views/0_Uptrend_Ratio.py" if number == "0" else next(f"views/{p}" for p in PAGES if p.startswith(number))
     return app.switch_page(path).run()
 
 
@@ -60,7 +62,7 @@ def assert_industry(app, sector, industry, ratio):
     assert selected_label(app, "Filter by Sector") == sector
     assert selected_label(app, "Select Industry") == industry
     assert f"Parent Sector: {sector}" in [x.value for x in app.caption]
-    assert next(m.value for m in app.metric if m.label == "Ratio") == ratio
+    assert kpi_cards(app)["Ratio"] == ratio
     chart = json.loads(app.get("plotly_chart")[0].proto.spec)
     assert chart["layout"]["title"]["text"] == f"{industry} Uptrend Ratio"
     assert any(x.proto.label == f"Download {industry} Time Series" for x in app.get("download_button"))
@@ -110,7 +112,7 @@ def test_sector_intent_overrides_existing_manual_widget(loaded_data):
         app.run()
         assert not app.exception
         assert selected_label(app, "Select Sector") == label
-        assert next(m.value for m in app.metric if m.label == "Ratio") == ratio
+        assert kpi_cards(app)["Ratio"] == ratio
         assert "selected_sector" not in app.session_state
     select_label(app, "Select Sector", "Healthcare")
     app.run()
@@ -140,7 +142,7 @@ def test_configured_target_without_data_is_selected_explicitly(loaded_data):
     assert selected_label(app, "Filter by Sector") == "Technology"
     assert selected_label(app, "Select Industry") == "Semiconductors"
     assert any("No data available for Semiconductors" in x.value for x in app.warning)
-    assert not app.metric
+    assert not kpi_cards(app)
 
 
 def test_stale_widget_values_recover_before_construction(loaded_data):
@@ -193,7 +195,7 @@ def test_empty_data_names_requested_target_without_showing_other_metrics(loaded_
     assert selected_label(app, "Filter by Sector") == "Technology"
     assert selected_label(app, "Select Industry") == "Semiconductors"
     assert any("No data available for Semiconductors" in x.value for x in app.warning)
-    assert not app.metric
+    assert not kpi_cards(app)
     assert "selected_industry" not in app.session_state
 
 
@@ -225,7 +227,7 @@ def test_sector_without_data_is_selected_instead_of_another_sector(loaded_data):
     assert not app.exception
     assert selected_label(app, "Select Sector") == "Technology"
     assert any("No data available for Technology" in x.value for x in app.warning)
-    assert not app.metric
+    assert not kpi_cards(app)
 
 
 @pytest.mark.parametrize("route", ["chart", "table"])
@@ -254,5 +256,5 @@ def test_overview_producers_navigate_to_visited_sector(loaded_data, mocker, rout
         assert not trigger["armed"]
         assert not app.exception
         assert selected_label(app, "Select Sector") == "Technology"
-        assert next(m.value for m in app.metric if m.label == "Ratio") == "50.0%"
+        assert kpi_cards(app)["Ratio"] == "50.0%"
         assert "selected_sector" not in app.session_state

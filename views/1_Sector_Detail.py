@@ -17,8 +17,11 @@ from src.data_processor import (
     style_status_row,
 )
 from src.chart_builder import build_ratio_chart, build_industry_summary_chart
+from src.kpi_cards import KpiCard, render_kpi_cards, status_card, trend_card
+from src.mobile_ui import display_years, inject_mobile_css, is_mobile_client, mobile_columns, show_chart
 
 st.set_page_config(page_title="Sector Detail", page_icon="🔍", layout="wide")
+inject_mobile_css()
 st.title("Sector Detail")
 
 with st.sidebar:
@@ -74,28 +77,18 @@ if df is None or df.empty:
 # Status indicators
 status = get_current_status(df)
 
-col1, col2, col3, col4, col5 = st.columns(5)
-with col1:
-    st.metric("Ratio", f"{status['ratio']:.1%}")
-with col2:
-    st.metric("10MA", f"{status['ratio_10ma']:.1%}" if status["ratio_10ma"] is not None else "N/A")
-with col3:
-    trend_icons = {"up": "🔼", "down": "🔽", "neutral": "➖"}
-    st.metric("Trend", f"{trend_icons.get(status['trend'], '➖')} {status['trend'].title()}")
-with col4:
-    st.metric("Slope", f"{status['slope']:.4f}" if status["slope"] is not None else "N/A")
-with col5:
-    if status["is_overbought"]:
-        st.metric("Status", "⚠️ Overbought")
-    elif status["is_oversold"]:
-        st.metric("Status", "⚠️ Oversold")
-    else:
-        st.metric("Status", "Normal")
+render_kpi_cards([
+    KpiCard("Ratio", f"{status['ratio']:.1%}"),
+    KpiCard("10MA", f"{status['ratio_10ma']:.1%}" if status["ratio_10ma"] is not None else "N/A"),
+    trend_card(status["trend"]),
+    KpiCard("Slope", f"{status['slope']:.4f}" if status["slope"] is not None else "N/A"),
+    status_card(status),
+])
 
 # Date filter
 min_date = df["date"].min().date()
 max_date = df["date"].max().date()
-default_start = default_start_date(min_date, max_date)
+default_start = default_start_date(min_date, max_date, years=display_years(is_mobile_client()))
 date_range = st.date_input(
     "Date Range",
     value=(default_start, max_date),
@@ -111,7 +104,7 @@ else:
 
 # Chart
 fig = build_ratio_chart(df_filtered, title=f"{selected_display} Uptrend Ratio")
-st.plotly_chart(fig, use_container_width=True)
+show_chart(fig, mobile_height=420)
 
 # Industries in this Sector
 st.markdown("---")
@@ -126,8 +119,8 @@ if has_industry_data:
     ind_summary = build_industry_summary(all_data, sector_key=selected_key)
     if not ind_summary.empty:
         fig_ind = build_industry_summary_chart(ind_summary, sector_name=selected_display)
-        ind_chart_event = st.plotly_chart(
-            fig_ind, use_container_width=True, on_select="rerun", key="industry_summary_chart",
+        ind_chart_event = show_chart(
+            fig_ind, on_select="rerun", key="industry_summary_chart",
         )
 
         if ind_chart_event and ind_chart_event.selection and ind_chart_event.selection.points:
@@ -135,14 +128,15 @@ if has_industry_data:
             customdata = point.get("customdata")
             if customdata:
                 st.session_state["selected_industry"] = customdata
-                st.switch_page("pages/3_Industry_Detail.py")
+                st.switch_page("views/3_Industry_Detail.py")
 
         ind_table_event = st.dataframe(
             ind_summary.drop(columns=["_key"]).style
             .format({"Ratio": "{:.1%}", "10MA": "{:.1%}", "Slope": "{:.4f}"}, na_rep="N/A")
             .apply(style_status_row, axis=1),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
+            column_order=mobile_columns(ind_summary.columns, is_mobile_client()),
             on_select="rerun",
             selection_mode="single-row",
             key="industry_table",
@@ -152,7 +146,7 @@ if has_industry_data:
             selected_ind_row = ind_table_event.selection.rows[0]
             selected_ind_key = ind_summary.iloc[selected_ind_row]["_key"]
             st.session_state["selected_industry"] = selected_ind_key
-            st.switch_page("pages/3_Industry_Detail.py")
+            st.switch_page("views/3_Industry_Detail.py")
 else:
     st.info("No industry data available for this sector yet.")
 

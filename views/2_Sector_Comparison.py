@@ -10,9 +10,11 @@ from src.data_loader import cached_load_sector_data
 from src.data_processor import get_sector_display_name
 from src.comparison_filters import comparison_date_filter
 from src.chart_builder import build_sector_comparison_chart
+from src.mobile_ui import display_years, inject_mobile_css, is_mobile_client, mobile_columns, show_chart
 from src.indicator_calculator import calculate_sector_dispersion
 
 st.set_page_config(page_title="Sector Comparison", page_icon="📊", layout="wide")
+inject_mobile_css()
 st.title("Sector Comparison")
 
 with st.sidebar:
@@ -23,7 +25,7 @@ with st.sidebar:
     )
 
     st.markdown("---")
-    st.page_link("pages/6_Dispersion_Monitor.py", label="📡 Dispersion Monitor")
+    st.page_link("views/6_Dispersion_Monitor.py", label="📡 Dispersion Monitor")
     st.markdown("---")
     st.markdown(
         'Made with <img src="https://streamlit.io/images/brand/streamlit-mark-color.png" alt="Streamlit" height="16"> by <a href="https://github.com/tradermonty">@tradermonty</a>',
@@ -81,7 +83,8 @@ if not selected_keys:
     st.stop()
 
 filtered_data = comparison_date_filter(
-    all_data, selected_keys, get_sector_display_name, "sector_comparison_dates"
+    all_data, selected_keys, get_sector_display_name, "sector_comparison_dates",
+    default_years=display_years(is_mobile_client()),
 )
 
 # Display mode toggle
@@ -94,4 +97,4 @@ use_ma = display_mode == "Smoothed (10MA)"
 
 # Chart
 fig = build_sector_comparison_chart(filtered_data, selected_sectors=selected_keys, use_ma=use_ma)
-st.plotly_chart(fig, use_container_width=True)
+show_chart(fig, mobile_height=520, mobile_hide_annotations=True)

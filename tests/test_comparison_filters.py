@@ -46,7 +46,7 @@ def comparison(request, mocker):
     mocker.patch('src.indicator_calculator.calculate_sector_dispersion', return_value=pd.DataFrame())
     capture = mocker.spy(__import__('src.chart_builder', fromlist=[chart]), chart)
     app = AppTest.from_file(ROOT / 'app.py', default_timeout=20).run()
-    app.switch_page('pages/' + page).run()
+    app.switch_page('views/' + page).run()
     if kind == 'cross':
         app.radio[0].set_value('Cross-Sector').run()
         prefix = get_sector_display_name(SECTORS[0]) + ' / '
@@ -137,8 +137,8 @@ def test_pages_keep_configured_default_and_recover_after_revisit(comparison):
     assert not app.exception
     assert app.date_input[0].min == date(2020, 1, 1)
     assert app.date_input[0].value == (date(2022, 2, 5), date(2024, 2, 5))
-    page = 'pages/2_Sector_Comparison.py' if keys[0].startswith('sec_') else 'pages/4_Industry_Comparison.py'
-    app.switch_page('app.py').run()
+    page = 'views/2_Sector_Comparison.py' if keys[0].startswith('sec_') else 'views/4_Industry_Comparison.py'
+    app.switch_page('views/0_Uptrend_Ratio.py').run()
     app.switch_page(page).run()
     # Cross-sector mode may reset to Within Sector on revisit; either mode must
     # recover valid range state instead of defaulting to an out-of-bound today.
