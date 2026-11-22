@@ -9,9 +9,11 @@ from src.constants import SECTORS
 from src.data_loader import cached_load_sector_data
 from src.data_processor import get_sector_display_name, default_start_date, filter_by_date_range
 from src.chart_builder import build_sector_comparison_chart
+from src.mobile_ui import display_years, inject_mobile_css, is_mobile_client, mobile_columns, show_chart
 from src.indicator_calculator import calculate_sector_dispersion
 
 st.set_page_config(page_title="Sector Comparison", page_icon="📊", layout="wide")
+inject_mobile_css()
 st.title("Sector Comparison")
 
 with st.sidebar:
@@ -76,7 +78,7 @@ first_df = all_data.get(selected_keys[0])
 if first_df is not None and not first_df.empty:
     min_date = first_df["date"].min().date()
     max_date = first_df["date"].max().date()
-    default_start = default_start_date(min_date, max_date)
+    default_start = default_start_date(min_date, max_date, years=display_years(is_mobile_client()))
     date_range = st.date_input(
         "Date Range",
         value=(default_start, max_date),
@@ -106,4 +108,4 @@ use_ma = display_mode == "Smoothed (10MA)"
 
 # Chart
 fig = build_sector_comparison_chart(filtered_data, selected_sectors=selected_keys, use_ma=use_ma)
-st.plotly_chart(fig, use_container_width=True)
+show_chart(fig, mobile_height=520, mobile_hide_annotations=True)

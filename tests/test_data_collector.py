@@ -336,19 +336,15 @@ class TestCollectWorkflow:
 
     def test_validate_counts_negative(self, collector, mocker):
         """Fix 4: Negative count/total should raise ValueError."""
-        mocker.patch.object(
-            collector, "_fetch_stock_count", return_value=(-1, 100),
-        )
+        # Counts come from len(DataFrame) since v5.2, so they cannot be mocked
+        # negative through the fetch path; exercise the guard directly.
         with pytest.raises(ValueError, match="negative"):
-            collector.collect_worksheet("all", date="2026-02-07")
+            collector._validate_counts("all", -1, 100)
 
     def test_validate_counts_count_exceeds_total(self, collector, mocker):
         """Fix 4: count > total should raise ValueError."""
-        mocker.patch.object(
-            collector, "_fetch_stock_count", return_value=(200, 100),
-        )
         with pytest.raises(ValueError, match="exceeds total"):
-            collector.collect_worksheet("all", date="2026-02-07")
+            collector._validate_counts("all", 200, 100)
 
     def test_collect_worksheet_dry_run(self, collector, db_client, mocker):
         """Fix 7: dry_run=True should skip DB write but run validation."""

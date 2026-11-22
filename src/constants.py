@@ -534,6 +534,7 @@ CHART_HEIGHT_HEATMAP = 700
 
 # Date range display
 DEFAULT_DISPLAY_YEARS = 2
+MOBILE_DISPLAY_YEARS = 1  # phones: shorter default range so the chart is not squeezed
 
 # Dispersion analysis
 DISPERSION_CONVERGED_FALLBACK = 0.066  # ~p25 from historical data
@@ -555,3 +556,16 @@ def is_sector(worksheet: str) -> bool:
 def is_industry(worksheet: str) -> bool:
     """Check if a worksheet key is an industry."""
     return worksheet.startswith("ind_")
+
+
+# Industry constituent snapshot (v5.2). Stored columns, in order.
+# market_cap is in $M (as exported by Finviz); change/perf_* are fractions (0.05 = 5%).
+CONSTITUENT_COLUMNS = [
+    "ticker",
+    "company",
+    "market_cap",
+    "change",
+    "perf_week",
+    "perf_ytd",
+    "is_uptrend",
+]

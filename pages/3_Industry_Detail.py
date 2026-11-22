@@ -6,19 +6,32 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from src.constants import INDUSTRIES, SECTORS, SECTOR_INDUSTRIES
-from src.data_loader import cached_load_all_data
+from src.data_loader import cached_load_all_data, cached_load_constituents
 from src.data_processor import (
+    TICKER_LINK_PATTERN,
     get_current_status,
     get_industry_display_name,
     get_sector_display_name,
     get_sector_for_industry,
     default_start_date,
     filter_by_date_range,
+    prepare_constituents_table,
     prepare_timeseries_csv,
+    style_constituent_row,
+    summarize_constituents,
 )
 from src.chart_builder import build_ratio_chart
+from src.mobile_ui import (
+    MOBILE_CONSTITUENT_COLUMNS,
+    display_years,
+    inject_mobile_css,
+    is_mobile_client,
+    mobile_columns,
+    show_chart,
+)
 
 st.set_page_config(page_title="Industry Detail", page_icon="🏭", layout="wide")
+inject_mobile_css()
 st.title("Industry Detail")
 
 with st.sidebar:
@@ -110,7 +123,7 @@ with col5:
 # Date filter
 min_date = df["date"].min().date()
 max_date = df["date"].max().date()
-default_start = default_start_date(min_date, max_date)
+default_start = default_start_date(min_date, max_date, years=display_years(is_mobile_client()))
 date_range = st.date_input(
     "Date Range",
     value=(default_start, max_date),
@@ -126,7 +139,44 @@ else:
 
 # Chart
 fig = build_ratio_chart(df_filtered, title=f"{selected_display} Uptrend Ratio")
-st.plotly_chart(fig, use_container_width=True)
+show_chart(fig, mobile_height=420)
+
+# Constituents (stock list) — latest snapshot from the daily collect
+st.markdown("---")
+st.subheader("Stocks in this Industry")
+constituents = cached_load_constituents(selected_key)
+const_summary = summarize_constituents(constituents)
+
+if const_summary["total"] == 0:
+    st.info("No stock list yet. It is filled in by the next daily data collection.")
+else:
+    st.caption(
+        f"{const_summary['uptrend']} of {const_summary['total']} stocks in uptrend "
+        f"· as of {const_summary['as_of']} · uptrend stocks listed first "
+        "· tap a ticker for its weekly chart on Finviz"
+    )
+    const_table = prepare_constituents_table(constituents)
+    st.dataframe(
+        const_table.style
+        .format(
+            {
+                "Market Cap ($M)": "{:,.0f}",
+                "Change": "{:+.2%}",
+                "Perf Week": "{:+.2%}",
+                "Perf YTD": "{:+.2%}",
+            },
+            na_rep="N/A",
+        )
+        .apply(style_constituent_row, axis=1),
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "Ticker": st.column_config.LinkColumn("Ticker", display_text=TICKER_LINK_PATTERN),
+        },
+        column_order=mobile_columns(
+            const_table.columns, is_mobile_client(), keep=MOBILE_CONSTITUENT_COLUMNS,
+        ),
+    )
 
 # Data Download
 st.markdown("---")

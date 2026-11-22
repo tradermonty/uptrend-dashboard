@@ -5,8 +5,8 @@
 | Document Type | Software Design Document |
 | Project Name | uptrend-dashboard |
 | Created | 2026-02-08 |
-| Revised | 2026-04-11 |
-| Status | v5.0 Sector Dispersion Analysis |
+| Revised | 2026-11-22 |
+| Status | v5.2 Industry Stock List |
 
 ---
 
@@ -14,6 +14,8 @@
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2026-11-22 | v5.2 | Industry stock list: the daily collect now stores each industry's constituent snapshot (`industry_constituents` table) from the Finviz CSVs it already downloads; Industry Detail shows a "Stocks in this Industry" table (uptrend stocks first). No additional API calls |
+| 2026-11-22 | v5.1 | Mobile-friendly layout across all pages (`src/mobile_ui.py`), explicit `st.navigation` so the main page is labeled "Uptrend Ratio" instead of "app", horizontal chart legends, date filter moved out of the sidebar on main/Dispersion pages |
 | 2026-02-08 | v1 | Initial version (Google Sheets based) |
 | 2026-02-08 | v2 | Migrated data store from Google Sheets to SQLite. Ported derived data calculations to Python. Added Excel import functionality |
 | 2026-02-08 | v2.1 | Removed signal logic (Long/Short Entry/Exit). Changed chart trend display to green/red/gray color coding |
@@ -29,6 +31,32 @@
 | 2026-02-14 | v3.4 | CSV download buttons on main page for LLM data analysis |
 | 2026-02-11 | v3.3 | Sector summary bar chart click → Sector Detail page navigation |
 | 2026-02-11 | v3.2 | Data validation hardening, secret masking, CI test workflow. DB CHECK constraints, Python-level count/total validation, import_excel row filtering, mask_secrets/safe_http_error, GitHub Actions pytest |
+
+### v5.2 Key Changes (Industry Stock List)
+
+- **Purpose**: drill down from an industry (Heatmap table / Sector Detail → Industry Detail) to the stocks it contains, and see which of them meet the uptrend screen
+- **Per-stock chart**: no in-app chart. The Ticker column is a `st.column_config.LinkColumn` holding `finviz_chart_url(ticker)` = `https://finviz.com/quote.ashx?t={ticker}&p=w` (weekly chart), labelled with the bare ticker via `display_text=TICKER_LINK_PATTERN` (`r"t=([^&]+)"`). Tapping opens Finviz in a new tab (on phones Finviz redirects to its mobile `/stock?t=...&p=w` page). Chosen over fetching prices (yfinance/FMP) to avoid a new data dependency
+- **Data source**: no new requests. `collect_worksheet()` already downloads the total (base filters) and uptrend CSVs per industry; it previously kept only `len()`. `DataCollector._fetch_stock_lists(sector) -> (uptrend_df, total_df)` now returns both frames (`_fetch_stock_count()` remains as a thin wrapper)
+- **Extraction**: `extract_constituents(total_df, uptrend_df) -> DataFrame[CONSTITUENT_COLUMNS]` (module-level, pure). One row per stock in `total_df`; `is_uptrend` = ticker also in `uptrend_df`. Finviz percent strings (`"-8.05%"`) become fractions (`-0.0805`); unparseable values and missing source columns become NaN. Source columns verified against the live export (`v=151`) on 2026-11-22: `Ticker`, `Company`, `Market Cap` ($M), `Change`, `Performance (Week)`, `Performance (YTD)`. The export has no price column
+- **Storage**: latest snapshot only — `DBClient.replace_constituents(worksheet, date, df)` deletes and re-inserts one industry's rows in one transaction, so the git-committed DB does not grow daily (~3,000–4,000 rows in total). Industry worksheets only
+- **Write rules** (`_maybe_save_constituents`, called after the count row is written): industries only, skipped on `dry_run`. Skipped, keeping the old list, when `date` is not today (`_today()`): Finviz always returns today's screen, so a `--date` backfill would mislabel it. Also skipped when the total response has no header (blank body → bare `DataFrame()` from `_make_request`), since that is a glitch, not "0 stocks". A header-only response (0 stocks) clears the list. A storage failure (`sqlite3.Error` / `ValueError`) is logged as a warning and does not fail the worksheet
+- **CSV parsing**: `_make_request` reads with `keep_default_na=False, na_values=["", "-"], dtype={"Ticker": str}` so the real ticker `NA` is not turned into NaN. `extract_constituents` drops null and duplicate tickers (primary key safety). Counts are unaffected (`len()` of the frame)
+- **UI**: Industry Detail adds "Stocks in this Industry" below the ratio chart: caption "N of M stocks in uptrend · as of DATE", table sorted uptrend-first then market cap desc, uptrend tickers bold green, Change/Perf columns green/red by sign. Phones show Ticker/Uptrend/Change/Perf YTD (`MOBILE_CONSTITUENT_COLUMNS`). Before the first collect after deploy, an info message is shown instead. Heatmap table caption now says a row click opens the industry with its stock list
+- **Loader**: `load_constituents(worksheet, db_path=None)` and the cached `cached_load_constituents(worksheet, db_path=None)` (ttl 3600) in `data_loader.py`
+
+### v5.1 Key Changes (Mobile Layout & Navigation)
+
+- **Explicit navigation**: `app.py` is now a router that registers pages via `st.navigation()` from `src/navigation.py` (`PageSpec(path, title, icon, default)`, `PAGE_SPECS`). The former main page moved to `pages/0_Uptrend_Ratio.py` and appears as "Uptrend Ratio" in the sidebar menu. Existing `st.switch_page("pages/...")` paths are unchanged
+- **Responsive page CSS**: `inject_mobile_css()` (called after `set_page_config` on every page) applies a `@media (max-width: 640px)` block: smaller headings and padding, metric rows kept as a 2-column card grid instead of one tall stack
+- **Mobile chart layout**: `show_chart(fig, mobile_height=None, mobile_hide_annotations=False, **kwargs)` wraps `st.plotly_chart`. When the User-Agent is a phone (`is_mobile_user_agent()` / `is_mobile_client()`), `apply_mobile_layout()` sets `dragmode=False` (finger drag scrolls the page; tap still shows hover), tight margins with axis `automargin`, horizontal x tick labels (`nticks=5`), horizontal legend, smaller fonts, and a horizontal treemap colorbar. Comparison charts hide end-of-line annotations on phones (the legend carries the names)
+- **Plotly toolbar (phones only)**: `PLOTLY_CONFIG` hides the Plotly logo and removes lasso/select/zoom-in/zoom-out/autoscale/download buttons; desktop keeps the full toolbar
+- **Width API**: `use_container_width=True` (deprecated in Streamlit 1.56) replaced with `width="stretch"` for charts and tables; `requirements.txt` floor raised to `streamlit>=1.50.0` (`st.navigation`, `st.context`, `width=`)
+- **Compact tables on phones**: `mobile_columns(columns, is_mobile)` → `st.dataframe(column_order=...)` keeps only Sector/Industry/Ratio/Current Ratio/Trend/Status/Regime on phones; all columns on desktop
+- **Chart changes (all devices)**: ratio and comparison charts use a horizontal legend below the plot (`HORIZONTAL_LEGEND`) instead of a right-side column, drop the redundant "Date" x-axis title, and the ratio chart Y axis uses `.0%`
+- **Shorter default range on phones**: `default_start_date(min_date, max_date, years=None)` gained a `years` override; pages pass `display_years(is_mobile_client())` → `MOBILE_DISPLAY_YEARS = 1` on phones, `DEFAULT_DISPLAY_YEARS = 2` on desktop. Users can still widen the range with the Date Range input
+- **No axis titles on phones**: `apply_mobile_layout()` removes x/y axis titles ("Ratio", "Date") to give the plot area the width; tick formats (%, dates) are self-explanatory
+- **Heatmap on phones (drilldown)**: `build_industry_heatmap(..., drilldown=True)` adds an "All Sectors" root and sets treemap `maxdepth=2`, so a phone first sees 11 readable sector tiles. Each sector tile shows its stock-weighted ratio (`_weighted_sector_ratio()`, weights = `Total`) and is colored by it (status mode: `_ratio_status()` with Upper/Lower thresholds). Tapping a sector zooms into its industries; the Plotly pathbar returns to the overview. Drilldown uses a fixed 0-60% color scale (`HEATMAP_DRILLDOWN_CMAX`) because sector ratios cluster at 20-45%. Treemap text is 12px on phones. `color_range=(cmin, cmax)` can override the scale. Desktop is unchanged (all 149 tiles, data-range scale)
+- **Date filter placement**: main page and Dispersion Monitor show the Date Range input in the main area (was sidebar, hidden on phones), matching the other pages
 
 ### v5.0 Key Changes (Sector Dispersion Analysis)
 
@@ -321,6 +349,25 @@ CREATE INDEX IF NOT EXISTS idx_uptrend_raw_worksheet
 **Composite primary key:** `(date, worksheet)` — Prevents duplicates for the same date and category
 **Index:** `(worksheet, date)` — Optimizes time-series queries by category
 
+**Table: `industry_constituents` (v5.2)** — latest stock list per industry, not historical. Replaced per industry on each collect.
+
+```sql
+CREATE TABLE IF NOT EXISTS industry_constituents (
+    worksheet  TEXT    NOT NULL,   -- 'ind_*' only
+    ticker     TEXT    NOT NULL,
+    date       TEXT    NOT NULL,   -- snapshot date (YYYY-MM-DD)
+    company    TEXT,
+    market_cap REAL,               -- $M, as exported by Finviz
+    change     REAL,               -- daily change, fraction (0.05 = 5%)
+    perf_week  REAL,               -- fraction
+    perf_ytd   REAL,               -- fraction
+    is_uptrend INTEGER NOT NULL CHECK (is_uptrend IN (0, 1)),
+    PRIMARY KEY (worksheet, ticker)
+);
+```
+
+This table is an exception to "store raw data only" (3.2): it is a snapshot of the screen's input, not a derived indicator.
+
 ### 3.4 Worksheet Values
 
 | Value | Description | Data Start Date | Approx. Rows |
@@ -439,6 +486,10 @@ Centrally manages constants used across all modules.
 | `fetch_all_raw_data` | `(worksheets=None) -> Dict[str, DataFrame]` | Fetch categories (all if None, filtered subset if specified, v4.0) |
 | `get_worksheets` | `() -> List[str]` | List of registered category names |
 | `get_date_range` | `(worksheet: str) -> Tuple[str, str]` | Date range for specified category |
+| `replace_constituents` | `(worksheet: str, date: str, df: DataFrame) -> None` | Atomically replace one industry's stock list (v5.2). Rejects non-`ind_*` worksheets, bad dates, missing `CONSTITUENT_COLUMNS`. Empty df clears. NaN → NULL |
+| `fetch_constituents` | `(worksheet: str) -> DataFrame` | Columns `date` + `CONSTITUENT_COLUMNS`, `is_uptrend` as bool; empty frame with columns when none (v5.2) |
+
+**data_processor.py additions (v5.2):** `prepare_constituents_table(df) -> DataFrame` (display columns Ticker / Company / Uptrend / Market Cap ($M) / Change / Perf Week / Perf YTD; uptrend first, then market cap desc; Ticker values are Finviz URLs), `finviz_chart_url(ticker) -> str`, `TICKER_LINK_PATTERN`, `style_constituent_row(row) -> List[str]`, `summarize_constituents(df) -> {"total", "uptrend", "as_of"}`. **constants.py:** `CONSTITUENT_COLUMNS`. **mobile_ui.py:** `mobile_columns(columns, is_mobile, keep=MOBILE_TABLE_COLUMNS)`, `MOBILE_CONSTITUENT_COLUMNS`.
 
 **Count/Total Validation (v3.2):**
 
@@ -748,7 +799,29 @@ python import_excel.py data/export.xlsx --dry-run
 
 Screen layout is unchanged from v1. Only the data source changes; UI remains the same.
 
-### 5.1 Main Page (app.py)
+### 5.0 Mobile Layout (v5.1)
+
+On phones (viewport ≤ 640px / phone User-Agent), every page stacks vertically with these rules:
+
+```
+┌───────────────────────────┐
+│ » (menu: Uptrend Ratio …) │
+│ Page Title (1.6rem)       │
+│ ┌──────────┐┌──────────┐  │  metric cards: 2 per row
+│ │ Ratio    ││ 10MA     │  │
+│ └──────────┘└──────────┘  │
+│ Date Range [..........]   │
+│ ┌───────────────────────┐ │  chart: near full width,
+│ │ [Chart, 380–560px]    │ │  drag scrolls the page,
+│ │ legend ─ ─ ─ (below)  │ │  tap shows hover
+│ └───────────────────────┘ │
+│ [Table: compact columns]  │
+└───────────────────────────┘
+```
+
+### 5.1 Main Page (pages/0_Uptrend_Ratio.py, menu label "Uptrend Ratio")
+
+Since v5.1 the Date Range input is in the main area below "Last updated" (not in the sidebar).
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -758,9 +831,10 @@ Screen layout is unchanged from v1. Only the data source changes; UI remains the
 │ │                   │  │ │Ratio ││ 10MA ││Trend ││ Status ││
 │ │ [Refresh Data]    │  │ │29.0% ││28.8% ││ Up   ││ Normal ││
 │ │                   │  │ └──────┘└──────┘└──────┘└────────┘│
-│ │ Date Range:       │  │ Last updated: 2024-01-08            │
-│ │ [2023-08-11]      │  │                                     │
-│ │ [2024-01-08]      │  │ Full Market Ratio                   │
+│ │                   │  │ Last updated: 2024-01-08            │
+│ │                   │  │ Date Range [2023-08-11 – 2024-01-08]│
+│ │                   │  │                                     │
+│ │                   │  │ Full Market Ratio                   │
 │ │                   │  │ ┌─────────────────────────────────┐ │
 │ └───────────────────┘  │ │    [Ratio Chart]                │ │
 │                        │ └─────────────────────────────────┘ │
@@ -862,6 +936,15 @@ v2.3 revision: Display mode radio buttons, 10MA/Raw toggle, threshold dashed lin
 │ ┌─────────────────────────────────────────────────────────┐ │
 │ │    [Ratio Chart — green/red/gray trend colors]          │ │
 │ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│ ─────────────────────────────────────────────────────────── │
+│ Stocks in this Industry                          (v5.2)     │
+│ 4 of 9 stocks in uptrend · as of 2026-11-20                 │
+│ ┌──────┬──────────┬───────┬────────┬──────┬──────┬───────┐ │
+│ │Ticker│ Company  │Uptrend│Mkt Cap │Change│PerfWk│PerfYTD│ │
+│ │COST  │ Costco…  │  ☑    │488,395 │+0.76%│-0.37%│+27.81%│ │
+│ │WMT   │ Walmart… │  ☐    │1,015,…│+1.52%│-0.11%│+14.85%│ │
+│ └──────┴──────────┴───────┴────────┴──────┴──────┴───────┘ │
 │                                                             │
 │ ─────────────────────────────────────────────────────────── │
 │ Data Download                                               │
@@ -988,6 +1071,8 @@ uptrend-dashboard/
 │   ├── indicator_calculator.py        # Derived indicator calculation (new)
 │   ├── data_processor.py             # Status aggregation
 │   ├── chart_builder.py              # Plotly chart generation
+│   ├── mobile_ui.py                  # Mobile CSS, phone chart layout, show_chart (v5.1)
+│   ├── navigation.py                 # Sidebar page definitions for st.navigation (v5.1)
 │   └── data_collector.py             # Finviz data collection (Phase 3)
 ├── tests/
 │   ├── __init__.py
@@ -997,15 +1082,20 @@ uptrend-dashboard/
 │   ├── test_data_processor.py        # data_processor tests
 │   ├── test_export_csv.py            # export_csv tests (v3.5)
 │   ├── test_chart_builder.py         # chart_builder tests
+│   ├── test_mobile_ui.py             # mobile_ui tests (v5.1)
+│   ├── test_navigation.py            # navigation tests (v5.1)
+│   ├── test_constituents.py          # industry stock list tests (v5.2)
 │   ├── test_integration.py          # Integration tests (new in v2.2)
 │   └── test_data_collector.py        # data_collector tests (Phase 3)
 ├── pages/
+│   ├── 0_Uptrend_Ratio.py            # Main page, menu "Uptrend Ratio" (moved from app.py in v5.1)
 │   ├── 1_Sector_Detail.py            # Sector detail page (+ industry drilldown v4.0)
 │   ├── 2_Sector_Comparison.py        # Sector comparison page
 │   ├── 3_Industry_Detail.py          # Industry detail page (v4.0)
 │   ├── 4_Industry_Comparison.py      # Industry comparison page (v4.0)
-│   └── 5_Industry_Heatmap.py        # Industry treemap heatmap page (v4.2)
-├── app.py                            # Main page
+│   ├── 5_Industry_Heatmap.py        # Industry treemap heatmap page (v4.2)
+│   └── 6_Dispersion_Monitor.py      # Sector dispersion monitor (v5.0)
+├── app.py                            # Entrypoint: st.navigation router (v5.1)
 ├── import_excel.py                   # Excel import CLI tool (Phase 1)
 ├── collect.py                        # Finviz data collection CLI tool (Phase 3)
 ├── export_csv.py                     # CSV export CLI tool (v3.5)
@@ -1043,7 +1133,7 @@ uptrend-dashboard/
 
 | Package | Version | Purpose | v1→v2 |
 |---------|---------|---------|-------|
-| streamlit | >= 1.35.0 | Web framework (`on_select` requires >=1.35.0, v3.3) | Retained |
+| streamlit | >= 1.50.0 | Web framework (`on_select` >=1.35; `st.navigation`, `st.context`, `width="stretch"` used since v5.1) | Retained |
 | plotly | >= 5.18.0 | Interactive charts | Retained |
 | pandas | >= 2.0.0 | Data manipulation | Retained |
 | openpyxl | >= 3.1.0 | Excel file reading | **New** |
@@ -1245,6 +1335,17 @@ Implemented with TDD. Tests are written first, and implementation is written to 
 | test_full_pipeline | End-to-end: Excel → DB → calculation → status → chart |
 | test_multi_sector_pipeline | Multiple sectors → DB → calculation → summary → summary chart |
 | test_empty_db_pipeline | Graceful handling of full pipeline with empty DB |
+
+**test_constituents.py (v5.2):**
+
+| Test | Description |
+|------|-------------|
+| TestExtractConstituents (7) | Column mapping + uptrend flag on a real Finviz header; percent parsing; empty / bare frames; missing columns → NaN; null/duplicate tickers dropped; unparseable percent → NaN |
+| TestConstituentStorage (9) | Round trip; replace drops previous snapshot; other industries untouched; empty clears; NaN → NULL; empty fetch keeps columns; rejects sector worksheet, bad date, missing columns |
+| TestCollectorSavesConstituents (9) | Industry collect saves list with flags; sector collect and dry run do not; total=0 clears stale list; blank response keeps the old list; past `--date` does not save; count written before constituents; ticker `NA` survives parsing; storage failure keeps the count |
+| TestPrepareConstituentsTable (13) | Sort order; Ticker holds the Finviz weekly chart URL; `finviz_chart_url`; `TICKER_LINK_PATTERN` recovers AAPL / BRK-B / NA / BF.B; display columns; empty input; summary counts/date; empty summary; row styling for uptrend ticker and signed returns |
+
+Also: `test_data_loader.py` `test_load_constituents` / `test_load_constituents_empty`; `test_mobile_ui.py` `test_custom_keep_set_for_constituent_table`. `test_validate_counts_negative` / `test_validate_counts_count_exceeds_total` now call `_validate_counts()` directly, since counts come from `len()` of the fetched frames.
 
 **test_data_collector.py (Phase 3 + v3.1 code review fixes + v3.2 secret masking):**
 

@@ -2,6 +2,7 @@
 
 from src.db_client import DBClient
 from src.data_loader import (
+    load_constituents,
     load_industry_data,
     load_sector_data,
 )
@@ -9,6 +10,22 @@ from src.data_loader import (
 
 class TestLoadFunctions:
     """Tests for load functions."""
+
+    def test_load_constituents(self, tmp_path):
+        import pandas as pd
+        tmp_db = str(tmp_path / "test.db")
+        client = DBClient(tmp_db)
+        client.replace_constituents("ind_copper", "2026-11-20", pd.DataFrame([{
+            "ticker": "FCX", "company": "Freeport", "market_cap": 65992.71, "change": -0.06,
+            "perf_week": -0.22, "perf_ytd": -0.09, "is_uptrend": False,
+        }]))
+        result = load_constituents("ind_copper", db_path=tmp_db)
+        assert result["ticker"].tolist() == ["FCX"]
+
+    def test_load_constituents_empty(self, tmp_path):
+        tmp_db = str(tmp_path / "test.db")
+        DBClient(tmp_db)
+        assert load_constituents("ind_copper", db_path=tmp_db).empty
 
     def test_load_sector_data(self, tmp_path):
         tmp_db = str(tmp_path / "test.db")

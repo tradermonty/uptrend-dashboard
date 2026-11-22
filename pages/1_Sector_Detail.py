@@ -17,8 +17,10 @@ from src.data_processor import (
     style_status_row,
 )
 from src.chart_builder import build_ratio_chart, build_industry_summary_chart
+from src.mobile_ui import display_years, inject_mobile_css, is_mobile_client, mobile_columns, show_chart
 
 st.set_page_config(page_title="Sector Detail", page_icon="🔍", layout="wide")
+inject_mobile_css()
 st.title("Sector Detail")
 
 with st.sidebar:
@@ -90,7 +92,7 @@ with col5:
 # Date filter
 min_date = df["date"].min().date()
 max_date = df["date"].max().date()
-default_start = default_start_date(min_date, max_date)
+default_start = default_start_date(min_date, max_date, years=display_years(is_mobile_client()))
 date_range = st.date_input(
     "Date Range",
     value=(default_start, max_date),
@@ -106,7 +108,7 @@ else:
 
 # Chart
 fig = build_ratio_chart(df_filtered, title=f"{selected_display} Uptrend Ratio")
-st.plotly_chart(fig, use_container_width=True)
+show_chart(fig, mobile_height=420)
 
 # Industries in this Sector
 st.markdown("---")
@@ -121,8 +123,8 @@ if has_industry_data:
     ind_summary = build_industry_summary(all_data, sector_key=selected_key)
     if not ind_summary.empty:
         fig_ind = build_industry_summary_chart(ind_summary, sector_name=selected_display)
-        ind_chart_event = st.plotly_chart(
-            fig_ind, use_container_width=True, on_select="rerun", key="industry_summary_chart",
+        ind_chart_event = show_chart(
+            fig_ind, on_select="rerun", key="industry_summary_chart",
         )
 
         if ind_chart_event and ind_chart_event.selection and ind_chart_event.selection.points:
@@ -136,8 +138,9 @@ if has_industry_data:
             ind_summary.drop(columns=["_key"]).style
             .format({"Ratio": "{:.1%}", "10MA": "{:.1%}", "Slope": "{:.4f}"}, na_rep="N/A")
             .apply(style_status_row, axis=1),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
+            column_order=mobile_columns(ind_summary.columns, is_mobile_client()),
             on_select="rerun",
             selection_mode="single-row",
             key="industry_table",

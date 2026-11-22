@@ -52,6 +52,21 @@ class TestBuildRatioChart:
         trend_colors = {"#00cc96", "#ef553b", "#636efa"}
         assert len(colors & trend_colors) >= 1
 
+    def test_ratio_chart_legend_is_horizontal(self, sample_calculated_df):
+        """Legend should sit horizontally so it does not eat plot width on phones."""
+        fig = build_ratio_chart(sample_calculated_df)
+        assert fig.layout.legend.orientation == "h"
+
+    def test_ratio_chart_y_axis_percent(self, sample_calculated_df):
+        """Y axis should use percent format to match the metric cards."""
+        fig = build_ratio_chart(sample_calculated_df)
+        assert fig.layout.yaxis.tickformat == ".0%"
+
+    def test_ratio_chart_has_no_redundant_date_axis_title(self, sample_calculated_df):
+        """The 'Date' x-axis title is self-evident and wastes vertical space."""
+        fig = build_ratio_chart(sample_calculated_df)
+        assert fig.layout.xaxis.title.text is None
+
 
 class TestBuildSectorSummaryChart:
     """Tests for build_sector_summary_chart function."""
@@ -81,6 +96,74 @@ class TestBuildSectorSummaryChart:
         # All customdata values should be sector keys (start with "sec_")
         for key in bar.customdata:
             assert key.startswith("sec_"), f"Unexpected key: {key}"
+
+
+class TestBuildIndustryHeatmapColorRange:
+    """A filtered (one-sector) heatmap must keep the full-market color scale."""
+
+    def _summary(self):
+        return pd.DataFrame({
+            "Industry": ["A", "B"], "Ratio": [0.2, 0.4], "10MA": [0.2, 0.4],
+            "Trend": ["Up", "Up"], "Slope": [0.01, 0.01], "Status": ["Normal", "Normal"],
+            "_key": ["ind_a", "ind_b"], "Sector": ["Tech", "Tech"], "Total": [10, 10],
+        })
+
+    def test_explicit_color_range_overrides_data_range(self):
+        fig = build_industry_heatmap(self._summary(), color_range=(0.0, 1.0))
+        assert fig.data[0].marker.cmin == 0.0
+        assert fig.data[0].marker.cmax == 1.0
+
+    def test_default_color_range_follows_data(self):
+        fig = build_industry_heatmap(self._summary())
+        assert fig.data[0].marker.cmin == 0.2
+        assert fig.data[0].marker.cmax == 0.4
+
+
+class TestBuildIndustryHeatmapDrilldown:
+    """Phone view: show 11 sector tiles first, tap a sector to see its industries."""
+
+    def _summary(self):
+        return pd.DataFrame({
+            "Industry": ["A", "B", "C"], "Ratio": [0.1, 0.5, 0.3], "10MA": [0.1, 0.5, 0.3],
+            "Trend": ["Up", "Up", "Down"], "Slope": [0.01, 0.01, -0.01],
+            "Status": ["Normal", "Overbought", "Normal"],
+            "_key": ["ind_a", "ind_b", "ind_c"], "Sector": ["Tech", "Tech", "Energy"],
+            "Total": [30, 10, 20],
+        })
+
+    def _node(self, fig, label):
+        trace = fig.data[0]
+        return list(trace.labels).index(label)
+
+    def test_desktop_default_has_no_root_and_no_depth_limit(self):
+        fig = build_industry_heatmap(self._summary())
+        assert "All Sectors" not in fig.data[0].labels
+        assert fig.data[0].maxdepth is None
+
+    def test_drilldown_adds_root_and_limits_depth(self):
+        fig = build_industry_heatmap(self._summary(), drilldown=True)
+        trace = fig.data[0]
+        assert "All Sectors" in trace.labels
+        assert trace.maxdepth == 2
+        assert trace.parents[self._node(fig, "Tech")] == "All Sectors"
+
+    def test_drilldown_sector_tile_shows_stock_weighted_ratio(self):
+        fig = build_industry_heatmap(self._summary(), drilldown=True)
+        i = self._node(fig, "Tech")
+        # (0.1*30 + 0.5*10) / 40 = 0.2
+        assert fig.data[0].marker.colors[i] == pytest.approx(0.2)
+        assert "20.0%" in fig.data[0].text[i]
+
+    def test_drilldown_uses_fixed_scale_so_sector_tiles_differ(self):
+        """Sector ratios cluster at 20-45%; a 0-100% scale makes them all one color."""
+        fig = build_industry_heatmap(self._summary(), drilldown=True)
+        assert fig.data[0].marker.cmin == 0
+        assert fig.data[0].marker.cmax == pytest.approx(0.6)
+
+    def test_drilldown_status_mode_colors_sector_by_its_ratio(self):
+        fig = build_industry_heatmap(self._summary(), color_mode="status", drilldown=True)
+        i = self._node(fig, "Tech")
+        assert fig.data[0].marker.colors[i] == "#1f77b4"  # 20% -> Normal
 
 
 class TestBuildSectorComparisonChart:
@@ -122,6 +205,15 @@ class TestBuildSectorComparisonChart:
         """Y axis should use percent format."""
         fig = build_sector_comparison_chart(sample_all_data)
         assert fig.layout.yaxis.tickformat == ".0%"
+
+    def test_sector_comparison_has_no_redundant_date_axis_title(self, sample_all_data):
+        fig = build_sector_comparison_chart(sample_all_data)
+        assert fig.layout.xaxis.title.text is None
+
+    def test_sector_comparison_legend_is_horizontal(self, sample_all_data):
+        """Legend should be below the plot, not a right-side column."""
+        fig = build_sector_comparison_chart(sample_all_data)
+        assert fig.layout.legend.orientation == "h"
 
     def test_sector_comparison_annotations(self, sample_all_data):
         """Should have annotations for latest values."""

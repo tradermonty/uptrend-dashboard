@@ -11,8 +11,10 @@ from src.data_processor import (
     style_status_row,
 )
 from src.chart_builder import build_industry_heatmap
+from src.mobile_ui import inject_mobile_css, is_mobile_client, mobile_columns, show_chart
 
 st.set_page_config(page_title="Industry Heatmap", page_icon="🗺️", layout="wide")
+inject_mobile_css()
 st.title("Industry Heatmap")
 
 with st.sidebar:
@@ -81,12 +83,20 @@ with kpi_cols[4]:
     st.metric("Trend Down", f"{trend_counts.get('Down', 0) / total_count:.1%}")
 
 # Treemap (display only)
-fig = build_industry_heatmap(summary, color_mode=color_mode_key, size_mode=size_mode_key)
-st.plotly_chart(fig, use_container_width=True)
+# 149 tiles are unreadable on a phone: phones first see 11 sector tiles and
+# tap one to zoom into its industries (Plotly treemap drilldown).
+is_mobile = is_mobile_client()
+if is_mobile:
+    st.caption("Tap a sector to see its industries. Tap the bar at the top to go back.")
+fig = build_industry_heatmap(
+    summary, color_mode=color_mode_key, size_mode=size_mode_key, drilldown=is_mobile,
+)
+show_chart(fig, mobile_height=560)
 
 # Industry Summary Table
 st.markdown("---")
 st.subheader("Industry Summary")
+st.caption("Click a row to open the industry with its stock list.")
 
 display_df = summary.sort_values(["Sector", "Industry"]).reset_index(drop=True)
 
@@ -94,8 +104,9 @@ table_event = st.dataframe(
     display_df.drop(columns=["_key", "Total"]).style
     .format({"Ratio": "{:.1%}", "10MA": "{:.1%}", "Slope": "{:.4f}"}, na_rep="N/A")
     .apply(style_status_row, axis=1),
-    use_container_width=True,
+    width="stretch",
     hide_index=True,
+    column_order=mobile_columns(display_df.columns, is_mobile_client()),
     on_select="rerun",
     selection_mode="single-row",
     key="heatmap_industry_table",

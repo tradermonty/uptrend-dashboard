@@ -76,6 +76,9 @@ COLOR_TROUGH = "#00BFFF"
 COLOR_UPPER = "#d62728"
 COLOR_LOWER = "#2ca02c"
 
+# Legend below the plot: a right-side legend takes ~1/3 of the width on phones
+HORIZONTAL_LEGEND = dict(orientation="h", yanchor="top", y=-0.12, xanchor="left", x=0)
+
 STATUS_COLORS = {
     "Overbought": "#d62728",
     "Oversold": "#2ca02c",
@@ -216,12 +219,15 @@ def _apply_chart_layout(fig: go.Figure, df: pd.DataFrame, title: str) -> None:
     """Apply standard layout settings to the ratio chart."""
     fig.update_layout(
         title=title,
-        xaxis_title="Date",
         yaxis_title="Ratio",
         template="plotly_white",
         height=CHART_HEIGHT_RATIO,
-        yaxis=dict(range=[0, max(CHART_Y_MAX_MIN, df["ratio"].max() * CHART_Y_MAX_MULTIPLIER)]),
+        yaxis=dict(
+            range=[0, max(CHART_Y_MAX_MIN, df["ratio"].max() * CHART_Y_MAX_MULTIPLIER)],
+            tickformat=".0%",
+        ),
         hovermode="x unified",
+        legend=HORIZONTAL_LEGEND,
     )
 
 
@@ -413,12 +419,11 @@ def _build_comparison_chart(
     title_suffix = " (10MA)" if use_ma else " (Raw Ratio)"
     fig.update_layout(
         title=title_prefix + title_suffix,
-        xaxis_title="Date",
         yaxis_title="Ratio",
         yaxis=dict(tickformat=".0%"),
         template="plotly_white",
         height=CHART_HEIGHT_COMPARISON,
-        legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
+        legend=HORIZONTAL_LEGEND,
         hovermode="x unified",
     )
 
@@ -471,10 +476,39 @@ def build_industry_comparison_chart(
     )
 
 
+HEATMAP_ROOT_LABEL = "All Sectors"
+HEATMAP_DRILLDOWN_CMAX = 0.6
+
+
+def _weighted_sector_ratio(sector_df: pd.DataFrame) -> float:
+    """Stock-count-weighted ratio of a sector's industries (≈ the sector's own ratio)."""
+    valid = sector_df.dropna(subset=["Ratio"])
+    if valid.empty:
+        return np.nan
+    weights = valid["Total"] if "Total" in valid.columns else None
+    if weights is None or weights.fillna(0).sum() <= 0:
+        return float(valid["Ratio"].mean())
+    weights = weights.fillna(0)
+    return float((valid["Ratio"] * weights).sum() / weights.sum())
+
+
+def _ratio_status(ratio: float) -> str:
+    """Map a ratio to Overbought/Oversold/Normal using the standard thresholds."""
+    if pd.isna(ratio):
+        return "Normal"
+    if ratio >= UPPER_THRESHOLD:
+        return "Overbought"
+    if ratio <= LOWER_THRESHOLD:
+        return "Oversold"
+    return "Normal"
+
+
 def build_industry_heatmap(
     summary_df: pd.DataFrame,
     color_mode: str = "ratio",
     size_mode: str = "uniform",
+    color_range: Optional[tuple] = None,
+    drilldown: bool = False,
 ) -> go.Figure:
     """Build a treemap chart of all industries grouped by sector.
 
@@ -483,6 +517,11 @@ def build_industry_heatmap(
             Expected columns: Industry, Ratio, 10MA, Trend, Slope, Status, _key, Sector, Total.
         color_mode: "ratio" for continuous RdYlGn colorscale, "status" for categorical colors.
         size_mode: "uniform" for equal cell sizes, "count" for stock count-based sizes.
+        color_range: Optional (cmin, cmax) for the ratio colorscale. Defaults to the
+            data's own range; pass the full-market range when showing a subset.
+        drilldown: Phone view. Adds an "All Sectors" root, colors each sector tile by
+            its stock-weighted ratio, and limits rendering to 2 levels so the first
+            screen shows 11 readable sector tiles; tapping one zooms to its industries.
 
     Returns:
         Plotly Figure with a Treemap trace.
@@ -498,7 +537,7 @@ def build_industry_heatmap(
         )
         return fig
 
-    # Build treemap data: root ("") -> sectors -> industries
+    # Build treemap data: [root] -> sectors -> industries
     sectors = summary_df["Sector"].unique().tolist()
 
     labels = []
@@ -508,16 +547,40 @@ def build_industry_heatmap(
     customdata = []
     text = []
     hovertext = []
+    # Ratio colorscale value per node; NaN = no color (grey header)
+    node_ratios = []
 
-    # Add sector nodes
-    for sector in sectors:
-        labels.append(sector)
+    sector_parent = ""
+    if drilldown:
+        labels.append(HEATMAP_ROOT_LABEL)
         parents.append("")
         values.append(0)
         colors.append("#cccccc")
         customdata.append("")
         text.append("")
-        hovertext.append(sector)
+        hovertext.append(HEATMAP_ROOT_LABEL)
+        node_ratios.append(np.nan)
+        sector_parent = HEATMAP_ROOT_LABEL
+
+    # Add sector nodes
+    for sector in sectors:
+        labels.append(sector)
+        parents.append(sector_parent)
+        values.append(0)
+        customdata.append("")
+        if drilldown:
+            # Sector tiles are what a phone sees first, so they carry color and value
+            sector_ratio = _weighted_sector_ratio(summary_df[summary_df["Sector"] == sector])
+            pct = f"{sector_ratio:.1%}" if pd.notna(sector_ratio) else "N/A"
+            colors.append(STATUS_COLORS[_ratio_status(sector_ratio)])
+            text.append(f"{sector}<br>{pct}")
+            hovertext.append(f"<b>{sector}</b><br>Ratio (stock-weighted): {pct}<br>Tap to see industries")
+            node_ratios.append(sector_ratio)
+        else:
+            colors.append("#cccccc")
+            text.append("")
+            hovertext.append(sector)
+            node_ratios.append(np.nan)
 
     # Add industry nodes
     for _, row in summary_df.iterrows():
@@ -535,6 +598,7 @@ def build_industry_heatmap(
             colors.append(None)  # placeholder, will use colorscale
 
         customdata.append(row["_key"])
+        node_ratios.append(row["Ratio"] if pd.notna(row["Ratio"]) else 0)
 
         ratio_pct = f"{row['Ratio']:.1%}" if pd.notna(row["Ratio"]) else "N/A"
         name = row["Industry"]
@@ -552,20 +616,22 @@ def build_industry_heatmap(
             f"Status: {row['Status']}"
         )
 
+    # Phone view: render root + sectors only; tapping a sector zooms to its industries
+    maxdepth = 2 if drilldown else None
+
     if color_mode == "ratio":
-        # Build marker colors array: ratio values for industries, NaN for sectors
-        marker_values = []
-        for i, label in enumerate(labels):
-            if label in sectors:
-                marker_values.append(np.nan)
-            else:
-                idx = len(sectors) + (i - len(sectors))
-                row = summary_df.iloc[i - len(sectors)]
-                marker_values.append(row["Ratio"] if pd.notna(row["Ratio"]) else 0)
+        marker_values = node_ratios
 
         valid_ratios = summary_df["Ratio"].dropna()
         cmin = max(0, valid_ratios.min()) if len(valid_ratios) > 0 else 0
         cmax = valid_ratios.max() if len(valid_ratios) > 0 else 1
+        if color_range is not None:
+            # Keep colors comparable when the heatmap shows a filtered subset
+            cmin, cmax = color_range
+        elif drilldown:
+            # Sector ratios cluster around 20-45%; a fixed 0-60% scale keeps the
+            # first (sector) screen differentiated. Industries above 60% saturate green.
+            cmin, cmax = 0, HEATMAP_DRILLDOWN_CMAX
 
         fig.add_trace(
             go.Treemap(
@@ -585,6 +651,7 @@ def build_industry_heatmap(
                 textinfo="text",
                 hovertext=hovertext,
                 hoverinfo="text",
+                maxdepth=maxdepth,
             )
         )
     else:
@@ -599,6 +666,7 @@ def build_industry_heatmap(
                 textinfo="text",
                 hovertext=hovertext,
                 hoverinfo="text",
+                maxdepth=maxdepth,
             )
         )
 

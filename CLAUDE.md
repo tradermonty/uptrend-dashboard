@@ -69,8 +69,8 @@ uptrend_raw (date TEXT, worksheet TEXT, count INTEGER, total INTEGER)
 
 ### Multi-Page Structure
 
-Streamlit auto-discovers `pages/` directory:
-- `app.py` — Full market overview
+`app.py` is a router: pages are registered explicitly via `st.navigation()` from `src/navigation.py` (`PAGE_SPECS`). A new page must be added there (a test checks every `pages/*.py` is registered). Each page calls `inject_mobile_css()` and renders charts via `show_chart()` from `src/mobile_ui.py`.
+- `pages/0_Uptrend_Ratio.py` — Full market overview (default page, menu "Uptrend Ratio")
 - `pages/1_Sector_Detail.py` — Individual sector deep dive + industry drilldown
 - `pages/2_Sector_Comparison.py` — Multi-sector overlay comparison
 - `pages/3_Industry_Detail.py` — Individual industry analysis
@@ -93,4 +93,4 @@ pytest + pytest-mock. Tests use `tmp_path`-based temporary DBs instead of the re
 
 **New indicator**: Add calculation to `indicator_calculator.py` → add column to `calculate_indicators()` → visualize in `chart_builder.py` → add tests
 
-**New page**: Create `pages/N_Name.py`, following existing page patterns (`load_data` cache, sidebar date filter)
+**New page**: Create `pages/N_Name.py`, following existing page patterns (`load_data` cache, `inject_mobile_css()`, `show_chart()`), and register it in `src/navigation.py`

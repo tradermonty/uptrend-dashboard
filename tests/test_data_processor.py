@@ -533,6 +533,17 @@ class TestDefaultStartDate:
         d = datetime.date(2025, 3, 1)
         assert default_start_date(d, d) == d
 
+    def test_custom_years_for_mobile(self):
+        """years=1 (phone default) returns max_date - 1 year."""
+        min_date = datetime.date(2020, 1, 1)
+        max_date = datetime.date(2026, 11, 20)
+        assert default_start_date(min_date, max_date, years=1) == datetime.date(2025, 11, 20)
+
+    def test_custom_years_still_clamped_to_min_date(self):
+        min_date = datetime.date(2026, 6, 1)
+        max_date = datetime.date(2026, 11, 20)
+        assert default_start_date(min_date, max_date, years=1) == min_date
+
 
 class TestBuildSectorRankingTable:
     """Tests for build_sector_ranking_table()."""

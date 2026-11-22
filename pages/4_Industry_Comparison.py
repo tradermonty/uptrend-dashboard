@@ -14,8 +14,10 @@ from src.data_processor import (
     filter_by_date_range,
 )
 from src.chart_builder import build_industry_comparison_chart
+from src.mobile_ui import display_years, inject_mobile_css, is_mobile_client, mobile_columns, show_chart
 
 st.set_page_config(page_title="Industry Comparison", page_icon="📊", layout="wide")
+inject_mobile_css()
 st.title("Industry Comparison")
 
 with st.sidebar:
@@ -90,7 +92,7 @@ first_df = next((all_data[k] for k in selected_keys if k in all_data and not all
 if first_df is not None:
     min_date = first_df["date"].min().date()
     max_date = first_df["date"].max().date()
-    default_start = default_start_date(min_date, max_date)
+    default_start = default_start_date(min_date, max_date, years=display_years(is_mobile_client()))
     date_range = st.date_input(
         "Date Range",
         value=(default_start, max_date),
@@ -124,4 +126,4 @@ use_ma = display_mode == "Smoothed (10MA)"
 
 # Chart
 fig = build_industry_comparison_chart(filtered_data, selected_industries=selected_keys, use_ma=use_ma)
-st.plotly_chart(fig, use_container_width=True)
+show_chart(fig, mobile_height=520, mobile_hide_annotations=True)
