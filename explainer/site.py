@@ -20,8 +20,9 @@ from pathlib import Path
 
 from explainer.facts import Facts
 
-LANGS = ("ja", "en")
+LANGS = ("en", "ja")  # English is the primary language; Japanese is offered alongside
 LANG_LABEL = {"ja": "日本語", "en": "English"}
+LANG_ATTR = {"ja": ' lang="ja"', "en": ""}  # index page is English
 NAV_ID = "explainer-nav"
 
 ZONE_COLOR = {  # matches the uptrend-analyzer zones
@@ -145,7 +146,8 @@ def render_index(manifest: list[dict]) -> str:
             rows.append(f'<h2>{html.escape(month)}</h2>')
         color = ZONE_COLOR.get(e.get("zone", ""), "#888")
         links = " ".join(
-            f'<a href="{html.escape(e["pages"][lang])}">{LANG_LABEL[lang]}</a>' for lang in LANGS
+            f'<a href="{html.escape(e["pages"][lang])}"{LANG_ATTR[lang]}>{LANG_LABEL[lang]}</a>'
+            for lang in LANGS
         )
         rows.append(
             f'<div class="row"><span class="d">{html.escape(e["date"])}</span>'
@@ -153,11 +155,10 @@ def render_index(manifest: list[dict]) -> str:
             f'<span class="chip" style="background:{color}">{e["score"]:.0f}</span>'
             f'<span class="l">{links}</span></div>'
         )
-    latest = " ".join(
-        f'<a class="btn" href="latest/{lang}.html">{LANG_LABEL[lang]}</a>' for lang in LANGS
-    )
+    latest_en = '<a class="btn primary" href="latest/en.html">Read today\'s explainer</a>'
+    latest_ja = '<a class="btn" href="latest/ja.html" lang="ja">日本語で読む</a>'
     return f"""<!doctype html>
-<html lang="ja"><head><meta charset="utf-8">
+<html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Uptrend Explainer Archive</title>
 <style>
@@ -167,6 +168,7 @@ body{{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 system-ui,-app
 main{{max-width:720px;margin:0 auto;padding:32px max(16px,env(safe-area-inset-left)) 48px}}
 h1{{font-size:26px;margin:0 0 4px}} h2{{font-size:15px;color:var(--muted);margin:24px 0 6px;border-bottom:1px solid var(--line)}}
 .btn{{display:inline-block;padding:6px 14px;border:1px solid var(--accent);border-radius:999px;color:var(--accent);text-decoration:none;margin-right:6px}}
+.btn.primary{{background:var(--accent);color:var(--bg);font-weight:600}}
 .row{{display:grid;grid-template-columns:7.5em 4em 2.6em 1fr;gap:8px;align-items:center;padding:4px 0;font-variant-numeric:tabular-nums}}
 .chip{{color:#fff;border-radius:6px;text-align:center;font-size:13px;font-weight:700}}
 .l a{{color:var(--accent);margin-right:10px}} .d{{font-family:ui-monospace,Menlo,monospace}}
@@ -174,11 +176,12 @@ h1{{font-size:26px;margin:0 0 4px}} h2{{font-size:15px;color:var(--muted);margin
 .spark .hot{{stroke:var(--hot);stroke-dasharray:4 4}} .spark .cold{{stroke:var(--cold);stroke-dasharray:4 4}}
 .note,.sub{{color:var(--muted);font-size:13px;margin:4px 0}}
 </style></head><body><main>
-<h1>アップトレンド比率 毎日の解説 / Daily Uptrend Explainer</h1>
-<p class="sub">米国株のうち上昇トレンドにある銘柄の割合を、毎営業日やさしく解説します。数字はスコア（0-100）。</p>
-<p>最新 / Latest: {latest}</p>
+<h1>Daily Uptrend Explainer</h1>
+<p class="sub">Every trading day, a one-minute picture explainer of how many US stocks are in an uptrend. The chip is the breadth score (0-100, higher = healthier).</p>
+<p class="sub" lang="ja">米国株のうち上昇トレンドにある銘柄の割合を、毎営業日やさしく解説します。日本語版もあります。</p>
+<p>{latest_en} {latest_ja}</p>
 {_sparkline(manifest)}
 {''.join(rows)}
-<p class="note">教育目的の情報で、投資助言ではありません。 For education only, not investment advice.</p>
+<p class="note">For education only, not investment advice. <span lang="ja">教育目的の情報で、投資助言ではありません。</span></p>
 </main></body></html>
 """

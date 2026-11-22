@@ -60,7 +60,7 @@
 
 | Path | Content |
 |------|---------|
-| `index.html` | Archive: ratio history sparkline, then every day newest first, grouped by month, with ratio, score chip (zone color) and JA/EN links |
+| `index.html` | English landing and archive (`lang="en"`; Japanese text and links marked `lang="ja"`): "Read today's explainer" → `latest/en.html` with "日本語で読む" → `latest/ja.html`, ratio history sparkline, then every day newest first, grouped by month, with ratio, score chip (zone color) and English / 日本語 links (v6.2: English first) |
 | `manifest.json` | One entry per date (facts + page paths), newest first; upserted |
 | `latest/{ja,en}.html` | Copy of the newest date (a backfilled older date does not replace it) |
 | `YYYY/MM/YYYY-MM-DD-{ja,en}.html` | One page per date, written once and not changed by later days |

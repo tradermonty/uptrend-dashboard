@@ -62,6 +62,16 @@ class TestPublish:
             assert f'href="{href}"' in index
         assert index.index('class="d">2026-11-20') < index.index('class="d">2026-10-30')
 
+    def test_index_is_english_first_with_japanese_offered(self, site):
+        publish(site, _facts("2026-11-20"), _pages("2026-11-20"))
+        index = (site / "index.html").read_text()
+        assert '<html lang="en">' in index
+        assert "Daily Uptrend Explainer" in index
+        assert index.index('href="latest/en.html"') < index.index('href="latest/ja.html"')
+        row_en = index.index('href="2026/11/2026-11-20-en.html"')
+        assert row_en < index.index('href="2026/11/2026-11-20-ja.html"')
+        assert 'lang="ja"' in index  # Japanese labels are marked as Japanese
+
     def test_nav_injected_with_relative_links(self, site):
         publish(site, _facts("2026-11-19"), _pages("2026-11-19"))
         publish(site, _facts("2026-11-20"), _pages("2026-11-20"))
