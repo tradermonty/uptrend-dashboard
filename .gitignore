@@ -32,3 +32,6 @@ data/*.db
 !data/uptrend.db
 
 review*/
+
+# Local gh-pages checkout used by run_explainer.py
+site/

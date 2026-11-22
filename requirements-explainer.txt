@@ -1,0 +1,3 @@
+# Daily explainer pages (run_explainer.py). Kept out of requirements.txt so the
+# Streamlit app does not install the Claude SDK.
+anthropic==2.12.0
