@@ -92,15 +92,18 @@ def apply_mobile_layout(
     # Touch title only when one exists: a font-only title renders as "undefined"
     if fig.layout.title.text:
         fig.update_layout(title_font_size=14)
-    # Axis titles ("Ratio", "Date") cost ~10% of a phone's width; ticks are self-explanatory
-    fig.update_xaxes(automargin=True, tickangle=0, nticks=5, title_text=None)
-    fig.update_yaxes(automargin=True, title_text=None)
+    # Axis titles ("Ratio", "Date") cost ~10% of a phone's width; ticks are self-explanatory.
+    # Skip axis settings on treemap-only figures: they would draw an empty axis.
+    if any(trace.type != "treemap" for trace in fig.data):
+        fig.update_xaxes(automargin=True, tickangle=0, nticks=5, title_text=None)
+        fig.update_yaxes(automargin=True, title_text=None)
     # Treemap colorbar on the right steals width; lay it flat under the plot
-    fig.update_traces(
-        marker_colorbar=dict(orientation="h", thickness=10, y=-0.08, len=0.9),
-        textfont=dict(size=12),
-        selector=dict(type="treemap"),
-    )
+    fig.update_traces(textfont=dict(size=12), selector=dict(type="treemap"))
+    for trace in fig.data:
+        # Only a treemap that shows a scale has a colorbar; setting one on an
+        # explicit-color treemap draws an empty box
+        if trace.type == "treemap" and trace.marker.showscale:
+            trace.marker.colorbar.update(orientation="h", thickness=10, y=-0.08, len=0.9)
     if hide_annotations:
         fig.layout.annotations = ()
     if height is not None:

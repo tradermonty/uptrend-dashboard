@@ -135,6 +135,20 @@ class TestApplyMobileLayout:
         apply_mobile_layout(fig, hide_annotations=True)
         assert len(fig.layout.annotations) == 0
 
+    def test_treemap_without_scale_gets_no_colorbar(self):
+        """Explicit-color treemaps (stock level) drew an empty 0-6 colorbar box."""
+        fig = go.Figure(go.Treemap(labels=["a"], parents=[""], values=[1],
+                                   marker=dict(colors=["#ff0000"])))
+        apply_mobile_layout(fig)
+        assert fig.data[0].marker.colorbar.orientation is None
+
+    def test_treemap_only_figure_gets_no_stray_axes(self):
+        """Axis settings on a treemap-only figure made Plotly draw an empty 0-6 axis."""
+        fig = go.Figure(go.Treemap(labels=["a"], parents=[""], values=[1]))
+        apply_mobile_layout(fig)
+        assert fig.layout.xaxis.nticks is None
+        assert fig.layout.yaxis.automargin is None
+
     def test_treemap_text_is_readable_size(self):
         fig = go.Figure(go.Treemap(labels=["a"], parents=[""], values=[1]))
         apply_mobile_layout(fig)

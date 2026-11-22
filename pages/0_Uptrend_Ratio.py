@@ -15,6 +15,7 @@ from src.data_processor import (
     style_status_row,
 )
 from src.chart_builder import build_ratio_chart, build_sector_summary_chart
+from src.kpi_cards import KpiCard, regime_card, render_kpi_cards, status_card, trend_card
 from src.mobile_ui import display_years, inject_mobile_css, is_mobile_client, mobile_columns, show_chart
 
 st.set_page_config(
@@ -67,21 +68,12 @@ if df_all is None or df_all.empty:
 # Current status indicators
 status = get_current_status(df_all)
 
-col1, col2, col3, col4 = st.columns(4)
-with col1:
-    st.metric("Current Ratio", f"{status['ratio']:.1%}")
-with col2:
-    st.metric("10MA", f"{status['ratio_10ma']:.1%}" if status["ratio_10ma"] is not None else "N/A")
-with col3:
-    trend_icons = {"up": "🔼", "down": "🔽", "neutral": "➖"}
-    st.metric("Trend", f"{trend_icons.get(status['trend'], '➖')} {status['trend'].title()}")
-with col4:
-    if status["is_overbought"]:
-        st.metric("Status", "⚠️ Overbought")
-    elif status["is_oversold"]:
-        st.metric("Status", "⚠️ Oversold")
-    else:
-        st.metric("Status", "Normal")
+render_kpi_cards([
+    KpiCard("Current Ratio", f"{status['ratio']:.1%}"),
+    KpiCard("10MA", f"{status['ratio_10ma']:.1%}" if status["ratio_10ma"] is not None else "N/A"),
+    trend_card(status["trend"]),
+    status_card(status),
+])
 
 st.caption(f"Last updated: {status['date']}")
 

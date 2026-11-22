@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 
+from plotly.colors import sample_colorscale
 from plotly.subplots import make_subplots
 
 from src.constants import (
@@ -503,12 +504,140 @@ def _ratio_status(ratio: float) -> str:
     return "Normal"
 
 
+# Stock tiles: daily change colors (Finviz-map style), saturating at ±3%
+STOCK_CHANGE_CLIP = 0.03
+_STOCK_CHANGE_SCALE = [[0.0, "#d62728"], [0.5, "#555a64"], [1.0, "#2ca02c"]]
+_STOCK_SHARE_OF_INDUSTRY = 0.999  # float headroom so children never exceed the parent
+
+
+def _stock_change_color(change) -> str:
+    if pd.isna(change):
+        return "#7f7f7f"
+    pos = (max(-STOCK_CHANGE_CLIP, min(STOCK_CHANGE_CLIP, change)) / STOCK_CHANGE_CLIP + 1) / 2
+    return sample_colorscale(_STOCK_CHANGE_SCALE, [pos])[0]
+
+
+def _format_market_cap(cap_m) -> str:
+    if pd.isna(cap_m):
+        return "N/A"
+    return f"${cap_m / 1000:.1f}B" if cap_m >= 1000 else f"${cap_m:.0f}M"
+
+
+def _pct(value) -> str:
+    return f"{value:+.1%}" if pd.notna(value) else "N/A"
+
+
+def _heatmap_with_stocks(
+    fig, summary_df, constituents, labels, parents, values, colors, customdata,
+    text, hovertext, node_ratios, color_mode, color_range, drilldown,
+) -> go.Figure:
+    """Add a stock level under each industry and render with explicit colors.
+
+    - Sizes: branchvalues="total". Industry tiles keep their size (uniform/count);
+      stocks split their industry's value in proportion to market cap.
+    - Colors: sectors/industries keep their ratio/status colors (converted to
+      explicit colors because stocks use a different scale: daily change).
+    - Text: the ticker is an <a> link to the Finviz weekly chart; uptrend stocks are
+      bold with a thick outline.
+    - maxdepth=2: the first view stops at industries; tap an industry for stocks.
+    """
+    from src.data_processor import finviz_chart_url
+
+    n_base = len(labels)
+    ids = list(labels)
+    line_widths = [1.0] * n_base
+
+    # Explicit colors for existing nodes
+    if color_mode == "ratio":
+        valid = summary_df["Ratio"].dropna()
+        cmin = max(0, valid.min()) if len(valid) else 0
+        cmax = valid.max() if len(valid) else 1
+        if color_range is not None:
+            cmin, cmax = color_range
+        elif drilldown:
+            cmin, cmax = 0, HEATMAP_DRILLDOWN_CMAX
+        span = (cmax - cmin) or 1
+        node_colors = [
+            "#cccccc" if pd.isna(r) else
+            sample_colorscale("RdYlGn", [min(1, max(0, (r - cmin) / span))])[0]
+            for r in node_ratios
+        ]
+    else:
+        node_colors = list(colors)
+
+    # Industry label -> worksheet key and node index
+    industry_index = {customdata[i]: i for i in range(n_base) if customdata[i]}
+    for ws, group in constituents.groupby("worksheet"):
+        if ws not in industry_index:
+            continue
+        parent_i = industry_index[ws]
+        caps = pd.to_numeric(group["market_cap"], errors="coerce")
+        caps = caps.fillna(caps.min() if caps.notna().any() else 1.0).clip(lower=0.01)
+        budget = values[parent_i] * _STOCK_SHARE_OF_INDUSTRY
+        for (_, stock), cap in zip(group.iterrows(), caps):
+            ticker = str(stock["ticker"])
+            ids.append(f"{ticker}|{ws}")
+            labels.append(ticker)
+            parents.append(ids[parent_i])
+            values.append(budget * cap / caps.sum())
+            customdata.append(ticker)
+            node_colors.append(_stock_change_color(stock["change"]))
+            link = f'<a href="{finviz_chart_url(ticker)}" target="_blank" style="color:#ffffff">{ticker}</a>'
+            if stock["is_uptrend"]:
+                link = f"<b>{link}</b>"
+            text.append(f"{link}<br>{_pct(stock['change'])}")
+            hovertext.append(
+                f"<b>{ticker}</b> {stock['company'] if pd.notna(stock['company']) else ''}<br>"
+                f"Market Cap: {_format_market_cap(stock['market_cap'])}<br>"
+                f"Change: {_pct(stock['change'])}<br>"
+                f"Perf Week: {_pct(stock['perf_week'])}<br>"
+                f"Perf YTD: {_pct(stock['perf_ytd'])}<br>"
+                f"Uptrend: {'Yes' if stock['is_uptrend'] else 'No'}"
+            )
+            line_widths.append(3.0 if stock["is_uptrend"] else 0.5)
+
+    # branchvalues="total": every parent must hold at least its children's sum.
+    # Base nodes are ordered root -> sectors -> industries, so walk them backwards.
+    child_sums: Dict[str, float] = {}
+    for j in range(n_base, len(ids)):
+        child_sums[parents[j]] = child_sums.get(parents[j], 0.0) + values[j]
+    for i in reversed(range(n_base)):
+        values[i] = max(values[i], child_sums.get(ids[i], 0.0))
+        if parents[i]:
+            child_sums[parents[i]] = child_sums.get(parents[i], 0.0) + values[i]
+
+    fig.add_trace(
+        go.Treemap(
+            ids=ids,
+            labels=labels,
+            parents=parents,
+            values=values,
+            branchvalues="total",
+            marker=dict(colors=node_colors, line=dict(width=line_widths, color="#222")),
+            customdata=customdata,
+            text=text,
+            textinfo="text",
+            hovertext=hovertext,
+            hoverinfo="text",
+            maxdepth=2,
+        )
+    )
+    fig.update_layout(
+        title="Industry Heatmap",
+        height=CHART_HEIGHT_HEATMAP,
+        template="plotly_white",
+        margin=dict(t=50, l=10, r=10, b=10),
+    )
+    return fig
+
+
 def build_industry_heatmap(
     summary_df: pd.DataFrame,
     color_mode: str = "ratio",
     size_mode: str = "uniform",
     color_range: Optional[tuple] = None,
     drilldown: bool = False,
+    constituents: Optional[pd.DataFrame] = None,
 ) -> go.Figure:
     """Build a treemap chart of all industries grouped by sector.
 
@@ -522,6 +651,9 @@ def build_industry_heatmap(
         drilldown: Phone view. Adds an "All Sectors" root, colors each sector tile by
             its stock-weighted ratio, and limits rendering to 2 levels so the first
             screen shows 11 readable sector tiles; tapping one zooms to its industries.
+        constituents: Optional stock lists (`worksheet` + CONSTITUENT_COLUMNS). When
+            given, each industry gets stock tiles sized by market cap, colored by the
+            day's change and linked to the Finviz chart; see _heatmap_with_stocks().
 
     Returns:
         Plotly Figure with a Treemap trace.
@@ -618,6 +750,12 @@ def build_industry_heatmap(
 
     # Phone view: render root + sectors only; tapping a sector zooms to its industries
     maxdepth = 2 if drilldown else None
+
+    if constituents is not None and not constituents.empty:
+        return _heatmap_with_stocks(
+            fig, summary_df, constituents, labels, parents, values, colors, customdata,
+            text, hovertext, node_ratios, color_mode, color_range, drilldown,
+        )
 
     if color_mode == "ratio":
         marker_values = node_ratios

@@ -21,6 +21,7 @@ from src.data_processor import (
     summarize_constituents,
 )
 from src.chart_builder import build_ratio_chart
+from src.kpi_cards import KpiCard, regime_card, render_kpi_cards, status_card, trend_card
 from src.mobile_ui import (
     MOBILE_CONSTITUENT_COLUMNS,
     display_years,
@@ -114,23 +115,13 @@ if df is None or df.empty:
 # Status indicators
 status = get_current_status(df)
 
-col1, col2, col3, col4, col5 = st.columns(5)
-with col1:
-    st.metric("Ratio", f"{status['ratio']:.1%}")
-with col2:
-    st.metric("10MA", f"{status['ratio_10ma']:.1%}" if status["ratio_10ma"] is not None else "N/A")
-with col3:
-    trend_icons = {"up": "🔼", "down": "🔽", "neutral": "➖"}
-    st.metric("Trend", f"{trend_icons.get(status['trend'], '➖')} {status['trend'].title()}")
-with col4:
-    st.metric("Slope", f"{status['slope']:.4f}" if status["slope"] is not None else "N/A")
-with col5:
-    if status["is_overbought"]:
-        st.metric("Status", "⚠️ Overbought")
-    elif status["is_oversold"]:
-        st.metric("Status", "⚠️ Oversold")
-    else:
-        st.metric("Status", "Normal")
+render_kpi_cards([
+    KpiCard("Ratio", f"{status['ratio']:.1%}"),
+    KpiCard("10MA", f"{status['ratio_10ma']:.1%}" if status["ratio_10ma"] is not None else "N/A"),
+    trend_card(status["trend"]),
+    KpiCard("Slope", f"{status['slope']:.4f}" if status["slope"] is not None else "N/A"),
+    status_card(status),
+])
 
 # Date filter
 min_date = df["date"].min().date()

@@ -5,12 +5,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.data_loader import cached_load_all_data
+from src.data_loader import cached_load_all_constituents, cached_load_all_data
 from src.data_processor import (
     build_industry_summary_with_sector,
     style_status_row,
 )
 from src.chart_builder import build_industry_heatmap
+from src.kpi_cards import KpiCard, regime_card, render_kpi_cards, status_card, trend_card
 from src.mobile_ui import inject_mobile_css, is_mobile_client, mobile_columns, show_chart
 
 st.set_page_config(page_title="Industry Heatmap", page_icon="🗺️", layout="wide")
@@ -70,26 +71,35 @@ total_count = len(summary)
 status_counts = summary["Status"].value_counts()
 trend_counts = summary["Trend"].value_counts()
 
-kpi_cols = st.columns(5)
-with kpi_cols[0]:
-    st.metric("Oversold", f"{status_counts.get('Oversold', 0) / total_count:.1%}")
-with kpi_cols[1]:
-    st.metric("Normal", f"{status_counts.get('Normal', 0) / total_count:.1%}")
-with kpi_cols[2]:
-    st.metric("Overbought", f"{status_counts.get('Overbought', 0) / total_count:.1%}")
-with kpi_cols[3]:
-    st.metric("Trend Up", f"{trend_counts.get('Up', 0) / total_count:.1%}")
-with kpi_cols[4]:
-    st.metric("Trend Down", f"{trend_counts.get('Down', 0) / total_count:.1%}")
+render_kpi_cards([
+    KpiCard("Oversold", f"{status_counts.get('Oversold', 0) / total_count:.1%}", "oversold"),
+    KpiCard("Normal", f"{status_counts.get('Normal', 0) / total_count:.1%}", "normal"),
+    KpiCard("Overbought", f"{status_counts.get('Overbought', 0) / total_count:.1%}", "overbought"),
+    KpiCard("Trend Up", f"{trend_counts.get('Up', 0) / total_count:.1%}", "up"),
+    KpiCard("Trend Down", f"{trend_counts.get('Down', 0) / total_count:.1%}", "down"),
+])
 
 # Treemap (display only)
 # 149 tiles are unreadable on a phone: phones first see 11 sector tiles and
 # tap one to zoom into its industries (Plotly treemap drilldown).
 is_mobile = is_mobile_client()
+constituents = cached_load_all_constituents()
+has_stocks = not constituents.empty
 if is_mobile:
-    st.caption("Tap a sector to see its industries. Tap the bar at the top to go back.")
+    st.caption(
+        "Tap a sector to see its industries"
+        + (", then an industry to see its stocks (size = market cap, color = today's change; "
+           "bold outline = uptrend). Tap a ticker to open its Finviz chart" if has_stocks else "")
+        + ". Tap the bar at the top to go back."
+    )
+elif has_stocks:
+    st.caption(
+        "Click an industry to see its stocks (size = market cap, color = today's change; "
+        "bold outline = uptrend). Click a ticker to open its Finviz chart."
+    )
 fig = build_industry_heatmap(
     summary, color_mode=color_mode_key, size_mode=size_mode_key, drilldown=is_mobile,
+    constituents=constituents if has_stocks else None,
 )
 show_chart(fig, mobile_height=560)
 

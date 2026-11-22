@@ -6,6 +6,8 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 import pytest
+
+from tests.kpi_helpers import kpi_cards
 from streamlit.testing.v1 import AppTest
 
 from src.constants import SECTORS
@@ -60,7 +62,7 @@ def test_incomplete_latest_does_not_display_current_advice(filename, state, coun
         assert "2026-02-12" in text  # last complete observation is explicitly historical
     if filename.startswith("6_") and state == "partial":
         assert len(app.get("plotly_chart")) == 2  # history remains available
-        assert not app.metric  # no obsolete current metrics
+        assert not kpi_cards(app)  # no obsolete current metrics
 
 
 @pytest.mark.parametrize("filename", ["6_Dispersion_Monitor.py", "2_Sector_Comparison.py"])
@@ -72,6 +74,6 @@ def test_complete_latest_displays_asof_and_current_regime(filename, tmp_path):
     assert "2026-02-13" in text
     if filename.startswith("6_"):
         assert "CAPITULATION ACTIVE" in text
-        assert len(app.metric) == 4
+        assert len(kpi_cards(app)) == 4
     else:
         assert "σ=" in text

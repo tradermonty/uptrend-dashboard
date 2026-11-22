@@ -13,6 +13,7 @@ from src.indicator_calculator import (
     detect_dispersion_signals,
 )
 from src.chart_builder import build_dispersion_chart, build_regime_timeline_chart
+from src.kpi_cards import KpiCard, regime_card, render_kpi_cards, status_card, trend_card
 from src.mobile_ui import display_years, inject_mobile_css, is_mobile_client, mobile_columns, show_chart
 from src.data_processor import (
     build_sector_ranking_table,
@@ -108,16 +109,12 @@ if current_available:
                 )
 
     # --- Status metrics ---
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Dispersion (σ)", f"{latest_valid['dispersion']:.4f}")
-    with col2:
-        st.metric("Mean Ratio", f"{latest_valid['mean_ratio']:.1%}")
-    with col3:
-        regime_emoji = {"converged": "🟢", "normal": "🔵", "diverged": "🔴"}
-        st.metric("Regime", f"{regime_emoji.get(current_regime, '')} {current_regime.title()}")
-    with col4:
-        st.metric("Level", current_level.title())
+    render_kpi_cards([
+        KpiCard("Dispersion (σ)", f"{latest_valid['dispersion']:.4f}"),
+        KpiCard("Mean Ratio", f"{latest_valid['mean_ratio']:.1%}"),
+        regime_card(current_regime),
+        KpiCard("Level", current_level.title()),
+    ])
 
 # === Date filter (main area so it is reachable on phones) ===
 if not dispersion_df.empty and "date" in dispersion_df.columns:

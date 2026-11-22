@@ -136,6 +136,19 @@ class DBClient:
         df["is_uptrend"] = df["is_uptrend"].astype(bool)
         return df
 
+    def fetch_all_constituents(self) -> pd.DataFrame:
+        """Return every industry's stock list with a `worksheet` column (heatmap stock level)."""
+        columns = ["worksheet", "date"] + CONSTITUENT_COLUMNS
+        with self._connection() as conn:
+            df = pd.read_sql_query(
+                f"SELECT {', '.join(columns)} FROM industry_constituents ORDER BY worksheet, ticker",
+                conn,
+            )
+        if df.empty:
+            return pd.DataFrame(columns=columns)
+        df["is_uptrend"] = df["is_uptrend"].astype(bool)
+        return df
+
     @staticmethod
     def _coerce_whole_number(value, field_name: str) -> int:
         """Return an exact native int suitable for a signed SQLite INTEGER."""

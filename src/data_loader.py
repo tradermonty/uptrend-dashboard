@@ -67,3 +67,15 @@ def load_constituents(worksheet: str, db_path: str = None) -> pd.DataFrame:
 @_cache
 def cached_load_constituents(worksheet, db_path=None):
     return load_constituents(worksheet, db_path)
+
+
+def load_all_constituents(db_path: str = None) -> pd.DataFrame:
+    """Load every industry's latest stock list (for the heatmap stock level)."""
+    if db_path is None:
+        db_path = os.environ.get("DB_PATH", "data/uptrend.db")
+    return DBClient(db_path).fetch_all_constituents()
+
+
+@_cache
+def cached_load_all_constituents(db_path=None):
+    return load_all_constituents(db_path)

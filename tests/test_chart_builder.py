@@ -166,6 +166,82 @@ class TestBuildIndustryHeatmapDrilldown:
         assert fig.data[0].marker.colors[i] == "#1f77b4"  # 20% -> Normal
 
 
+class TestBuildIndustryHeatmapStocks:
+    """Third level: stocks inside each industry, sized by market cap, linked to Finviz."""
+
+    def _summary(self):
+        return pd.DataFrame({
+            "Industry": ["Copper", "Gold"], "Ratio": [0.3, 0.1], "10MA": [0.3, 0.1],
+            "Trend": ["Up", "Down"], "Slope": [0.01, -0.01], "Status": ["Normal", "Normal"],
+            "_key": ["ind_copper", "ind_gold"], "Sector": ["Basic Materials", "Basic Materials"],
+            "Total": [3, 1],
+        })
+
+    def _stocks(self):
+        return pd.DataFrame({
+            "worksheet": ["ind_copper", "ind_copper", "ind_gold"],
+            "ticker": ["FCX", "SCCO", "NEM"],
+            "company": ["Freeport", "Southern Copper", "Newmont"],
+            "market_cap": [300.0, 100.0, 50.0],
+            "change": [0.02, -0.01, 0.0],
+            "perf_week": [0.0, 0.0, 0.0], "perf_ytd": [0.0, 0.0, 0.0],
+            "is_uptrend": [True, False, False],
+        })
+
+    def _idx(self, trace, node_id):
+        return list(trace.ids).index(node_id)
+
+    def test_stock_nodes_hang_under_their_industry(self):
+        fig = build_industry_heatmap(self._summary(), constituents=self._stocks())
+        trace = fig.data[0]
+        assert trace.parents[self._idx(trace, "FCX|ind_copper")] == "Copper"
+        assert trace.parents[self._idx(trace, "NEM|ind_gold")] == "Gold"
+
+    def test_stock_sizes_follow_market_cap_within_industry(self):
+        fig = build_industry_heatmap(self._summary(), constituents=self._stocks())
+        trace = fig.data[0]
+        fcx = trace.values[self._idx(trace, "FCX|ind_copper")]
+        scco = trace.values[self._idx(trace, "SCCO|ind_copper")]
+        assert fcx == pytest.approx(3 * scco)
+        # Children never exceed the industry tile (branchvalues="total")
+        assert trace.branchvalues == "total"
+        assert fcx + scco <= trace.values[self._idx(trace, "Copper")]
+
+    def test_uniform_mode_keeps_industries_equal_size(self):
+        fig = build_industry_heatmap(self._summary(), constituents=self._stocks())
+        trace = fig.data[0]
+        assert trace.values[self._idx(trace, "Copper")] == trace.values[self._idx(trace, "Gold")]
+
+    def test_stock_text_links_to_finviz_chart(self):
+        fig = build_industry_heatmap(self._summary(), constituents=self._stocks())
+        trace = fig.data[0]
+        text = trace.text[self._idx(trace, "SCCO|ind_copper")]
+        assert 'href="https://finviz.com/quote.ashx?t=SCCO&p=w"' in text
+        assert "-1.0%" in text
+
+    def test_uptrend_stocks_are_outlined(self):
+        fig = build_industry_heatmap(self._summary(), constituents=self._stocks())
+        trace = fig.data[0]
+        widths = trace.marker.line.width
+        assert widths[self._idx(trace, "FCX|ind_copper")] > widths[self._idx(trace, "SCCO|ind_copper")]
+
+    def test_stock_colors_follow_daily_change(self):
+        fig = build_industry_heatmap(self._summary(), constituents=self._stocks())
+        trace = fig.data[0]
+        up = trace.marker.colors[self._idx(trace, "FCX|ind_copper")]
+        down = trace.marker.colors[self._idx(trace, "SCCO|ind_copper")]
+        assert up != down
+
+    def test_initial_view_stops_at_industries(self):
+        fig = build_industry_heatmap(self._summary(), constituents=self._stocks())
+        assert fig.data[0].maxdepth == 2
+
+    def test_without_constituents_behaviour_is_unchanged(self):
+        fig = build_industry_heatmap(self._summary())
+        assert fig.data[0].maxdepth is None
+        assert fig.data[0].branchvalues is None
+
+
 class TestBuildSectorComparisonChart:
     """Tests for build_sector_comparison_chart function."""
 

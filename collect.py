@@ -16,6 +16,7 @@ from src.data_collector import (
     configure_logging,
     redact,
 )
+from src.constituent_collector import collect_constituents_safely
 from src.db_client import DBClient
 from src.finviz_universe import MigrationEvidenceError, load_evidence
 
@@ -106,6 +107,10 @@ def main():
                 print(f"  Worksheets failed: {len(result.failed)}")
             if args.dry_run:
                 print("  (Dry run - no data written)")
+
+            # Industry stock lists (v5.9): 2 extra requests, never affects exit status
+            if not args.dry_run and scope in (CollectScope.ALL, CollectScope.INDUSTRIES):
+                collect_constituents_safely(collector, db_client, session_date, secrets=[api_key])
 
             # Industry failure warning
             if result.industry_failed:

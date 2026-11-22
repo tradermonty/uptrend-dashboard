@@ -35,6 +35,18 @@ def _constituents(rows):
 # ---------------------------------------------------------------------------
 class TestConstituentStorage:
 
+    def test_fetch_all_returns_every_industry_with_worksheet(self, db_client):
+        db_client.replace_constituents("ind_copper", "2026-11-20", _constituents([("FCX", "F", 1.0, True)]))
+        db_client.replace_constituents("ind_gold", "2026-11-20", _constituents([("NEM", "N", 2.0, False)]))
+        result = db_client.fetch_all_constituents()
+        assert dict(zip(result["ticker"], result["worksheet"])) == {"FCX": "ind_copper", "NEM": "ind_gold"}
+        assert result["is_uptrend"].dtype == bool
+
+    def test_fetch_all_empty(self, db_client):
+        result = db_client.fetch_all_constituents()
+        assert result.empty
+        assert "worksheet" in result.columns
+
     def test_round_trip(self, db_client):
         df = _constituents([("AAA", "Alpha", 100.0, True), ("BBB", "Beta", 50.0, False)])
         db_client.replace_constituents("ind_copper", "2026-11-20", df)
