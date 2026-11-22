@@ -24,6 +24,8 @@ class KpiCard:
     label: str
     value: str
     tone: Optional[str] = None  # key of TONE_COLORS; None/"neutral" = no color
+    href: Optional[str] = None  # makes the card a same-tab link (e.g. "?filter=trend_up")
+    active: bool = False  # highlighted as the currently applied filter
 
 
 def trend_card(trend: str) -> KpiCard:
@@ -53,12 +55,19 @@ def _card_html(card: KpiCard) -> str:
     border = color if color else "transparent"
     background = f"{color}14" if color else "rgba(128,128,128,0.08)"
     value_style = f"color:{color};" if color else ""
-    return (
+    ring = f"box-shadow:0 0 0 2px {color or '#888'};" if card.active else ""
+    body = (
         f'<div style="border-radius:10px;padding:10px 14px;background:{background};'
-        f'border-left:5px solid {border};">'
+        f'border-left:5px solid {border};{ring}">'
         f'<div style="font-size:0.85rem;opacity:0.75;">{html.escape(card.label)}</div>'
         f'<div style="font-size:1.6rem;font-weight:600;line-height:1.3;{value_style}">'
         f"{html.escape(card.value)}</div></div>"
+    )
+    if card.href is None:
+        return body
+    return (
+        f'<a href="{html.escape(card.href, quote=True)}" target="_self" '
+        f'style="text-decoration:none;color:inherit;">{body}</a>'
     )
 
 

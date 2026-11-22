@@ -443,3 +443,26 @@ def default_start_date(
     """Return the default start date, at most `years` (default DEFAULT_DISPLAY_YEARS) before max_date."""
     cutoff = max_date - relativedelta(years=years if years is not None else DEFAULT_DISPLAY_YEARS)
     return max(min_date, cutoff)
+
+
+# Industry Heatmap KPI filters: query-param key -> (column, value)
+HEATMAP_FILTERS = {
+    "oversold": ("Status", "Oversold"),
+    "normal": ("Status", "Normal"),
+    "overbought": ("Status", "Overbought"),
+    "trend_up": ("Trend", "Up"),
+    "trend_down": ("Trend", "Down"),
+}
+
+
+def parse_heatmap_filter(value) -> Optional[str]:
+    """Validate a ?filter= query value; anything unknown means no filter."""
+    return value if isinstance(value, str) and value in HEATMAP_FILTERS else None
+
+
+def filter_industry_summary(summary: pd.DataFrame, key: Optional[str]) -> pd.DataFrame:
+    """Rows of the industry summary that match a KPI filter (all rows when key is None)."""
+    if key is None:
+        return summary
+    column, value = HEATMAP_FILTERS[key]
+    return summary[summary[column] == value].reset_index(drop=True)

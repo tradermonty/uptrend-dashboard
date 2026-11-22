@@ -8,6 +8,8 @@ load_dotenv()
 from src.data_loader import cached_load_all_constituents, cached_load_all_data
 from src.data_processor import (
     build_industry_summary_with_sector,
+    filter_industry_summary,
+    parse_heatmap_filter,
     style_status_row,
 )
 from src.chart_builder import build_industry_heatmap
@@ -71,13 +73,43 @@ total_count = len(summary)
 status_counts = summary["Status"].value_counts()
 trend_counts = summary["Trend"].value_counts()
 
+# KPI cards double as filters: tapping one reloads the page with ?filter=<key>
+# and both the heatmap and the table show only the matching industries.
+active_filter = parse_heatmap_filter(st.query_params.get("filter"))
+
+
+def _kpi(label, share, tone, key):
+    is_active = active_filter == key
+    # Tapping the active card again clears the filter
+    return KpiCard(label, f"{share / total_count:.1%}", tone,
+                   href="?" if is_active else f"?filter={key}", active=is_active)
+
+
 render_kpi_cards([
-    KpiCard("Oversold", f"{status_counts.get('Oversold', 0) / total_count:.1%}", "oversold"),
-    KpiCard("Normal", f"{status_counts.get('Normal', 0) / total_count:.1%}", "normal"),
-    KpiCard("Overbought", f"{status_counts.get('Overbought', 0) / total_count:.1%}", "overbought"),
-    KpiCard("Trend Up", f"{trend_counts.get('Up', 0) / total_count:.1%}", "up"),
-    KpiCard("Trend Down", f"{trend_counts.get('Down', 0) / total_count:.1%}", "down"),
+    _kpi("Oversold", status_counts.get("Oversold", 0), "oversold", "oversold"),
+    _kpi("Normal", status_counts.get("Normal", 0), "normal", "normal"),
+    _kpi("Overbought", status_counts.get("Overbought", 0), "overbought", "overbought"),
+    _kpi("Trend Up", trend_counts.get("Up", 0), "up", "trend_up"),
+    _kpi("Trend Down", trend_counts.get("Down", 0), "down", "trend_down"),
 ])
+
+if active_filter:
+    label = next(c for c, k in (("Oversold", "oversold"), ("Normal", "normal"),
+                                ("Overbought", "overbought"), ("Trend Up", "trend_up"),
+                                ("Trend Down", "trend_down")) if k == active_filter)
+    summary = filter_industry_summary(summary, active_filter)
+    st.markdown(
+        f"**Filter: {label}** — {len(summary)} of {total_count} industries · "
+        '<a href="#industry-summary" target="_self">Jump to table</a> · '
+        '<a href="?" target="_self">Show all</a>',
+        unsafe_allow_html=True,
+    )
+else:
+    st.caption("Tap a card to show only those industries in the heatmap and the table.")
+
+if summary.empty:
+    st.info("No industries match this filter.")
+    st.stop()
 
 # Treemap (display only)
 # 149 tiles are unreadable on a phone: phones first see 11 sector tiles and
@@ -90,7 +122,7 @@ if is_mobile:
         "Tap a sector to see its industries"
         + (", then an industry to see its stocks (size = market cap, color = today's change; "
            "bold outline = uptrend). Tap a stock to open its Finviz chart" if has_stocks else "")
-        + ". Tap the bar at the top to go back."
+        + ". Tap the header at the top to go back."
     )
 elif has_stocks:
     st.caption(
