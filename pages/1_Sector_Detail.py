@@ -17,7 +17,7 @@ from src.data_processor import (
     style_status_row,
 )
 from src.chart_builder import build_ratio_chart, build_industry_summary_chart
-from src.kpi_cards import KpiCard, regime_card, render_kpi_cards, status_card, trend_card
+from src.kpi_cards import KpiCard, render_kpi_cards, status_card, trend_card
 from src.mobile_ui import display_years, inject_mobile_css, is_mobile_client, mobile_columns, show_chart
 
 st.set_page_config(page_title="Sector Detail", page_icon="🔍", layout="wide")

@@ -42,6 +42,25 @@ class TestConstituentStorage:
         assert dict(zip(result["ticker"], result["worksheet"])) == {"FCX": "ind_copper", "NEM": "ind_gold"}
         assert result["is_uptrend"].dtype == bool
 
+    def test_replace_all_is_one_transaction(self, db_client):
+        db_client.replace_constituents("ind_copper", "2026-11-19", _constituents([("OLD", "O", 1.0, False)]))
+        bad = _constituents([("X", "X", 1.0, False)]).drop(columns=["company"])
+        with pytest.raises(ValueError):
+            db_client.replace_all_constituents("2026-11-20", {
+                "ind_gold": _constituents([("NEM", "N", 2.0, False)]),
+                "ind_copper": bad,
+            })
+        assert db_client.fetch_constituents("ind_gold").empty
+        assert db_client.fetch_constituents("ind_copper")["ticker"].tolist() == ["OLD"]
+
+    def test_replace_all_writes_every_industry(self, db_client):
+        db_client.replace_all_constituents("2026-11-20", {
+            "ind_gold": _constituents([("NEM", "N", 2.0, False)]),
+            "ind_copper": _constituents([]),
+        })
+        assert db_client.fetch_constituents("ind_gold")["ticker"].tolist() == ["NEM"]
+        assert db_client.fetch_constituents("ind_copper").empty
+
     def test_fetch_all_empty(self, db_client):
         result = db_client.fetch_all_constituents()
         assert result.empty

@@ -11,7 +11,7 @@ from src.data_processor import (
     style_status_row,
 )
 from src.chart_builder import build_industry_heatmap
-from src.kpi_cards import KpiCard, regime_card, render_kpi_cards, status_card, trend_card
+from src.kpi_cards import KpiCard, render_kpi_cards
 from src.mobile_ui import inject_mobile_css, is_mobile_client, mobile_columns, show_chart
 
 st.set_page_config(page_title="Industry Heatmap", page_icon="🗺️", layout="wide")

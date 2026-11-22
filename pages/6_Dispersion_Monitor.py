@@ -13,7 +13,7 @@ from src.indicator_calculator import (
     detect_dispersion_signals,
 )
 from src.chart_builder import build_dispersion_chart, build_regime_timeline_chart
-from src.kpi_cards import KpiCard, regime_card, render_kpi_cards, status_card, trend_card
+from src.kpi_cards import KpiCard, regime_card, render_kpi_cards
 from src.mobile_ui import display_years, inject_mobile_css, is_mobile_client, mobile_columns, show_chart
 from src.data_processor import (
     build_sector_ranking_table,

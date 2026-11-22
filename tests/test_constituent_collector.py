@@ -1,5 +1,6 @@
 """Tests for the daily constituent details collector (v5.9)."""
 
+import sqlite3
 from unittest.mock import MagicMock
 from urllib.parse import parse_qs, urlparse
 
@@ -181,6 +182,51 @@ class TestConstituentCollector:
         with pytest.raises(ValueError, match="subset"):
             collector.collect("2026-11-13")
         assert db_client.fetch_constituents("ind_airportsairservices").empty
+
+    def _seed_old(self, db_client):
+        old = pd.DataFrame(
+            [{"ticker": "OLD", "company": "Old", "market_cap": 1.0, "change": 0.0,
+              "perf_week": 0.0, "perf_ytd": 0.0, "is_uptrend": False}],
+            columns=CONSTITUENT_COLUMNS,
+        )
+        db_client.replace_constituents("ind_airportsairservices", "2026-11-12", old)
+
+    def test_header_only_details_does_not_wipe_lists(self, collector, db_client, mocker):
+        """A zero-row details export is a bad response, not 'no stocks in the market'."""
+        self._seed_old(db_client)
+        header_only = DETAILS_CSV.splitlines()[0] + "\n"
+        self._mock(collector, mocker, details=header_only, uptrend='"Ticker"\n')
+        with pytest.raises(ValueError, match="no stocks"):
+            collector.collect("2026-11-13")
+        assert db_client.fetch_constituents("ind_airportsairservices")["ticker"].tolist() == ["OLD"]
+
+    def test_mostly_unknown_industries_do_not_wipe_lists(self, collector, db_client, mocker):
+        """Renamed Finviz industry labels would map nothing: refuse instead of clearing."""
+        self._seed_old(db_client)
+        renamed = DETAILS_CSV.replace("Airports & Air Services", "Airport Ops").replace(
+            '"Copper"', '"Copper Mining"').replace('"Semiconductors"', '"Chips"')
+        self._mock(collector, mocker, details=renamed)
+        with pytest.raises(ValueError, match="unknown industr"):
+            collector.collect("2026-11-13")
+        assert db_client.fetch_constituents("ind_airportsairservices")["ticker"].tolist() == ["OLD"]
+
+    def test_write_is_all_or_nothing(self, collector, db_client, mocker):
+        """A storage failure must not leave some industries on the new date."""
+        self._seed_old(db_client)
+        self._mock(collector, mocker)
+        mocker.patch.object(db_client, "replace_all_constituents", side_effect=sqlite3.OperationalError("locked"))
+        with pytest.raises(sqlite3.OperationalError):
+            collector.collect("2026-11-13")
+        assert db_client.fetch_constituents("ind_airportsairservices")["date"].tolist() == ["2026-11-12"]
+
+    def test_session_policy_refusal_blocks_writes_but_not_the_run(self, collector, db_client, mocker, caplog):
+        """Policy refusal: no constituent write, logged as an error, counts already written stay."""
+        from src.collection_session import SessionPolicyError
+        self._seed_old(db_client)
+        mocker.patch.object(collector._collector, "_make_request", side_effect=SessionPolicyError("closed"))
+        assert collect_constituents_safely(collector._collector, db_client, "2026-11-13") is False
+        assert db_client.fetch_constituents("ind_airportsairservices")["ticker"].tolist() == ["OLD"]
+        assert any(r.levelname == "ERROR" and "policy" in r.getMessage() for r in caplog.records)
 
     def test_safe_wrapper_never_raises(self, collector, db_client, mocker):
         """Stock lists are secondary data: a failure must not fail the daily collect."""

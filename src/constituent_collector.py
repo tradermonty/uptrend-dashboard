@@ -38,6 +38,9 @@ _PERCENT_COLUMNS = {
 
 STOCK_INDUSTRIES = [ws for ws in INDUSTRIES if ws not in FUND_WORKSHEETS]
 
+# More unmapped stocks than this means the industry labels changed, not a few new ones
+MAX_UNKNOWN_INDUSTRY_SHARE = 0.05
+
 
 def industry_key_for(name: Optional[str]) -> Optional[str]:
     """Map a Finviz Industry name to its worksheet key ('Oil & Gas E&P' -> 'ind_oilgasep')."""
@@ -101,11 +104,19 @@ def collect_constituents_safely(data_collector, db_client, date: str, secrets=()
 
     Stock lists are secondary data, so they never change the daily exit status.
     """
+    from src.collection_session import SessionPolicyError
     from src.data_collector import redact
+    from src.finviz_universe import MigrationEvidenceError
 
     try:
         ConstituentCollector(data_collector, db_client).collect(date)
         return True
+    except (SessionPolicyError, MigrationEvidenceError) as exc:
+        # The policy refusal still blocks every constituent write. It is not re-raised:
+        # the day's count rows are already validated and written, and failing the run
+        # here would make the workflow skip committing them.
+        logger.error("Constituent collection refused by policy (lists unchanged): %s", exc)
+        return False
     except Exception as exc:  # noqa: BLE001 - secondary data must not fail the run
         logger.warning(
             "Constituent collection failed (previous stock lists kept): %s",
@@ -144,12 +155,21 @@ class ConstituentCollector:
 
         detail_tickers = set(details["Ticker"].astype(str))
         uptrend_tickers = set(uptrend["Ticker"].astype(str))
+        # A header-only details export would clear every list: treat it as a bad response
+        if not detail_tickers:
+            raise ValueError("details export returned no stocks; keeping previous lists")
         if not uptrend_tickers <= detail_tickers:
             raise ValueError("uptrend tickers are not a subset of the details universe")
+        unknown = details["Industry"].map(industry_key_for).isna().mean()
+        if unknown > MAX_UNKNOWN_INDUSTRY_SHARE:
+            # e.g. Finviz renamed its industry labels: refuse instead of clearing lists
+            raise ValueError(
+                f"{unknown:.0%} of stocks are in unknown industries; keeping previous lists"
+            )
 
         snapshots = build_constituent_snapshots(details, uptrend_tickers)
-        for ws, df in snapshots.items():
-            self._db.replace_constituents(ws, date, df)
+        # One transaction: a storage error leaves every industry on its previous snapshot
+        self._db.replace_all_constituents(date, snapshots)
         logger.info(
             "Constituents saved: %d stocks (%d uptrend) across %d industries",
             len(detail_tickers), len(uptrend_tickers), len(snapshots),

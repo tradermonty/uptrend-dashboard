@@ -23,7 +23,8 @@ The stocks-only denominator would have been 2,645 for all and 496 for Financial;
 - `all` and `sec_financial`: disjoint union of `type=stocks` and `type=etf`, applied to both numerator and denominator.
 - ETF and three closed-end fund worksheets: `type=etf`.
 - All other configured worksheets: `type=stocks`.
-- Production requests use `/export/screener`, explicit `c=1` (Ticker), and the original `v=151`, `ft=4`, price/cap/volume/technical filters. Unknown worksheet/filter codes are rejected.
+- Production count requests use `/export/screener`, explicit `c=1` (Ticker), and the original `v=151`, `ft=4`, price/cap/volume/technical filters. Unknown worksheet/filter codes are rejected.
+- Separately governed route (v5.9, `src/constituent_collector.py`): after the counts are written, two market-wide `type=stocks` exports feed the industry stock lists only — details with `BASE_FILTERS` and `c=1,2,3,4,6,42,47,66`, and uptrend tickers with `UPTREND_FILTERS` and `c=1`. They never produce or change a count, are not part of `policy_fingerprint()` or the reviewed evidence, and reuse the same filters, session policy, response contract and redaction. Their failure (including a policy refusal) only logs and leaves the previous stock lists in place; header-only details, uptrend ⊄ details, or more than 5% of stocks in unknown industries are rejected without writing.
 - A repeated identity across routes is an error, not silent deduplication. Each numerator must be a subset of its denominator. Partial/invalid exports cannot produce a stored pair.
 - Startup validates the reviewed evidence schema, complete required sampling, observation window/session, policy fingerprint, route counts, equal hashes/counts, ratios, and absence of differences/errors. A changed filter/routing policy or failed/incomplete comparison requires new reviewed evidence. CLI refusal occurs before opening the target DB. No network sampling is hidden inside collection startup.
 

@@ -21,7 +21,7 @@ from src.data_processor import (
     summarize_constituents,
 )
 from src.chart_builder import build_ratio_chart
-from src.kpi_cards import KpiCard, regime_card, render_kpi_cards, status_card, trend_card
+from src.kpi_cards import KpiCard, render_kpi_cards, status_card, trend_card
 from src.mobile_ui import (
     MOBILE_CONSTITUENT_COLUMNS,
     display_years,

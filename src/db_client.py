@@ -87,9 +87,35 @@ class DBClient:
 
         An empty df clears the industry (e.g. no stocks passed the base filters).
         """
+        self.replace_all_constituents(date, {worksheet: df})
+
+    def replace_all_constituents(self, date: str, snapshots: Dict[str, pd.DataFrame]) -> None:
+        """Replace several industries' snapshots in ONE transaction (all or nothing).
+
+        Every frame is validated before anything is written, so a bad frame or a
+        storage error leaves all industries on their previous snapshot.
+        """
+        self._validate_date(date)
+        all_rows = []
+        for worksheet, df in snapshots.items():
+            all_rows.extend(self._constituent_rows(worksheet, date, df))
+        with self._connection() as conn:
+            conn.executemany(
+                "DELETE FROM industry_constituents WHERE worksheet = ?",
+                [(ws,) for ws in snapshots],
+            )
+            conn.executemany(
+                "INSERT INTO industry_constituents "
+                "(worksheet, ticker, date, company, market_cap, change, perf_week, perf_ytd, is_uptrend) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                all_rows,
+            )
+        logger.debug("Replaced %d constituents across %d industries", len(all_rows), len(snapshots))
+
+    @staticmethod
+    def _constituent_rows(worksheet: str, date: str, df: pd.DataFrame) -> list:
         if worksheet not in INDUSTRIES:
             raise ValueError(f"Constituents are stored for industry worksheets only: '{worksheet}'")
-        self._validate_date(date)
         missing = set(CONSTITUENT_COLUMNS) - set(df.columns)
         if missing:
             raise ValueError(f"Constituent DataFrame missing columns: {sorted(missing)}")
@@ -97,7 +123,7 @@ class DBClient:
         def _num(value):
             return None if pd.isna(value) else float(value)
 
-        rows = [
+        return [
             (
                 worksheet,
                 str(row["ticker"]),
@@ -111,15 +137,6 @@ class DBClient:
             )
             for _, row in df.iterrows()
         ]
-        with self._connection() as conn:
-            conn.execute("DELETE FROM industry_constituents WHERE worksheet = ?", (worksheet,))
-            conn.executemany(
-                "INSERT INTO industry_constituents "
-                "(worksheet, ticker, date, company, market_cap, change, perf_week, perf_ytd, is_uptrend) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                rows,
-            )
-        logger.debug("Replaced %d constituents for %s", len(rows), worksheet)
 
     def fetch_constituents(self, worksheet: str) -> pd.DataFrame:
         """Return the stored constituent snapshot of one industry (may be empty)."""
