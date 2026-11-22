@@ -9,3 +9,4 @@ python-dateutil>=2.8.0
 python-dotenv>=1.0.0
 pytest>=8.0.0
 pytest-mock>=3.12.0
+exchange_calendars==4.13.2

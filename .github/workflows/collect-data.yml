@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: collect-data
@@ -56,15 +57,25 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Pin and validate exchange session
+        id: session
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/session_preflight.sh
+
       - name: Collect data from Finviz
+        if: steps.session.outputs.eligible == 'true'
         env:
           FINVIZ_API_KEY: ${{ secrets.FINVIZ_API_KEY }}
-        run: python collect.py --scope all --verbose
+          COLLECTION_SESSION: ${{ steps.session.outputs.session_date }}
+        run: python collect.py --scope all --verbose --date "$COLLECTION_SESSION"
 
       - name: Export CSV files
+        if: steps.session.outputs.eligible == 'true'
         run: python export_csv.py --verbose
 
       - name: Commit and push if data changed
+        if: steps.session.outputs.eligible == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

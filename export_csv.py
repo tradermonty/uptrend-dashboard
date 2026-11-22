@@ -56,21 +56,15 @@ def export_csv(db_path: str, output_dir: str) -> dict:
 
     # Sector Dispersion CSV — always regenerate to prevent stale files
     disp_path = os.path.join(output_dir, "sector_dispersion.csv")
-    sector_only = {k: v for k, v in all_data.items() if k.startswith("sec_")}
-    if len(sector_only) >= 2:
-        disp_df = calculate_sector_dispersion(all_data)
-        disp_csv = prepare_dispersion_csv(disp_df)
-        disp_csv.to_csv(disp_path, index=False)
-    else:
-        pd.DataFrame(
-            columns=["date", "dispersion", "mean_ratio", "range", "regime", "level_regime"]
-        ).to_csv(disp_path, index=False)
+    disp_df = calculate_sector_dispersion(all_data)
+    disp_csv = prepare_dispersion_csv(disp_df)
+    disp_csv.to_csv(disp_path, index=False)
 
     return {
         "timeseries": {"path": timeseries_path, "rows": len(timeseries_df)},
         "summary": {"path": summary_path, "rows": len(summary_df)},
         "industry_summary": {"path": ind_summary_path, "rows": len(ind_summary_df)},
-        "dispersion": {"path": disp_path, "rows": len(disp_csv) if len(sector_only) >= 2 else 0},
+        "dispersion": {"path": disp_path, "rows": len(disp_csv)},
     }
 
 

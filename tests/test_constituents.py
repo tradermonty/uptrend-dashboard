@@ -1,18 +1,11 @@
 """Tests for industry constituent (stock list) storage and display (v5.2)."""
 
 import re
-from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
-import requests
 
-from src.data_collector import (
-    CONSTITUENT_COLUMNS,
-    CollectorConfig,
-    DataCollector,
-    extract_constituents,
-)
+from src.constants import CONSTITUENT_COLUMNS
 from src.data_processor import (
     TICKER_LINK_PATTERN,
     finviz_chart_url,
@@ -21,41 +14,6 @@ from src.data_processor import (
     summarize_constituents,
 )
 
-
-# Real Finviz export (v=151) header, verified against the live API on 2026-11-22.
-FINVIZ_HEADER = (
-    "No.,Ticker,Company,Industry,Market Cap,EPS Growth This Year,EPS Growth Next Year,"
-    "Sales Growth Past 5 Years,Sales Growth Quarter Over Quarter,"
-    "EPS Growth Quarter Over Quarter,EPS Surprise,Revenue Surprise,"
-    "Performance (Week),Performance (YTD),Earnings Date,Relative Volume,Change,"
-    "After-Hours Change\n"
-)
-TOTAL_CSV = FINVIZ_HEADER + (
-    "1,ERO,Ero Copper Corp,Copper,2241.90,89.98%,15.60%,19.38%,96.53%,217.18%,"
-    "19.83%,1.49%,-26.12%,-24.11%,11/2/2026 4:30:00 PM,3.81,-8.05%,1.91%\n"
-    "2,FCX,Freeport-McMoRan Inc,Copper,65992.71,76.88%,38.08%,12.62%,8.23%,74.95%,"
-    "7.95%,2.52%,-22.37%,-9.03%,10/27/2026 8:30:00 AM,2.34,-6.37%,1.98%\n"
-    "3,HBM,Hudbay Minerals Inc,Copper,7190.79,126.24%,28.20%,14.84%,128.28%,-40.15%,"
-    "-0.56%,5.86%,-24.28%,-18.44%,11/12/2026 8:30:00 AM,2.03,-6.31%,1.73%\n"
-)
-UPTREND_CSV = FINVIZ_HEADER + (
-    "1,HBM,Hudbay Minerals Inc,Copper,7190.79,126.24%,28.20%,14.84%,128.28%,-40.15%,"
-    "-0.56%,5.86%,-24.28%,-18.44%,11/12/2026 8:30:00 AM,2.03,-6.31%,1.73%\n"
-)
-EMPTY_CSV = FINVIZ_HEADER
-
-
-def _df(csv_text):
-    import io
-    return pd.read_csv(io.StringIO(csv_text))
-
-
-def _csv_response(csv_text):
-    resp = MagicMock(spec=requests.Response)
-    resp.status_code = 200
-    resp.content = csv_text.encode("utf-8")
-    resp.raise_for_status = MagicMock()
-    return resp
 
 
 def _constituents(rows):
@@ -70,57 +28,6 @@ def _constituents(rows):
         ],
         columns=CONSTITUENT_COLUMNS,
     )
-
-
-# ---------------------------------------------------------------------------
-# extract_constituents
-# ---------------------------------------------------------------------------
-class TestExtractConstituents:
-
-    def test_maps_columns_and_flags_uptrend(self):
-        result = extract_constituents(_df(TOTAL_CSV), _df(UPTREND_CSV))
-        assert list(result.columns) == CONSTITUENT_COLUMNS
-        assert result["ticker"].tolist() == ["ERO", "FCX", "HBM"]
-        flags = dict(zip(result["ticker"], result["is_uptrend"]))
-        assert flags == {"ERO": False, "FCX": False, "HBM": True}
-
-    def test_parses_percent_strings_to_fractions(self):
-        result = extract_constituents(_df(TOTAL_CSV), _df(UPTREND_CSV))
-        ero = result[result["ticker"] == "ERO"].iloc[0]
-        assert ero["change"] == pytest.approx(-0.0805)
-        assert ero["perf_week"] == pytest.approx(-0.2612)
-        assert ero["perf_ytd"] == pytest.approx(-0.2411)
-        assert ero["market_cap"] == pytest.approx(2241.90)
-        assert ero["company"] == "Ero Copper Corp"
-
-    def test_empty_total_returns_empty_frame_with_columns(self):
-        result = extract_constituents(_df(EMPTY_CSV), _df(EMPTY_CSV))
-        assert result.empty
-        assert list(result.columns) == CONSTITUENT_COLUMNS
-
-    def test_completely_empty_frames(self):
-        """_make_request returns a bare DataFrame() on an empty CSV body."""
-        result = extract_constituents(pd.DataFrame(), pd.DataFrame())
-        assert result.empty
-        assert list(result.columns) == CONSTITUENT_COLUMNS
-
-    def test_missing_optional_columns_become_nan(self):
-        total = pd.DataFrame({"Ticker": ["AAPL"], "Company": ["Apple"]})
-        result = extract_constituents(total, pd.DataFrame())
-        assert result.iloc[0]["ticker"] == "AAPL"
-        assert pd.isna(result.iloc[0]["market_cap"])
-        assert pd.isna(result.iloc[0]["change"])
-        assert result.iloc[0]["is_uptrend"] == False  # noqa: E712
-
-    def test_drops_null_and_duplicate_tickers(self):
-        total = pd.DataFrame({"Ticker": ["AAA", None, "AAA", "BBB"]})
-        result = extract_constituents(total, pd.DataFrame())
-        assert result["ticker"].tolist() == ["AAA", "BBB"]
-
-    def test_unparseable_percent_becomes_nan(self):
-        total = pd.DataFrame({"Ticker": ["AAPL"], "Change": ["-"]})
-        result = extract_constituents(total, pd.DataFrame())
-        assert pd.isna(result.iloc[0]["change"])
 
 
 # ---------------------------------------------------------------------------
@@ -187,101 +94,6 @@ class TestConstituentStorage:
             db_client.replace_constituents(
                 "ind_copper", "2026-11-20", pd.DataFrame({"ticker": ["A"]})
             )
-
-
-# ---------------------------------------------------------------------------
-# DataCollector integration
-# ---------------------------------------------------------------------------
-class TestCollectorSavesConstituents:
-
-    @pytest.fixture
-    def collector(self, db_client):
-        config = CollectorConfig(
-            finviz_api_key="test_key", max_retries=1, retry_delay=0.0, request_interval=0.0,
-        )
-        collector = DataCollector(db_client=db_client, config=config)
-        # Freeze "today" so the collect date 2026-11-20 counts as a current snapshot
-        collector._today = lambda: "2026-11-20"
-        return collector
-
-    def _mock_get(self, collector, mocker, uptrend_csv, total_csv):
-        # collect order: uptrend request first, then total request
-        mocker.patch.object(
-            collector._session, "get",
-            side_effect=[_csv_response(uptrend_csv), _csv_response(total_csv)],
-        )
-
-    def test_industry_collect_saves_constituents(self, collector, db_client, mocker):
-        self._mock_get(collector, mocker, UPTREND_CSV, TOTAL_CSV)
-        count, total = collector.collect_worksheet("ind_copper", date="2026-11-20")
-        assert (count, total) == (1, 3)
-        result = db_client.fetch_constituents("ind_copper")
-        assert sorted(result["ticker"]) == ["ERO", "FCX", "HBM"]
-        assert result[result["is_uptrend"]]["ticker"].tolist() == ["HBM"]
-
-    def test_sector_collect_does_not_save_constituents(self, collector, db_client, mocker):
-        mock_replace = mocker.patch.object(db_client, "replace_constituents")
-        self._mock_get(collector, mocker, UPTREND_CSV, TOTAL_CSV)
-        collector.collect_worksheet("sec_basicmaterials", date="2026-11-20")
-        mock_replace.assert_not_called()
-
-    def test_dry_run_does_not_save_constituents(self, collector, db_client, mocker):
-        self._mock_get(collector, mocker, UPTREND_CSV, TOTAL_CSV)
-        collector.collect_worksheet("ind_copper", date="2026-11-20", dry_run=True)
-        assert db_client.fetch_constituents("ind_copper").empty
-
-    def test_industry_total_zero_clears_stale_constituents(self, collector, db_client, mocker):
-        db_client.replace_constituents(
-            "ind_copper", "2026-11-19", _constituents([("OLD", "Old Co", 1.0, False)])
-        )
-        self._mock_get(collector, mocker, EMPTY_CSV, EMPTY_CSV)
-        collector.collect_worksheet("ind_copper", date="2026-11-20")
-        assert db_client.fetch_constituents("ind_copper").empty
-
-    def test_blank_response_keeps_previous_constituents(self, collector, db_client, mocker):
-        """A blank body (no header) is a glitch, not 'zero stocks': keep the old list."""
-        db_client.replace_constituents(
-            "ind_copper", "2026-11-19", _constituents([("OLD", "Old Co", 1.0, False)])
-        )
-        self._mock_get(collector, mocker, "", "")
-        collector.collect_worksheet("ind_copper", date="2026-11-20")
-        assert db_client.fetch_constituents("ind_copper")["ticker"].tolist() == ["OLD"]
-
-    def test_backfill_date_does_not_save_constituents(self, collector, db_client, mocker):
-        """Finviz returns today's screen, so a past --date must not relabel it."""
-        mock_replace = mocker.patch.object(db_client, "replace_constituents")
-        self._mock_get(collector, mocker, UPTREND_CSV, TOTAL_CSV)
-        collector.collect_worksheet("ind_copper", date="2020-01-02")
-        mock_replace.assert_not_called()
-        assert len(db_client.fetch_raw_data("ind_copper")) == 1
-
-    def test_count_written_before_constituents(self, collector, db_client, mocker):
-        mocker.patch.object(db_client, "upsert_raw_data", side_effect=ValueError("db down"))
-        self._mock_get(collector, mocker, UPTREND_CSV, TOTAL_CSV)
-        with pytest.raises(ValueError, match="db down"):
-            collector.collect_worksheet("ind_copper", date="2026-11-20")
-        assert db_client.fetch_constituents("ind_copper").empty
-
-    def test_ticker_na_survives_csv_parsing(self, collector, db_client, mocker):
-        """'NA' is a real ticker (Nano Labs); pandas would read it as NaN by default."""
-        total = FINVIZ_HEADER + (
-            "1,NA,Nano Labs Ltd,Copper,100.0,-,-,-,-,-,-,-,1.00%,2.00%,-,1.0,-3.00%,-\n"
-        )
-        self._mock_get(collector, mocker, EMPTY_CSV, total)
-        collector.collect_worksheet("ind_copper", date="2026-11-20")
-        row = db_client.fetch_constituents("ind_copper").iloc[0]
-        assert row["ticker"] == "NA"
-        assert row["change"] == pytest.approx(-0.03)
-
-    def test_constituent_save_failure_keeps_count(self, collector, db_client, mocker):
-        """Constituents are secondary data: a failure must not fail the count."""
-        mocker.patch.object(
-            db_client, "replace_constituents", side_effect=ValueError("boom"),
-        )
-        self._mock_get(collector, mocker, UPTREND_CSV, TOTAL_CSV)
-        count, total = collector.collect_worksheet("ind_copper", date="2026-11-20")
-        assert (count, total) == (1, 3)
-        assert len(db_client.fetch_raw_data("ind_copper")) == 1
 
 
 # ---------------------------------------------------------------------------

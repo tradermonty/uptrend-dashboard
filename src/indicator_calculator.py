@@ -20,6 +20,7 @@ from src.constants import (
     MEAN_RATIO_LOW,
     PEAK_DISTANCE,
     PEAK_PROMINENCE,
+    SECTORS,
     UPPER_THRESHOLD,
 )
 
@@ -154,38 +155,68 @@ def calculate_indicators(
     return result
 
 
-def _stabilize_regime(regime: pd.Series, min_days: int) -> pd.Series:
-    """Absorb short regime segments into the previous stable regime.
+def _confirm_regime(regime: pd.Series, min_days: int) -> pd.Series:
+    """Causally confirm regime transitions using a sequential state machine.
 
-    Any regime segment lasting fewer than min_days consecutive rows
-    is replaced with the preceding stable regime value.
+    Each row is classified based only on observations up to and including that
+    row (no lookahead). A regime change is emitted only once the new regime has
+    been observed for min_days consecutive valid days; before that the row keeps
+    the previous confirmed regime, absorbing short blips (noise). Because the
+    output at any row depends only on data up to that row, the labels are
+    prefix-invariant: appending future history never relabels an earlier row.
+
+    Missing (NaN) observations reset the in-progress candidate run (a missing
+    day provides no evidence), are emitted as NaN, and do not extend a run;
+    the current confirmed regime is retained. Rows are observed sessions: a date
+    with no row at all is not an observation and does not reset a run, because it
+    cannot be told apart from a market holiday without a trading calendar.
+
+    Args:
+        regime: Regime label series, indexed ascending by date.
+        min_days: Minimum consecutive valid days to confirm a regime change.
+
+    Returns:
+        New regime series with the same index.
     """
     if regime.dropna().empty or min_days <= 1:
         return regime
 
-    result = regime.copy()
-    valid_idx = result.dropna().index.tolist()
-    if not valid_idx:
-        return result
+    result = pd.Series(np.nan, index=regime.index, dtype=object)
+    confirmed = None
+    candidate = None
+    candidate_count = 0
 
-    # Build run-length segments: (start_pos, end_pos, value)
-    segments = []
-    seg_start = 0
-    for i in range(1, len(valid_idx)):
-        if result[valid_idx[i]] != result[valid_idx[seg_start]]:
-            segments.append((seg_start, i - 1, result[valid_idx[seg_start]]))
-            seg_start = i
-    segments.append((seg_start, len(valid_idx) - 1, result[valid_idx[seg_start]]))
+    for i, r in enumerate(regime.values):
+        if pd.isna(r):
+            result.iloc[i] = np.nan
+            candidate = None
+            candidate_count = 0
+            continue
 
-    # Replace short segments with previous stable regime
-    prev_stable = None
-    for seg_start_pos, seg_end_pos, seg_val in segments:
-        seg_len = seg_end_pos - seg_start_pos + 1
-        if seg_len >= min_days:
-            prev_stable = seg_val
-        elif prev_stable is not None:
-            for j in range(seg_start_pos, seg_end_pos + 1):
-                result[valid_idx[j]] = prev_stable
+        if confirmed is None:
+            confirmed = r
+            result.iloc[i] = r
+            continue
+
+        if r == confirmed:
+            candidate = None
+            candidate_count = 0
+            result.iloc[i] = confirmed
+            continue
+
+        if r == candidate:
+            candidate_count += 1
+        else:
+            candidate = r
+            candidate_count = 1
+
+        if candidate_count >= min_days:
+            confirmed = candidate
+            candidate = None
+            candidate_count = 0
+            result.iloc[i] = confirmed
+        else:
+            result.iloc[i] = confirmed
 
     return result
 
@@ -197,74 +228,69 @@ def calculate_sector_dispersion(
 
     Args:
         sector_data: Dict mapping worksheet keys to DataFrames with 'ma_10'.
-            Only sec_* keys are used; 'all' and ind_* keys are ignored.
+            Only configured SECTORS are used; other keys are ignored.
+            Observed dates survive missing ma_10 columns/values.
 
     Returns:
         DataFrame with columns: date, dispersion, mean_ratio, range,
         dispersion_ma10, dispersion_velocity, regime, level_regime,
         p25, p75, velocity_p90, dispersion_median.
-        Empty DataFrame if fewer than 2 sectors.
+        Adds sector_count, expected_sector_count, coverage_complete.
+        Incomplete dates retain coverage but have no metrics or regime.
+        Empty DataFrame only if no configured sector has observed dates.
     """
     output_cols = [
         "date", "dispersion", "mean_ratio", "range",
         "dispersion_ma10", "dispersion_velocity",
         "regime", "level_regime",
         "p25", "p75", "velocity_p90", "dispersion_median",
+        "sector_count", "expected_sector_count", "coverage_complete",
     ]
 
-    # Filter to sec_* keys only
-    sec_keys = [k for k in sector_data if k.startswith("sec_")]
-    if len(sec_keys) < 2:
-        return pd.DataFrame(columns=output_cols)
-
-    # Build cross-sectional matrix: date x sector ma_10
+    # Date coverage is independent of value availability. A malformed sector
+    # frame with dates but no MA column still supplies observed (invalid) dates.
     aligned = {}
-    for key in sec_keys:
-        df = sector_data[key]
-        if df.empty or "ma_10" not in df.columns:
+    for key in SECTORS:
+        df = sector_data.get(key)
+        if df is None or df.empty or "date" not in df.columns:
             continue
-        s = df.set_index("date")["ma_10"]
-        aligned[key] = s
+        dates = df.set_index("date")
+        aligned[key] = (
+            dates["ma_10"] if "ma_10" in dates.columns
+            else pd.Series(np.nan, index=dates.index, dtype=float)
+        )
 
-    if len(aligned) < 2:
+    if not aligned:
         return pd.DataFrame(columns=output_cols)
 
-    matrix = pd.DataFrame(aligned)
-    # Drop rows where ALL sectors are NaN
-    matrix = matrix.dropna(how="all")
-
-    # Drop the last row if not all sectors reported (partial day data)
-    n_sectors = len(aligned)
-    if not matrix.empty and matrix.iloc[-1].count() < n_sectors:
-        matrix = matrix.iloc[:-1]
-
-    if matrix.empty:
-        return pd.DataFrame(columns=output_cols)
-
-    # Cross-sectional statistics per day
-    valid_count = matrix.count(axis=1)  # non-NaN sectors per day
-    dispersion = matrix.std(axis=1, ddof=0)
-    mean_ratio = matrix.mean(axis=1)
-    range_val = matrix.max(axis=1) - matrix.min(axis=1)
-
-    # Valid mask: need at least 2 non-NaN sectors for meaningful std dev,
-    # otherwise ddof=0 returns 0 for a single value (false convergence)
-    valid = dispersion.notna() & mean_ratio.notna() & (valid_count >= 2)
-
-    # Smoothed dispersion
+    matrix = pd.DataFrame(aligned).reindex(columns=SECTORS).sort_index()
+    # Object/nullable missing scalars (pd.NA/None) must become numeric NaNs
+    # before np.isfinite; malformed values likewise cannot count as coverage.
+    matrix = matrix.apply(pd.to_numeric, errors="coerce")
+    matrix = matrix.where(np.isfinite(matrix))
+    valid_count = matrix.count(axis=1)
+    valid = valid_count.eq(len(SECTORS))
+    # Gate BEFORE any statistic: partial rows must contribute neither values
+    # nor false zero-dispersion observations to future thresholds/windows.
+    complete_matrix = matrix.where(valid, axis=0)
+    dispersion = complete_matrix.std(axis=1, ddof=0)
+    mean_ratio = complete_matrix.mean(axis=1)
+    range_val = complete_matrix.max(axis=1) - complete_matrix.min(axis=1)
     dispersion_ma10 = _calc_ma(dispersion, period=10)
 
-    # Velocity: absolute 3-day change
-    dispersion_velocity = dispersion.diff(DISPERSION_VELOCITY_WINDOW).abs()
+    # A three-observation change requires a contiguous four-observation window,
+    # including both endpoints; diff alone can bridge a missing interior date.
+    velocity_valid = valid.rolling(DISPERSION_VELOCITY_WINDOW + 1).sum().eq(
+        DISPERSION_VELOCITY_WINDOW + 1
+    )
+    dispersion_velocity = dispersion.diff(DISPERSION_VELOCITY_WINDOW).abs().where(velocity_valid)
 
-    # Expanding window percentiles (only on valid rows)
-    valid_disp = dispersion.where(valid)
-    p25 = valid_disp.expanding(min_periods=DISPERSION_MIN_HISTORY).quantile(0.25)
-    p75 = valid_disp.expanding(min_periods=DISPERSION_MIN_HISTORY).quantile(0.75)
-    dispersion_median = valid_disp.expanding(min_periods=DISPERSION_MIN_HISTORY).quantile(0.5)
-    velocity_p90 = dispersion_velocity.where(valid).expanding(
+    p25 = dispersion.expanding(min_periods=DISPERSION_MIN_HISTORY).quantile(0.25).where(valid)
+    p75 = dispersion.expanding(min_periods=DISPERSION_MIN_HISTORY).quantile(0.75).where(valid)
+    dispersion_median = dispersion.expanding(min_periods=DISPERSION_MIN_HISTORY).quantile(0.5).where(valid)
+    velocity_p90 = dispersion_velocity.expanding(
         min_periods=DISPERSION_MIN_HISTORY
-    ).quantile(0.90)
+    ).quantile(0.90).where(valid)
 
     # Regime classification
     regime = pd.Series(np.nan, index=matrix.index, dtype=object)
@@ -279,9 +305,10 @@ def calculate_sector_dispersion(
     regime[diverged_mask] = "diverged"
     regime[normal_mask] = "normal"
 
-    # Hysteresis: absorb regime segments shorter than MIN_REGIME_DAYS
-    # into the previous stable regime to reduce noise
-    regime = _stabilize_regime(regime, DISPERSION_MIN_REGIME_DAYS)
+    # Hysteresis: confirm regime transitions only after MIN_REGIME_DAYS
+    # consecutive valid days, absorbing shorter blips into the previous
+    # confirmed regime. Causal (no lookahead): labels are prefix-invariant.
+    regime = _confirm_regime(regime, DISPERSION_MIN_REGIME_DAYS)
 
     # Level regime classification
     level_regime = pd.Series(np.nan, index=matrix.index, dtype=object)
@@ -302,6 +329,9 @@ def calculate_sector_dispersion(
         "p75": p75.values,
         "velocity_p90": velocity_p90.values,
         "dispersion_median": dispersion_median.values,
+        "sector_count": valid_count.values,
+        "expected_sector_count": len(SECTORS),
+        "coverage_complete": valid.values,
     })
 
     return result
@@ -310,7 +340,7 @@ def calculate_sector_dispersion(
 def detect_dispersion_signals(
     dispersion_df: pd.DataFrame,
 ) -> List[DispersionSignal]:
-    """Detect active dispersion signals from the latest valid row.
+    """Detect signals only from the latest observed, fully covered row.
 
     Args:
         dispersion_df: Output of calculate_sector_dispersion().
@@ -321,11 +351,18 @@ def detect_dispersion_signals(
     if dispersion_df.empty:
         return []
 
-    valid = dispersion_df.dropna(subset=["regime", "level_regime"])
-    if valid.empty:
+    required = {"coverage_complete", "sector_count", "expected_sector_count",
+                "regime", "level_regime", "dispersion", "mean_ratio"}
+    if not required.issubset(dispersion_df.columns):
         return []
-
-    latest = valid.iloc[-1]
+    latest = dispersion_df.iloc[-1]
+    if latest[list(required)].isna().any():
+        return []
+    if (not latest["coverage_complete"]
+            or latest["sector_count"] != len(SECTORS)
+            or latest["expected_sector_count"] != len(SECTORS)
+            or not np.isfinite([latest["dispersion"], latest["mean_ratio"]]).all()):
+        return []
     regime = latest["regime"]
     level = latest["level_regime"]
     disp = float(latest["dispersion"])

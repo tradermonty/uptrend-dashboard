@@ -6,7 +6,7 @@
 | Project Name | uptrend-dashboard |
 | Created | 2026-02-08 |
 | Revised | 2026-11-22 |
-| Status | v5.2 Industry Stock List |
+| Status | v5.9 Industry Stock List |
 
 ---
 
@@ -14,8 +14,18 @@
 
 | Date | Version | Changes |
 |------|---------|---------|
-| 2026-11-22 | v5.2 | Industry stock list: the daily collect now stores each industry's constituent snapshot (`industry_constituents` table) from the Finviz CSVs it already downloads; Industry Detail shows a "Stocks in this Industry" table (uptrend stocks first). No additional API calls |
-| 2026-11-22 | v5.1 | Mobile-friendly layout across all pages (`src/mobile_ui.py`), explicit `st.navigation` so the main page is labeled "Uptrend Ratio" instead of "app", horizontal chart legends, date filter moved out of the sidebar on main/Dispersion pages |
+| 2026-11-22 | v5.9 | Industry stock list: the daily collect now stores each industry's constituent snapshot (`industry_constituents` table) from the Finviz CSVs it already downloads; Industry Detail shows a "Stocks in this Industry" table (uptrend stocks first). No additional API calls |
+| 2026-11-22 | v5.8 | Mobile-friendly layout across all pages (`src/mobile_ui.py`), explicit `st.navigation` so the main page is labeled "Uptrend Ratio" instead of "app", horizontal chart legends, date filter moved out of the sidebar on main/Dispersion pages |
+| 2026-11-17 | v5.7 | Issue #35: evidence-gated stock/ETF Finviz routing, read-only matched ticker comparisons, preserved market/Financial fund denominators and historical raw data; see docs/finviz-migration.md. |
+| 2026-11-14 | v5.6 | Issue #5: require finite observations from all 11 configured sectors before dispersion statistics/regimes; retain diagnostic dates and export coverage; suppress current signals/advice on incomplete latest observations; preserve chart gaps. Published data is not regenerated in this change. |
+| 2026-11-14 | Issue #13 | Comparison date bounds use the union of all selected dated series; shared comparison filter reports per-series coverage, missing/disjoint data and empty/incomplete ranges. Stable page-specific date state resets on selected-set/bounds changes; no stored data changes. |
+| 2026-11-14 | Issue #9 | Collection and Excel dry-run never initialize or open the target DB; strict preview exit statuses expose any worksheet failure; normal persistence and live industry tolerance remain unchanged. |
+| 2026-11-13 | v5.5 | Finviz CSV response contract (Issue #2): `parse_finviz_export()` validates every 200 body before rows are counted; `InvalidFinvizResponse` (a ValueError) makes malformed, HTML/error, empty, ragged, duplicate-ticker and missing-ticker bodies a worksheet failure, so they can no longer be stored as counts. Header-only bodies remain valid zero-result exports. Parsed with the `csv` module so tickers such as `NA` stay strings. No published data changes. |
+| 2026-11-14 | v5.5.1 | Issue #3: New York/XNYS after-close session assertions, fatal per-GET/retry/session-boundary validation, workflow origin evidence and publication gates, read-only date audit and historical-source recovery runbook. No published data changes. |
+| 2026-11-06 | v5.4 | `RedactingFilter` no longer raises into the caller on a malformed log call: `_render_log_message()` falls back to a redacted location and template, and drops the arguments. Malformed `exc_info` is replaced by a fixed placeholder through `_render_exception_text()`. `collect.py` configures logging before the missing-key check so that error keeps its format. |
+| 2026-11-06 | v5.3 | Sector Dispersion regime stabilization made causal: `_stabilize_regime` replaced by `_confirm_regime` sequential state machine (no lookahead, prefix-invariant labels, transition emitted only on confirmation date). Interior all-sector NaN rows are preserved to reset candidates; leading and trailing all-NaN rows are trimmed before the final partial-day exclusion. Absent dates are not observations. One-time regime relabel covered by docs/corrections/2026-11-regime-relabel.md. |
+| 2026-10-14 | v5.2 | Logging boundary renders messages before redaction, sanitizes chained/cached tracebacks and stack text, and excludes the API credential from CollectorConfig repr. Boundary regressions cover numeric/mapping interpolation and nested objects. |
+| 2026-10-03 | v5.1 | P1 secret-leak fix: prevent Finviz API key leaking from HTTP debug logs and chained exceptions. Added `redact()`, `RedactingFilter` (handler-level), `configure_logging()`; `_raise_request_error()` raises sanitized `RequestException` with `from None`; `_make_request` uses `from None` on HTTPError paths; `collect.py` wires `configure_logging` with the API key |
 | 2026-02-08 | v1 | Initial version (Google Sheets based) |
 | 2026-02-08 | v2 | Migrated data store from Google Sheets to SQLite. Ported derived data calculations to Python. Added Excel import functionality |
 | 2026-02-08 | v2.1 | Removed signal logic (Long/Short Entry/Exit). Changed chart trend display to green/red/gray color coding |
@@ -32,7 +42,7 @@
 | 2026-02-11 | v3.3 | Sector summary bar chart click → Sector Detail page navigation |
 | 2026-02-11 | v3.2 | Data validation hardening, secret masking, CI test workflow. DB CHECK constraints, Python-level count/total validation, import_excel row filtering, mask_secrets/safe_http_error, GitHub Actions pytest |
 
-### v5.2 Key Changes (Industry Stock List)
+### v5.9 Key Changes (Industry Stock List)
 
 - **Purpose**: drill down from an industry (Heatmap table / Sector Detail → Industry Detail) to the stocks it contains, and see which of them meet the uptrend screen
 - **Per-stock chart**: no in-app chart. The Ticker column is a `st.column_config.LinkColumn` holding `finviz_chart_url(ticker)` = `https://finviz.com/quote.ashx?t={ticker}&p=w` (weekly chart), labelled with the bare ticker via `display_text=TICKER_LINK_PATTERN` (`r"t=([^&]+)"`). Tapping opens Finviz in a new tab (on phones Finviz redirects to its mobile `/stock?t=...&p=w` page). Chosen over fetching prices (yfinance/FMP) to avoid a new data dependency
@@ -44,7 +54,7 @@
 - **UI**: Industry Detail adds "Stocks in this Industry" below the ratio chart: caption "N of M stocks in uptrend · as of DATE", table sorted uptrend-first then market cap desc, uptrend tickers bold green, Change/Perf columns green/red by sign. Phones show Ticker/Uptrend/Change/Perf YTD (`MOBILE_CONSTITUENT_COLUMNS`). Before the first collect after deploy, an info message is shown instead. Heatmap table caption now says a row click opens the industry with its stock list
 - **Loader**: `load_constituents(worksheet, db_path=None)` and the cached `cached_load_constituents(worksheet, db_path=None)` (ttl 3600) in `data_loader.py`
 
-### v5.1 Key Changes (Mobile Layout & Navigation)
+### v5.8 Key Changes (Mobile Layout & Navigation)
 
 - **Explicit navigation**: `app.py` is now a router that registers pages via `st.navigation()` from `src/navigation.py` (`PageSpec(path, title, icon, default)`, `PAGE_SPECS`). The former main page moved to `pages/0_Uptrend_Ratio.py` and appears as "Uptrend Ratio" in the sidebar menu. Existing `st.switch_page("pages/...")` paths are unchanged
 - **Responsive page CSS**: `inject_mobile_css()` (called after `set_page_config` on every page) applies a `@media (max-width: 640px)` block: smaller headings and padding, metric rows kept as a 2-column card grid instead of one tall stack
@@ -57,6 +67,58 @@
 - **No axis titles on phones**: `apply_mobile_layout()` removes x/y axis titles ("Ratio", "Date") to give the plot area the width; tick formats (%, dates) are self-explanatory
 - **Heatmap on phones (drilldown)**: `build_industry_heatmap(..., drilldown=True)` adds an "All Sectors" root and sets treemap `maxdepth=2`, so a phone first sees 11 readable sector tiles. Each sector tile shows its stock-weighted ratio (`_weighted_sector_ratio()`, weights = `Total`) and is colored by it (status mode: `_ratio_status()` with Upper/Lower thresholds). Tapping a sector zooms into its industries; the Plotly pathbar returns to the overview. Drilldown uses a fixed 0-60% color scale (`HEATMAP_DRILLDOWN_CMAX`) because sector ratios cluster at 20-45%. Treemap text is 12px on phones. `color_range=(cmin, cmax)` can override the scale. Desktop is unchanged (all 149 tiles, data-range scale)
 - **Date filter placement**: main page and Dispersion Monitor show the Date Range input in the main area (was sidebar, hidden on phones), matching the other pages
+### v5.7 Key Changes (Finviz Universe Continuity, Issue #35)
+
+- `src/finviz_universe.py` owns the original base/uptrend filters, a whitelist of worksheet routes, new export URL/parameter construction, canonical ticker identity and a versioned policy fingerprint. Market/Financial combine disjoint stock + ETF legs; ETF/closed-end fund industries use ETF; other worksheets use stocks. Every production request pins `c=1`, `type`, `v=151`, and `ft=4`.
+- `comparison_report(samples, started_at, completed_at)` records matched numerator/denominator sets, per-route counts, hashes, missing/extra identities, ratios, UTC retrieval window, New York date and latest closed exchange session. Only a complete matching representative matrix is ready. Invalid responses and failed requests remain failures, never zero observations.
+- `validate_evidence(report)` / `load_evidence(path)` reject missing, failed, incomplete or mismatched reviewed evidence. `CollectorConfig.migration_evidence_path` defaults to `docs/finviz-migration-evidence.json`. `collect.py` validates before DB initialization; `DataCollector` also validates library construction. Migration policy failures are fatal rather than tolerated industry failures.
+- `DataCollector._build_url(uptrend, sector=None, universe=None)` uses `/export/screener`. `_fetch_stock_count()` fetches both halves for every intended route, rejects overlap and numerator identities outside the denominator, and returns counts only after the complete pair is validated. Request pacing is between requests as before; mixed worksheets require four rather than two GETs. Total full-scope traffic increases from 322 to 326 GETs before retries.
+- `compare_finviz_exports.py --output NEW.json` is a separate read-only sampler using the unchanged legacy export as baseline. It does not open a DB or publish CSVs and never overwrites a report or the approved evidence. Missing/failed/changed samples cannot authorize collection. See `docs/finviz-migration.md` for the sampled counts, limitations and cutover/revalidation procedure.
+- The 2026-11-16 completed-session comparison retained market 508/2730, Financial 105/581 and fund denominators 47/35/3. Stocks-only routing would drop 85 denominator identities. ETF 0/0 remains a no-write industry observation. Raw schema, historical rows and published CSVs are not changed by this implementation.
+- Regression suite: `tests/test_finviz_migration.py`; the existing URL/fetch fixtures in `tests/test_data_collector.py`, `tests/test_collection_session.py` and `tests/test_dry_run_filesystem.py` now model explicit empty ETF legs for stock-only samples while preserving retry, secrecy, persistence, tolerance and dry-run assertions.
+
+### v5.6 Key Changes (Complete Sector Coverage)
+
+- `calculate_sector_dispersion(sector_data)` uses exactly `SECTORS`, never the number of supplied frames; unknown `sec_*` keys cannot replace a configured sector. Observed dates come from all recognized frames with a `date` column, including frames without `ma_10`. Values are normalized numerically before finite filtering; object/nullable `pd.NA` and `None` remain missing, and nonnumeric values cannot count toward coverage. No missing session dates are invented.
+- All observed dates, including leading warmup, interior gaps and consecutive incomplete tails, remain in the output. New columns: `sector_count` (finite expected-sector values), `expected_sector_count` (11), `coverage_complete` (boolean). No recognized observed dates yields an empty frame with the full schema.
+- An incomplete row has NaN for every metric, threshold and regime. Masking occurs before cross-sectional statistics, MA10, velocity or expanding percentiles. MA10 needs 10 contiguous complete observations; 3-observation velocity needs all four observations complete. Expanding thresholds retain earlier valid history, but incomplete values never enter them. Missing regime observations reset pending confirmation; the confirmed regime is retained internally. Complete uninterrupted data retains its numerical calculations.
+- `detect_dispersion_signals()` evaluates the final observed row only. Missing/incomplete coverage metadata, missing labels or non-finite primary metrics returns no signals. It never falls back to an earlier date. Its input is the current calculation schema, not a legacy hand-built frame without coverage.
+- Dispersion Monitor and the Sector Comparison sidebar display latest observed date/coverage and last complete as-of date. Incomplete latest data withholds current signal banners, metrics, gauge, current regime ranking and action-guide highlights. Historical charts/statistics remain accessible if any complete history exists; otherwise the page explains insufficient coverage. This does not establish wall-clock/session freshness (Issue #3/#6).
+- Charts end valid regime bands/timeline runs before missing observations rather than bridging the gap.
+- `prepare_dispersion_csv()` retains the original six columns in order (`date`, `dispersion`, `mean_ratio`, `range`, `regime`, `level_regime`) and appends `sector_count`, `expected_sector_count`, `coverage_complete`. Sparse exports include diagnostic rows with blank metrics; exports without recognized dates contain headers only. All export paths use this schema.
+- Historical derived values can differ on future deliberate recalculation because previously accepted partial-sector observations no longer contribute. This PR does not regenerate or commit the tracked SQLite DB or published CSVs; review any publication/correction separately.
+- Regression coverage: `tests/test_dispersion_coverage.py` covers sparse/missing/unrecognized sectors, malformed later-date frames, non-finite histories, interior/tail gaps, gap-independent statistics, full-data references, causal confirmation/prefix invariance, signal withholding, chart gaps, CSV metadata and real temporary-DB export. `tests/test_dispersion_pages.py` registers both real pages with Streamlit navigation and synthetic loaders to verify complete, partial, never-complete and all-missing states.
+
+### v5.5 Key Changes (Finviz Response Contract)
+
+- **Defect fixed (Issue #2)**: `_make_request` returned any pandas-readable body and `_fetch_stock_count` counted its rows, so an HTTP 200 body `error\nsubscription expired\n` was stored as count=1, total=1.
+- **`parse_finviz_export(content: bytes) -> DataFrame`**: enforces the contract in section 10.4 "Finviz CSV response contract (v5.5)". Uses `csv.reader(strict=True)` instead of `pd.read_csv`, because `read_csv` turns real tickers `NA`/`NULL`/`None` into NaN, silently shifts columns when the first data row has an extra field, and fills short rows. All values are kept as strings.
+- **`InvalidFinvizResponse(ValueError)`**: raised for any contract violation; `_fetch_export()` (called by `_fetch_stock_count`) re-raises it as `uptrend response: ...` / `total response: ...` with `from None`. Messages carry reasons, row numbers and sizes only, never body text, header names or the URL.
+- **Not retried**: an invalid body is a content error. None has been observed in production. A scheduled run that fails because of one can be recovered the same day with a `workflow_dispatch` re-run; earlier days cannot be refetched because `--date` only labels the current snapshot (Issue #3).
+- **Classification change**: a 200 empty body used to become an empty DataFrame (`(0, 0)`, skipped as success for `ind_*`). It is now a failure and counts toward `INDUSTRY_FAIL_TOLERANCE`. A real zero-result export is header-only (333 bytes), never empty.
+- **Evidence**: collection logs 2026-11-11..13 show 0 empty bodies and 38-42 zero-result responses of exactly 333 bytes per run. A read-only probe on 2026-11-13 found 18 columns, one `Ticker` column, consistent field counts, unique tickers and only `-` as a non-alphanumeric ticker character in the `all` total export (2756 rows).
+- **Exception scope**: `collect_all()` catches `RequestException` and `ValueError` (which includes `InvalidFinvizResponse`); the separate `EmptyDataError` entry was removed with the `read_csv` call that raised it.
+- **No published data changes**: existing DB rows and CSVs are untouched.
+
+### v5.3 Key Changes (Causal Regime Confirmation)
+
+- **Causal regime stabilization**: `_stabilize_regime()` (whole-run re-labelling with lookahead) replaced by `_confirm_regime()` — a left-to-right sequential confirmation state machine. A regime change is confirmed only on the `min_days`-th consecutive valid day; before that, rows keep the previous confirmed regime (absorbing short blips as noise reduction).
+- **No lookahead / prefix-invariant labels**: each row's regime depends only on observations up to that row, so appending future history never relabels an earlier row. This is the core defect fix for Issue #4.
+- **Missing observations**: a NaN day resets the in-progress candidate run (a missing day provides no evidence), is emitted as NaN, and does not extend a run; it delays confirmation by requiring `min_days` consecutive valid days. (Old behavior counted a NaN-interrupted run as contiguous because it operated on `dropna()`; this is an intentional, conservative change.) A date with no row at all is not an observation and does not reset a run, because it cannot be told apart from a market holiday without a trading calendar.
+- **Initial regime**: the first non-NaN classification establishes the baseline immediately; it is never relabeled.
+- **Forward-return events**: composite `(regime, level_regime)` transition events now occur at the confirmation date rather than the run start, removing backdating in `calculate_forward_returns()` / `calculate_sector_edge()`.
+- **One-time history change**: regime labels in `data/sector_dispersion.csv` change once; see `docs/corrections/2026-11-regime-relabel.md`.
+- **New tests**: `TestConfirmRegime`, `TestDispersionRegimePrefixInvariance`, `TestForwardReturnsConfirmationDate`.
+
+### v5.1 Key Changes (Secret Leak Prevention)
+
+- **`redact(text, secrets, mask="***")`**: Replaces `mask_secrets()`. Sanitizes literal secrets passed explicitly plus the `auth=` query param pattern. Type-safe: non-`str` input (e.g. `int`, `None`) is returned unchanged.
+- **`RedactingFilter(logging.Filter)`**: Handler-level redaction filter that interpolates `record.getMessage()` before redaction, clears args, sanitizes cached or freshly formatted chained exception text and stack text, and clears raw exc_info before emitting. Applied to HANDLERS (not the root logger) because a filter on the root LOGGER does not see records raised by child loggers such as urllib3.
+- **`configure_logging(verbose, secrets)`**: Replaces the inline `logging.basicConfig` in `collect.py`. Keeps the same format/level, and attaches a `RedactingFilter(secrets)` to every handler on the root logger.
+- **`DataCollector._raise_request_error(exc)`**: Re-raises a sanitized copy of the original `RequestException` subclass (`exc.__class__(redact(...))`) using `from None`, so the secret-bearing original is not chained into the printed traceback.
+- **`_make_request`**: `ConnectionError`/`Timeout` exhaustion and the `except requests.RequestException` fallback now go through `_raise_request_error`; retryable-exhausted and non-retryable `HTTPError` paths use `raise self._safe_http_error(exc) from None`. `_safe_http_error` became an instance method using `redact`.
+- **`collect.py`**: Reads `FINVIZ_API_KEY` before calling `configure_logging(args.verbose, secrets=[api_key])`; the except-branch error log uses `redact(str(exc), [api_key])`.
+- **Acceptance**: the Finviz API key never appears in any log record or formatted traceback under verbose success, timeout, connection error, HTTP 401, and exhausted 5xx; status/retry/worksheet diagnostics are preserved (redaction masks secrets, not context).
 
 ### v5.0 Key Changes (Sector Dispersion Analysis)
 
@@ -69,7 +131,7 @@
 - **Sector Comparison integration**: Sidebar dispersion gauge with regime badge and link to Dispersion Monitor
 - **New data processor functions**: `build_sector_ranking_table()` (regime-aware sort), `prepare_dispersion_csv()`
 - **New chart functions**: `build_dispersion_chart()` (dual-axis with time-series p25/p75 traces), `build_regime_timeline_chart()` (horizontal bar regime visualization)
-- **CSV export**: `data/sector_dispersion.csv` always regenerated (stale-file prevention); empty CSV with headers if insufficient sectors
+- **CSV export**: `data/sector_dispersion.csv` always regenerated (stale-file prevention); v5.6 exports incomplete dates with coverage and blank metrics, or headers only if no recognized dates
 - **New constants**: `DISPERSION_CONVERGED_FALLBACK`, `DISPERSION_DIVERGED_FALLBACK`, `MEAN_RATIO_LOW/HIGH`, `DISPERSION_VELOCITY_WINDOW`, `DISPERSION_MIN_HISTORY`, `CHART_HEIGHT_DISPERSION/REGIME_TIMELINE`
 - **Data guard**: All pages handle insufficient dispersion data gracefully (st.warning + st.stop or N/A display)
 
@@ -114,7 +176,7 @@
 - **`_key` column**: Added internal worksheet key column to `build_sector_summary()` output for chart `customdata` mapping (hidden from `st.dataframe` display)
 - **`customdata` on bar trace**: `build_sector_summary_chart()` passes `_key` values as `customdata` on the `go.Bar` trace
 - **`on_select` event**: `app.py` uses `st.plotly_chart(on_select="rerun")` and `st.dataframe(on_select="rerun", selection_mode="single-row")` to capture click events, sets `st.session_state["selected_sector"]`, and calls `st.switch_page()`
-- **Sector Detail pre-selection**: `pages/1_Sector_Detail.py` reads `st.session_state.pop("selected_sector")` to set `st.selectbox` default index
+- **Sector Detail pre-selection**: `pages/1_Sector_Detail.py` applies a validated `selected_sector` intent to canonical widget state before creating the selector and consumes it only after the requested sector is selected (Issue #12).
 - **Streamlit version**: Bumped minimum to `>=1.35.0` for `on_select` parameter support
 - **Tests**: 114 tests (added `test_sector_summary_chart_customdata`)
 
@@ -349,7 +411,7 @@ CREATE INDEX IF NOT EXISTS idx_uptrend_raw_worksheet
 **Composite primary key:** `(date, worksheet)` — Prevents duplicates for the same date and category
 **Index:** `(worksheet, date)` — Optimizes time-series queries by category
 
-**Table: `industry_constituents` (v5.2)** — latest stock list per industry, not historical. Replaced per industry on each collect.
+**Table: `industry_constituents` (v5.9)** — latest stock list per industry, not historical. Replaced per industry on each collect.
 
 ```sql
 CREATE TABLE IF NOT EXISTS industry_constituents (
@@ -478,7 +540,7 @@ Centrally manages constants used across all modules.
 | `__init__` | `(db_path: str = "data/uptrend.db")` | DB connection, automatic table creation |
 | `_connection` | `() -> ContextManager` | DB connection context manager (auto commit/rollback/close) |
 | `_init_tables` | `() -> None` | Execute CREATE TABLE IF NOT EXISTS |
-| `_coerce_whole_number` | `(value, field_name) -> int` | Static. Coerce int-like values to int; reject bool, non-integer float (v3.2) |
+| `_coerce_whole_number` | `(value, field_name) -> int` | Static. Exact native signed-64-bit int from typed Python/NumPy integer or finite whole float; reject bool/missing/unsupported/out-of-range input (Issue #7) |
 | `_validate_counts` | `(count, total) -> Tuple[int, int]` | Coerce + validate non-negative, count <= total (v3.2) |
 | `upsert_raw_data` | `(date, worksheet, count, total) -> None` | Single row UPSERT with worksheet + count/total validation |
 | `upsert_bulk` | `(df: DataFrame) -> None` | DataFrame bulk UPSERT with comprehensive validation (v3.2) |
@@ -486,23 +548,33 @@ Centrally manages constants used across all modules.
 | `fetch_all_raw_data` | `(worksheets=None) -> Dict[str, DataFrame]` | Fetch categories (all if None, filtered subset if specified, v4.0) |
 | `get_worksheets` | `() -> List[str]` | List of registered category names |
 | `get_date_range` | `(worksheet: str) -> Tuple[str, str]` | Date range for specified category |
-| `replace_constituents` | `(worksheet: str, date: str, df: DataFrame) -> None` | Atomically replace one industry's stock list (v5.2). Rejects non-`ind_*` worksheets, bad dates, missing `CONSTITUENT_COLUMNS`. Empty df clears. NaN → NULL |
-| `fetch_constituents` | `(worksheet: str) -> DataFrame` | Columns `date` + `CONSTITUENT_COLUMNS`, `is_uptrend` as bool; empty frame with columns when none (v5.2) |
+| `replace_constituents` | `(worksheet: str, date: str, df: DataFrame) -> None` | Atomically replace one industry's stock list (v5.9). Rejects non-`ind_*` worksheets, bad dates, missing `CONSTITUENT_COLUMNS`. Empty df clears. NaN → NULL |
+| `fetch_constituents` | `(worksheet: str) -> DataFrame` | Columns `date` + `CONSTITUENT_COLUMNS`, `is_uptrend` as bool; empty frame with columns when none (v5.9) |
 
-**data_processor.py additions (v5.2):** `prepare_constituents_table(df) -> DataFrame` (display columns Ticker / Company / Uptrend / Market Cap ($M) / Change / Perf Week / Perf YTD; uptrend first, then market cap desc; Ticker values are Finviz URLs), `finviz_chart_url(ticker) -> str`, `TICKER_LINK_PATTERN`, `style_constituent_row(row) -> List[str]`, `summarize_constituents(df) -> {"total", "uptrend", "as_of"}`. **constants.py:** `CONSTITUENT_COLUMNS`. **mobile_ui.py:** `mobile_columns(columns, is_mobile, keep=MOBILE_TABLE_COLUMNS)`, `MOBILE_CONSTITUENT_COLUMNS`.
+**data_processor.py additions (v5.9):** `prepare_constituents_table(df) -> DataFrame` (display columns Ticker / Company / Uptrend / Market Cap ($M) / Change / Perf Week / Perf YTD; uptrend first, then market cap desc; Ticker values are Finviz URLs), `finviz_chart_url(ticker) -> str`, `TICKER_LINK_PATTERN`, `style_constituent_row(row) -> List[str]`, `summarize_constituents(df) -> {"total", "uptrend", "as_of"}`. **constants.py:** `CONSTITUENT_COLUMNS`. **mobile_ui.py:** `mobile_columns(columns, is_mobile, keep=MOBILE_TABLE_COLUMNS)`, `MOBILE_CONSTITUENT_COLUMNS`.
 
-**Count/Total Validation (v3.2):**
+**DB validation revision history:**
 
-`upsert_raw_data` applies `_validate_counts()` which coerces types via `_coerce_whole_number()` and validates business rules. `upsert_bulk` performs equivalent validation at the DataFrame level before DB write:
+| Date | Change |
+|------|--------|
+| 2026-11-14 | Issue #7: shared scalar/bulk native-integer validation, exact signed-64-bit bounds, positional binding, duplicate required-column rejection, and atomicity regressions. No historical data/schema rewrite. |
+
+**Count/Total Validation (Issue #7):**
+
+Both `upsert_raw_data()` and `upsert_bulk()` apply `_validate_counts()` / `_coerce_whole_number()` before writing. Integral Python/NumPy scalars become native Python `int`; finite whole-valued Python/NumPy floats are converted only after checking that they have no fractional part. Normalized integers must fit SQLite's signed 64-bit range, then satisfy `0 <= count <= total`. There is no blanket `pd.to_numeric` or float conversion.
 
 | Check | `upsert_raw_data` | `upsert_bulk` |
 |-------|-------------------|---------------|
-| Missing columns | N/A | `required_columns - set(df.columns)` |
-| Bool rejection | `isinstance(value, bool)` → ValueError | N/A (pandas converts) |
-| Non-numeric | `_coerce_whole_number` type check | `pd.to_numeric(errors="coerce")` + NaN check |
-| Non-integer | `float.is_integer()` check | `counts % 1 != 0` mask |
-| Negative | `count_i < 0` check | `counts < 0` mask |
-| count > total | `count_i > total_i` check | `counts > totals` mask |
+| Missing/duplicate required columns | N/A | Reject missing or duplicated `date`, `worksheet`, `count`, `total` names |
+| Bool rejection | Python/NumPy bool -> ValueError | Same scalar validator, preserving original scalar types |
+| Unsupported/missing values | Reject strings (including numeric strings), Decimal/Fraction/complex/duration, None/NA/NaN/infinities | Same scalar validator; no automatic text-to-number conversion |
+| Whole numeric values | Typed integer or finite whole float -> native Python int | Same scalar validator; preserve exact large integers |
+| SQLite bounds | Reject outside `[-2**63, 2**63-1]` before binding | Same scalar validator before the transaction |
+| Negative/count > total | ValueError | Same business rules, with zero-based row position in diagnostics |
+| Row binding | Single native tuple | `itertuples(index=False, name=None)` over required columns; independent of row labels |
+| Batch safety | Existing UPSERT transaction | Validate every tuple first, then one transactional `executemany`; rollback SQL failures |
+
+Duplicate/non-default/MultiIndex row labels are supported without mutating the caller's frame. Duplicate primary keys retain ordered last-row-wins UPSERT behavior. SQLite INTEGER type/exactness, nullable inputs, invalid final-row preflight and trigger-induced SQL rollback are verified in `tests/test_db_integer_binding.py`; importer/exporter/integration suites cover existing producers. See [typed inputs and operational boundaries](operations/sqlite-integer-inputs.md) for the intentional bulk numeric-string compatibility change, caller-side precision precautions and the exclusion of historical BLOB repair/schema migration.
 
 **DB Connection Management Pattern (v2.2):**
 
@@ -755,7 +827,7 @@ python import_excel.py data/export.xlsx --sheet all --sheet sec_technology
 # Specify DB path
 python import_excel.py data/export.xlsx --db data/uptrend.db
 
-# Dry run (shows counts without INSERT)
+# Dry run (shows counts without opening or creating the target DB)
 python import_excel.py data/export.xlsx --dry-run
 ```
 
@@ -773,8 +845,9 @@ python import_excel.py data/export.xlsx --dry-run
    e. Drop non-integer Count/Total rows (e.g., 1.5) with warning (v3.2)
    f. Drop logically invalid rows (negative, count > total) with warning (v3.2)
 
-3. Bulk write to SQLite with db_client.upsert_bulk(df)
+3. In a real import, initialize DBClient and bulk write with db_client.upsert_bulk(df)
    → INSERT OR REPLACE overwrites existing data
+   → Dry-run skips DBClient construction entirely and returns the same filtered counts
 
 4. Display result report:
    - Import row count per sheet
@@ -799,7 +872,7 @@ python import_excel.py data/export.xlsx --dry-run
 
 Screen layout is unchanged from v1. Only the data source changes; UI remains the same.
 
-### 5.0 Mobile Layout (v5.1)
+### 5.0 Mobile Layout (v5.8)
 
 On phones (viewport ≤ 640px / phone User-Agent), every page stacks vertically with these rules:
 
@@ -821,7 +894,7 @@ On phones (viewport ≤ 640px / phone User-Agent), every page stacks vertically 
 
 ### 5.1 Main Page (pages/0_Uptrend_Ratio.py, menu label "Uptrend Ratio")
 
-Since v5.1 the Date Range input is in the main area below "Last updated" (not in the sidebar).
+Since v5.8 the Date Range input is in the main area below "Last updated" (not in the sidebar).
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -856,6 +929,14 @@ Since v5.1 the Date Range input is in the main area below "Last updated" (not in
 ```
 
 ### 5.2 Sector Detail Page (pages/1_Sector_Detail.py)
+
+**Detail navigation revision history:**
+
+| Date | Change |
+|------|--------|
+| 2026-11-14 | Issue #12: resolve drilldown intent before canonical detail selectors; preserve manual choices on ordinary reruns; consume only applied valid targets; warn explicitly for invalid targets. No data changes. |
+
+`selected_sector` remains the overview chart/table intent payload. The destination validates it against `SECTORS`, assigns the canonical key to page-specific `sector_detail_sector`, then constructs `Select Sector` with `format_func=get_sector_display_name`. Only an applied target is removed. A valid target without data is selected and named by the existing no-data warning. Invalid payloads are discarded with a warning and do not replace a valid manual choice; stale widget values recover before construction.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -892,6 +973,9 @@ Since v5.1 the Date Range input is in the main area below "Last updated" (not in
 
 ### 5.3 Sector Comparison Page (pages/2_Sector_Comparison.py)
 
+Issue #13: the date selector uses union bounds across all selected series. Below it, an observed-coverage table lists each series with row count and first/last observed date; unavailable series and absent common dates are explicit. Empty or incomplete ranges pause chart rendering. See the shared filter contract below.
+
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ Sector Comparison                                           │
@@ -919,6 +1003,12 @@ v2.3 revision: Display mode radio buttons, 10MA/Raw toggle, threshold dashed lin
 
 ### 5.4 Industry Detail Page (pages/3_Industry_Detail.py, v4.0)
 
+Issue #12: the destination inspects `selected_industry` **before either selector exists**. A valid configured target sets `industry_detail_sector_filter` to its configured parent (or `None` for All Sectors if no parent exists) and `industry_detail_industry` to the canonical industry key. Both widgets use canonical option values with display-name formatting. `None` is the explicit All Sectors value. The pending target is consumed only after industry and parent context have applied. Thus a previous Healthcare filter cannot hide Semiconductors or consume its intent while displaying Biotechnology.
+
+Without a target, valid manual filter/industry state persists; changing to a filter excluding the prior industry selects the first industry in display-name sort order. Invalid pending targets warn and are discarded while keeping valid manual state. Configured targets without data remain selected and produce a warning naming that exact target. Caption, metrics, chart and download all use the same canonical selection. Overview, Sector Detail and Heatmap producers retain their existing intent keys; no speculative source-event changes are required.
+
+`tests/test_detail_navigation.py` uses real registered page navigation and synthetic loaders. It covers pending intents over existing widgets, repeated cross-sector and same-target requests, manual filters/All Sectors, invalid/stale state, missing/empty data, and overview/sector/heatmap chart/table routes to previously visited pages. Event-only source simulation is used where AppTest cannot send Plotly/dataframe selections; destination selectors remain real. See [the navigation operating note](operations/detail-navigation.md).
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ Industry Detail                                             │
@@ -938,7 +1028,7 @@ v2.3 revision: Display mode radio buttons, 10MA/Raw toggle, threshold dashed lin
 │ └─────────────────────────────────────────────────────────┘ │
 │                                                             │
 │ ─────────────────────────────────────────────────────────── │
-│ Stocks in this Industry                          (v5.2)     │
+│ Stocks in this Industry                          (v5.9)     │
 │ 4 of 9 stocks in uptrend · as of 2026-11-20                 │
 │ ┌──────┬──────────┬───────┬────────┬──────┬──────┬───────┐ │
 │ │Ticker│ Company  │Uptrend│Mkt Cap │Change│PerfWk│PerfYTD│ │
@@ -955,6 +1045,9 @@ v2.3 revision: Display mode radio buttons, 10MA/Raw toggle, threshold dashed lin
 ```
 
 ### 5.5 Industry Comparison Page (pages/4_Industry_Comparison.py, v4.0)
+
+Issue #13: the date selector uses union bounds across all selected series. Below it, an observed-coverage table lists each series with row count and first/last observed date; unavailable series and absent common dates are explicit. Empty or incomplete ranges pause chart rendering. See the shared filter contract below.
+
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -1071,8 +1164,8 @@ uptrend-dashboard/
 │   ├── indicator_calculator.py        # Derived indicator calculation (new)
 │   ├── data_processor.py             # Status aggregation
 │   ├── chart_builder.py              # Plotly chart generation
-│   ├── mobile_ui.py                  # Mobile CSS, phone chart layout, show_chart (v5.1)
-│   ├── navigation.py                 # Sidebar page definitions for st.navigation (v5.1)
+│   ├── mobile_ui.py                  # Mobile CSS, phone chart layout, show_chart (v5.8)
+│   ├── navigation.py                 # Sidebar page definitions for st.navigation (v5.8)
 │   └── data_collector.py             # Finviz data collection (Phase 3)
 ├── tests/
 │   ├── __init__.py
@@ -1082,9 +1175,9 @@ uptrend-dashboard/
 │   ├── test_data_processor.py        # data_processor tests
 │   ├── test_export_csv.py            # export_csv tests (v3.5)
 │   ├── test_chart_builder.py         # chart_builder tests
-│   ├── test_mobile_ui.py             # mobile_ui tests (v5.1)
-│   ├── test_navigation.py            # navigation tests (v5.1)
-│   ├── test_constituents.py          # industry stock list tests (v5.2)
+│   ├── test_mobile_ui.py             # mobile_ui tests (v5.8)
+│   ├── test_navigation.py            # navigation tests (v5.8)
+│   ├── test_constituents.py          # industry stock list tests (v5.9)
 │   ├── test_integration.py          # Integration tests (new in v2.2)
 │   └── test_data_collector.py        # data_collector tests (Phase 3)
 ├── pages/
@@ -1095,7 +1188,7 @@ uptrend-dashboard/
 │   ├── 4_Industry_Comparison.py      # Industry comparison page (v4.0)
 │   ├── 5_Industry_Heatmap.py        # Industry treemap heatmap page (v4.2)
 │   └── 6_Dispersion_Monitor.py      # Sector dispersion monitor (v5.0)
-├── app.py                            # Entrypoint: st.navigation router (v5.1)
+├── app.py                            # Entrypoint: st.navigation router (v5.8)
 ├── import_excel.py                   # Excel import CLI tool (Phase 1)
 ├── collect.py                        # Finviz data collection CLI tool (Phase 3)
 ├── export_csv.py                     # CSV export CLI tool (v3.5)
@@ -1215,6 +1308,26 @@ Implemented with TDD. Tests are written first, and implementation is written to 
 | test_calculate_indicators_empty_df | Empty DataFrame handling |
 | test_ratio_with_nan_count | NaN count fillna(0) handling |
 | test_ratio_with_nan_total | NaN total fillna(0) handling |
+| test_short_blip_absorbed | Short regime run absorbed (v5.3) |
+| test_confirmation_only_on_min_days | Transition emitted on min_days-th day (v5.3) |
+| test_two_day_candidate_not_confirmed_then_revert | 2-day candidate reverts without confirming (v5.3) |
+| test_blip_then_revert_to_previous | Candidate returns to confirmed regime (v5.3) |
+| test_retransition_to_previously_seen_regime | Same regime re-confirmed later (v5.3) |
+| test_initial_baseline_is_first_observation | First observation is the baseline (v5.3) |
+| test_missing_observation_resets_candidate | NaN resets candidate run (v5.3) |
+| test_min_days_le_one_passthrough | min_days<=1 passthrough (v5.3) |
+| test_empty_series_passthrough | Empty series passthrough (v5.3) |
+| test_all_nan_passthrough | All-NaN series passthrough (v5.3) |
+| test_prefix_invariance | Deterministic prefix-invariance (v5.3) |
+| test_prefix_invariance_randomized | Randomized prefix-invariance (v5.3) |
+| test_prefix_invariance_with_nan_randomized | Randomized prefix-invariance incl. NaN (v5.3) |
+| test_leading_nan_then_baseline | Leading NaN then baseline (v5.3) |
+| test_regime_prefix_invariant_across_truncation | calculate_sector_dispersion regime prefix-invariance (v5.3) |
+| test_no_event_on_blip_start | Short blip yields no forward-stat event (v5.3) |
+| test_event_date_is_confirmation_date | Forward-stat event date = confirmation date (v5.3) |
+| test_trailing_all_nan_rows_retain_diagnostic_coverage | Trailing all-NaN dates retain zero coverage and missing metrics (v5.6) |
+| test_partial_row_before_trailing_gap_is_retained_as_invalid | Partial dates before a trailing gap remain diagnostic, without metrics (v5.6) |
+| test_absent_date_is_not_an_observation | A date with no row does not reset a candidate run (v5.3) |
 
 **test_data_processor.py:**
 
@@ -1336,7 +1449,7 @@ Implemented with TDD. Tests are written first, and implementation is written to 
 | test_multi_sector_pipeline | Multiple sectors → DB → calculation → summary → summary chart |
 | test_empty_db_pipeline | Graceful handling of full pipeline with empty DB |
 
-**test_constituents.py (v5.2):**
+**test_constituents.py (v5.9):**
 
 | Test | Description |
 |------|-------------|
@@ -1347,7 +1460,7 @@ Implemented with TDD. Tests are written first, and implementation is written to 
 
 Also: `test_data_loader.py` `test_load_constituents` / `test_load_constituents_empty`; `test_mobile_ui.py` `test_custom_keep_set_for_constituent_table`. `test_validate_counts_negative` / `test_validate_counts_count_exceeds_total` now call `_validate_counts()` directly, since counts come from `len()` of the fetched frames.
 
-**test_data_collector.py (Phase 3 + v3.1 code review fixes + v3.2 secret masking):**
+**test_data_collector.py (Phase 3 + v3.1 code review fixes + v3.2 secret masking + v5.5 response contract):**
 
 | Test | Description |
 |------|-------------|
@@ -1361,7 +1474,10 @@ Also: `test_data_loader.py` `test_load_constituents` / `test_load_constituents_e
 | test_fetch_stock_count_success | Stock count from successful response |
 | test_fetch_stock_count_retry | Retry logic |
 | test_fetch_stock_count_zero | Zero-count response |
-| test_make_request_empty_csv_body | 200 + empty body → empty DataFrame (v3.1) |
+| test_make_request_empty_csv_body_rejected | 200 + empty body → InvalidFinvizResponse (v3.1, changed in v5.5) |
+| TestFinvizResponseContract | `InvalidFinvizResponse` is a ValueError. Invalid: plain error text, HTML/BOM markup, markup with a Ticker header, empty/whitespace, non-UTF-8, strict-quoting failure, extra/short/whitespace-only rows, two Ticker columns, missing Ticker, blank/whitespace/control-char tickers, duplicate tickers. Valid: header-only (0 rows, with or without trailing newline), quoted header, BOM before `No.` and before `Ticker`, header names stripped, `NA`/`NULL`/`None`/`BRK-B` tickers kept as strings, CRLF, leading and interior empty lines, quoted comma/quote/newline, other duplicate columns. `_make_request` applies the contract; an invalid body is not retried (1 GET, no sleep); no message echoes body text or key for any violation path (v5.5) |
+| TestInvalidResponseCollection | Issue body for `all` writes nothing; invalid total (second) response writes nothing and names `total`; invalid uptrend response names `uptrend`; one invalid industry fails only that worksheet; key and body text absent from exception, traceback and unfiltered log records for markup, duplicate-ticker and ragged-row bodies (v5.5) |
+| test_cli_invalid_sector_body_exits_2 | Invalid body for `sec_technology` under `--scope all` → exit 2, other sectors persisted (v5.5) |
 | test_make_request_retries_on_500 | Retry on 5xx error (v3.1) |
 | test_make_request_jitter_applied | Jitter included in retry delay (v3.1) |
 | test_session_closed | close() calls Session.close() (v3.1) |
@@ -1387,6 +1503,25 @@ Also: `test_data_loader.py` `test_load_constituents` / `test_load_constituents_e
 | test_cli_scope_all_sector_partial_fail_exit2 | Sector partial fail → exit 2 (v4.0) |
 | test_cli_scope_all_industry_partial_fail_exit0 | Industry fail + sectors OK → exit 0 (v4.0) |
 | test_cli_scope_all_industry_all_fail_exit2 | All sectors OK + all industries failed → exit 2 (v4.0) |
+| test_redact_literal_secret | redact() masks explicit secret (v5.1) |
+| test_redact_auth_token | redact() masks auth= query value (v5.1) |
+| test_redact_keeps_plain_text | redact() leaves secret-free text unchanged (v5.1) |
+| test_redact_type_safe_for_non_string | redact() returns non-str input unchanged (v5.1) |
+| test_filter_scrubs_msg_and_args_tuple | RedactingFilter scrubs tuple-args record (v5.1) |
+| test_filter_scrubs_dict_args | RedactingFilter scrubs Mapping-args record (v5.1) |
+| test_filter_on_handler_catches_child_logger | Handler filter catches urllib3 child logger (v5.1) |
+| test_attaches_filter_to_existing_root_handlers | configure_logging wires filter to root handlers (v5.1) |
+| test_connection_error_leak | No key in logs/traceback on ConnectionError (v5.1) |
+| test_timeout_leak | No key in logs/traceback on Timeout (v5.1) |
+| test_401_leak | No key in logs/traceback on HTTP 401 (v5.1) |
+| test_exhausted_5xx_leak | No key in logs/traceback on exhausted 5xx (v5.1) |
+| test_uncaught_request_exception_leak | No key in traceback for uncaught RequestException (v5.1) |
+| test_successful_verbose_run_has_no_key | No key in verbose success logs (v5.1) |
+| test_diagnostics_retained | Status/retry diagnostics kept while key masked (v5.1) |
+| test_malformed_log_call_does_not_raise_or_leak | Malformed log call neither raises nor leaks (v5.4) |
+| test_malformed_exc_info_does_not_raise | Malformed exc_info neither raises nor drops the message (v5.4) |
+| test_unformattable_message_object_does_not_raise | Message object with a raising `__str__` does not raise (v5.4) |
+| test_missing_api_key_error_uses_configured_format | Missing-key error keeps the configured log format (v5.4) |
 
 **test_constants.py (v4.0):**
 
@@ -1500,8 +1635,25 @@ Dashboard data is updated in SQLite by one of the following methods:
 #### data_collector.py Design
 
 ```python
+def redact(text: typing.Any, secrets=(), mask="***") -> typing.Any:
+    """Sanitize literal secrets and auth= query params from text.
+    Non-str input is returned unchanged (type-safe). (v5.1)"""
+    ...
+
 def mask_secrets(text: str) -> str:
-    """Mask known secrets (auth= query params) from URLs and exception messages (v3.2)"""
+    """Backcompat wrapper around redact(text) (v3.2, now delegates to redact)."""
+    ...
+
+class RedactingFilter(logging.Filter):
+    """Handler-level filter that scrubs record.getMessage() and
+    str(record.args) before emission. (v5.1) A malformed log call is rendered as a
+    redacted location and template rather than raising. (v5.4)"""
+    def __init__(self, secrets): ...
+    def filter(self, record) -> bool: ...
+
+def configure_logging(verbose: bool, secrets=()) -> None:
+    """Configure root logging (DEBUG if verbose else INFO) and attach a
+    RedactingFilter(secrets) to every root handler. (v5.1)"""
     ...
 
 class DataCollector:
@@ -1510,9 +1662,15 @@ class DataCollector:
     def __init__(self, db_client: DBClient, config: CollectorConfig):
         ...
 
+    @property
+    def _redaction_secrets(self) -> tuple:
+        """Tuple of secrets (e.g. API key) to redact when logging/raising."""
+        ...
+
     def collect_all(self, date=None, dry_run=False) -> Dict[str, Tuple[int, int]]:
         """Fetch data for full market + all 11 sectors and save to DB
-        dry_run=True skips DB writes (validation still runs)"""
+        dry_run=True skips DB writes (validation still runs)
+        (logs failures via redact(str(exc), self._redaction_secrets))"""
         ...
 
     def collect_worksheet(self, worksheet, date=None, dry_run=False) -> Tuple[int, int]:
@@ -1524,9 +1682,15 @@ class DataCollector:
         """Close the HTTP Session"""
         ...
 
-    @staticmethod
-    def _safe_http_error(exc) -> requests.HTTPError:
-        """Create HTTPError with sanitized message (no URL leakage) (v3.2)"""
+    def _safe_http_error(self, exc) -> requests.HTTPError:
+        """Create HTTPError with sanitized message (no URL leakage) via redact.
+        Instance method (v3.2 static, v5.1 instance)."""
+        ...
+
+    def _raise_request_error(self, exc) -> None:
+        """Re-raise a sanitized copy of a RequestException subclass.
+        Raises exc.__class__(redact(...)) using 'from None' so the
+        secret-bearing original is never chained. (v5.1)"""
         ...
 
     def _validate_counts(self, worksheet, count, total) -> None:
@@ -1537,6 +1701,19 @@ class DataCollector:
         """Fetch (uptrend_count, total_count) from Finviz API"""
         ...
 
+    def _make_request(self, url: str, *, session_date=None) -> pd.DataFrame:
+        """GET url with retry/backoff; ConnectionError/Timeout exhaustion and
+        non-HTTPError RequestException go through _raise_request_error;
+        HTTPError paths raise sanitized errors via 'from None'. (v5.1)
+        A 200 body is validated by parse_finviz_export(); an invalid body
+        raises InvalidFinvizResponse and is not retried. (v5.5)"""
+        ...
+
+    def _fetch_export(self, label: str, url: str, *, session_date=None) -> pd.DataFrame:
+        """_make_request() that prefixes InvalidFinvizResponse with
+        'uptrend response:' or 'total response:'. (v5.5)"""
+        ...
+
     def _build_uptrend_url(self, sector: str = None) -> str:
         """Build uptrend screener URL"""
         ...
@@ -1544,7 +1721,25 @@ class DataCollector:
     def _build_total_url(self, sector: str = None) -> str:
         """Build total screener URL"""
         ...
+
+
+# Module level (v5.5)
+class InvalidFinvizResponse(ValueError):
+    """Finviz export body that violates the CSV response contract"""
+    ...
+
+def parse_finviz_export(content: bytes) -> pd.DataFrame:
+    """Validate and parse a Finviz export body (all values as str)"""
+    ...
 ```
+
+**Logging & secret-leak policy (v5.1):**
+
+- All collection logs (progress, retries, HTTP status, failures) keep their diagnostics. Only secret material (the Finviz API key, or `auth=` query values) is scrubbed.
+- Redaction is enforced at two layers: (1) sanitized exception messages and (2) a handler-level `RedactingFilter` that also scrubs child-logger (urllib3) records.
+- A filter attached to the root LOGGER does **not** observe records from child loggers, so the filter is attached to HANDLERS on the root, which do see propagated child records.
+- `raise ... from None` suppresses the secret-bearing `__context__`/`__cause__` chain so the printed traceback never contains the key.
+- `collect.py` calls `configure_logging(args.verbose, secrets=[api_key])` after reading `FINVIZ_API_KEY`.
 
 **CollectorConfig:**
 
@@ -1583,8 +1778,8 @@ collect.py (CLI)
   │ DataCollector.collect_all()
   │
   ├── _fetch_stock_count(sector=None)        → all count, total
-  │     ├── GET uptrend URL → len(CSV) = uptrend_count
-  │     └── GET total URL   → len(CSV) = total_count
+  │     ├── GET uptrend URL → rows of validated export = uptrend_count (v5.5)
+  │     └── GET total URL   → rows of validated export = total_count
   │
   ├── _fetch_stock_count(sector="sec_basicmaterials") → count, total
   │     :  (API calls at 1-sec intervals)
@@ -1608,8 +1803,8 @@ python collect.py --scope industries
 # Specific category only
 python collect.py --worksheet ind_semiconductors
 
-# Specify date (for past data correction) — validates YYYY-MM-DD format
-python collect.py --date 2026-02-07
+# Assert the current New York session after its actual close (not a backfill)
+python collect.py --date SESSION_DATE
 
 # Dry run (runs collect_all/collect_worksheet with dry_run=True)
 python collect.py --dry-run
@@ -1630,44 +1825,38 @@ python collect.py --verbose
 
 **CollectResult dataclass (v4.0):** Return value of `collect_all()`. Contains `succeeded` dict and `failed` list, with properties for sector/industry split (`sector_succeeded`, `industry_succeeded`, `sector_failed`, `industry_failed`).
 
-**Exit codes (v4.0):**
+**Exit codes (v4.0, corrected in v5.5 to match `collect.py`):**
 
 | Scope | Code 0 | Code 1 | Code 2 |
 |-------|--------|--------|--------|
-| `--scope all` | All sectors succeeded (industry failures = warning) | All sectors failed | Partial sector failure, or all industries failed (sectors OK) |
+| `--scope all` | All sectors succeeded and industry failure ratio < `INDUSTRY_FAIL_TOLERANCE` (5%; failures logged as warning) | All sectors failed | Partial sector failure, all industries failed, or industry failure ratio ≥ 5% |
 | `--scope sectors` | All 12 succeeded | All failed | Partial failure |
-| `--scope industries` | Any succeeded | All failed | — |
+| `--scope industries` | Any succeeded and failure ratio < 5% | All failed | Failure ratio ≥ 5% |
 | `--worksheet` | Success | Failure | — |
+
+Issue #9: the table above applies to live collection. Bulk `--dry-run` is strict: 0 when every attempted worksheet succeeds, 1 when all fail, and 2 on any partial failure, including industry failures below the live 5% tolerance. Setup and single-worksheet failures return 1. HTTP resources close through the existing `finally` block.
+
+Collection preview supplies a private fail-closed `_DryRunDB` stand-in instead of constructing DBClient; its `upsert_raw_data()` raises if persistence is accidentally attempted. Excel preview skips DBClient construction. Neither preview opens, validates, initializes, migrates or writes its target DB, including absent nested paths and existing legacy databases. Collection still fetches/validates Finviz data, and Excel still reads and filters its workbook. A successful preview does not prove that a later database write will succeed. See [dry-run.md](operations/dry-run.md).
 
 **Scheduled execution (cron example):**
 
 ```bash
 # Run every business day at 16:05 ET (after market close)
-# ※ Business day detection is handled within the script (Alpaca calendar API or date-based)
+# XNYS holiday/actual-close validation is handled offline by the collector
 5 16 * * 1-5 cd /path/to/uptrend-dashboard && /path/to/python collect.py >> logs/collect.log 2>&1
 ```
 
 > Log format: `%(asctime)s %(levelname)s: %(message)s`. RotatingFileHandler is not needed (cron's redirection is sufficient).
 
-**Business Day Detection:**
+**Session-date policy (Issue #3, v5.5.1):**
 
-stocktrading uses Alpaca API's calendar, but to avoid Alpaca dependency in uptrend-dashboard, one of the following approaches is used:
+`src/collection_session.py` uses `exchange_calendars==4.13.2` (requires Python 3.10+) (XNYS) and `zoneinfo` to validate the current New York date at/after its actual close. `resolve_collection_date(requested=None, now=None) -> str` rejects malformed, historical/future, non-session and before-close requests. `utc_now()` is the testable aware-clock boundary. `SessionPolicyError(ValueError)` is fatal and must be re-raised before `collect_all()`'s ordinary worksheet tolerance; `NonSessionDay` is its deliberate holiday/weekend subclass.
 
-| Approach | Pros | Cons |
-|----------|------|------|
-| A: Simple weekday check | No dependencies | Holidays trigger fetch attempts → possible 0 results |
-| B: `exchange_calendars` package | Accurate NYSE holiday detection | Additional dependency |
-| C: Run daily, skip UPSERT when data is 0 | Simplest | Unnecessary API calls |
+The CLI validates before DB/session initialization; each GET/retry, response classification, request-exception handler and pre-persistence boundary revalidate the same session. Policy errors suppress exception chaining so a prior secret-bearing transport exception cannot leak in formatted tracebacks. Both `collect_worksheet()` and `collect_all()` resolve default dates using New York, not the host date. Existing content/retry rules and industry tolerance remain for ordinary collection failures. Private `_make_request`, `_fetch_export` and `_fetch_stock_count` accept keyword-only `session_date=None` and pin/forward the resolved session.
 
-→ **Recommended: C** (simplicity first. Finviz API calls are lightweight; skip UPSERT when result is 0)
+`resolve_run_session(created_at, now=None)` asserts the New York date from the original GitHub workflow run creation timestamp; `scripts/session_preflight.sh` obtains that evidence using `actions: read`. Missing evidence, cross-date delays/reruns and policy failures cannot proceed. A same-date non-session is skipped with `eligible=false`; collection, export and commit require `eligible=true` and prior success. The module CLI exits 0 (eligible; prints date), 3 (non-session), or 1 (policy failure). Cron-only payloads cannot diagnose delay before run creation.
 
-**Additional Dependencies:**
-
-| Package | Purpose |
-|---------|---------|
-| `requests` | HTTP requests to Finviz API |
-
-> Only `requests` is added. Advanced features like circuit breakers from stocktrading's `FinvizClient` are not needed. Exponential backoff + jitter retry is sufficient.
+`audit_collection_dates.py --db PATH` opens existing SQLite in read-only mode and reports invalid/non-session/calendar-unknown labels without repair. Non-string labels include SQLite storage type; BLOB labels are represented as hex plus a null `date` so JSON diagnosis cannot crash. Tests cover exact formats, session boundaries, DST/early closes, HTTP retry/midnight drift, final-industry fatality, CLI no-request/no-DB refusal, scheduler gating, read-only audit and provenance-aware temporary historical import. See [the operating runbook](operations/collection-sessions.md) for copied-DB audit evidence and the separate `import_excel.py` source/backup/receipt/review procedure. No original DB/CSV was rewritten.
 
 **Retry/Error Handling Specification (v3.1):**
 
@@ -1675,14 +1864,33 @@ stocktrading uses Alpaca API's calendar, but to avoid Alpaca dependency in uptre
 |---------------|---------|
 | Retry targets | 429, 500, 502, 503, 504, ConnectionError, Timeout |
 | Backoff | Exponential backoff (2s → 4s → 8s …) + jitter (`delay * 0~25%`) |
-| EmptyDataError | 200 + empty body → return empty DataFrame (prevent crash) |
+| Response contract | 200 body must satisfy the Finviz CSV response contract (below); otherwise `InvalidFinvizResponse`, not retried (v5.5; replaces the v3.1 empty-body → empty DataFrame rule) |
 | Data validation | `_validate_counts()`: validates negative values, count > total |
-| Exception scope | `collect_all()` catches only `RequestException`, `ValueError`, `EmptyDataError` |
+| Exception scope | `collect_all()` re-raises fatal `SessionPolicyError` first; catches ordinary `RequestException` and `ValueError` (including `InvalidFinvizResponse`) per worksheet (v5.5.1) |
 | Secret masking | `mask_secrets()` sanitizes `auth=` params in all logged exceptions (v3.2) |
 | HTTP error sanitization | `_safe_http_error()` replaces HTTPError with URL-free message (v3.2) |
 | Session management | `close()` method ensures `requests.Session` is properly closed |
 
-**Test Plan (36 tests: Phase 3 initial 20 + v3.1 additional 12 + v3.2 additional 4):**
+**Finviz CSV response contract (v5.5):**
+
+A 200 body is a valid Finviz screener export only if all of these hold, checked in order by `parse_finviz_export()`:
+
+| # | Rule | Violation |
+|---|------|-----------|
+| 1 | Decodes as `utf-8-sig` (a BOM is accepted) | Not UTF-8 |
+| 2 | Non-empty after stripping whitespace | Empty body |
+| 3 | First non-whitespace character is not `<` | HTML login/error page |
+| 4 | `csv.reader(strict=True)` parses it; fields over the default 131072-character limit fail here | CSV parse error |
+| 5 | The header is the first non-empty row and has exactly one column named `Ticker` (stripped, case-insensitive). Other duplicate column names are allowed | Missing or ambiguous ticker column |
+| 6 | Empty lines are ignored anywhere; every other row has the header's field count | Extra, missing or whitespace-only row |
+| 7 | Every ticker is non-empty and contains no whitespace or non-printable characters (`str.isspace()` / `str.isprintable()`, which also covers control, format and zero-width characters) | Blank or malformed ticker |
+| 8 | Tickers are unique | Repeated ticker |
+
+A header-only body that satisfies rules 1-5 is a valid zero-result export (0 rows). Error messages name the rule, the 1-based data-row number and sizes, never body text, header names or the URL.
+
+Known limitation: a body that has a `Ticker` header and ticker-like rows (for example `Ticker\nerror\n`) cannot be told apart from a real export without a symbol list. No ticker pattern is enforced, because a wrong pattern would fail `all` every day. Requiring the `No.` column to run 1..N would narrow this but has not been verified on real data.
+
+**Test Plan (36 tests: Phase 3 initial 20 + v3.1 additional 12 + v3.2 additional 4; v5.5 contract tests are listed in section 9.2):**
 
 See test_data_collector.py section in "9.2 Test List" above.
 
@@ -1783,6 +1991,10 @@ python import_excel.py path/to/export.xlsx
 
 ### 12.2 Start Dashboard
 
+**Development-preview revision (2026-11-14, Issue #17):** `.devcontainer/devcontainer.json` explicitly starts `streamlit run app.py --server.enableCORS true --server.enableXsrfProtection true`. The app entrypoint, port 8501 and `openPreview` forwarding are unchanged. Both protection flags remain explicitly enabled; the repository supplies no disabling override. Per-user reverse-proxy host configuration must use an exact verified address and does not alter shared defaults or forwarded-port visibility.
+
+`tests/test_devcontainer_security.py` validates the actual command and starts a loopback-only synthetic app. It verifies effective flags, HTML/WebSocket execution, exact forwarded Host/Origin compatibility, unrelated-Origin rejection and differential missing/valid-XSRF upload behavior. The tests use no real DB, user credentials, external API or additional client package. Process/socket cleanup and waits are bounded. Local proxy simulation is distinct from actual hosted Codespaces acceptance; see [protected preview operations](operations/protected-preview.md) for private forwarding, hostname diagnosis, hosted verification steps and evidence limits. Existing DB/CSV/application behavior is untouched.
+
 ```bash
 streamlit run app.py
 ```
@@ -1799,3 +2011,23 @@ pytest tests/ -v
 # Import new Excel file (existing data is overwritten via UPSERT)
 python import_excel.py path/to/new_export.xlsx
 ```
+
+### v5.3 missing-observation integration
+
+The v5.3 missing-observation behavior is superseded by v5.6: all observed dates remain diagnostic, and every incomplete date resets pending confirmation. TestDispersionMissingDateBoundary still covers the public pipeline and statistical consumers with nonlinear values. After an incomplete row, MA10 requires ten complete observations and velocity requires four. Dates with no row are not observations and do not reset a run.
+
+### v5.2 logging boundary regression coverage
+
+`test_config_repr_excludes_credential`, `test_configured_logging_renders_objects_and_templates`, and `test_configured_logging_sanitizes_chained_traceback` exercise the actual configure_logging wiring with synthetic credentials. CollectorConfig.finviz_api_key uses field(repr=False). Sanitized tracebacks retain diagnostic frames.
+
+
+### Issue #13: shared comparison filter
+
+`src/comparison_filters.py` exposes `comparison_date_bounds(all_data, selected_keys) -> Optional[Tuple[date, date]]` and `comparison_date_filter(all_data, selected_keys, display_name, widget_key) -> Dict[str, DataFrame]`. Loaders provide datetime `date` columns; missing/empty frames and NaT observations contribute no bounds. Union bounds are independent of selection order and include staggered or disjoint histories. The filter uses inclusive dates and never fills missing observations.
+
+Page keys are `sector_comparison_dates` and `industry_comparison_dates`; each has a companion `_context` state containing the sorted selected set and union bounds. A changed context or absent widget state initializes the existing configured two-year `default_start_date()` window. Ordinary reruns and reordered selections retain manual dates. No dated observations, incomplete input, or an empty filtered range produces a meaningful message and stops chart construction. The observed-coverage table has `Series`, `Observations`, `First observed`, and `Last observed` columns, including zero-count unavailable selections; endpoints do not imply continuous coverage. Series lacking range observations are omitted from chart input, and absence of a date shared by all selections is reported. Existing smoothed/raw display behavior remains unchanged.
+
+Regression coverage: `tests/test_comparison_filters.py` covers union/order invariance, missing/empty/NaT datasets, disjoint histories, real sector and both industry comparison modes, latest chart input, manual/partial/empty ranges, reordered selections, changed selection/bounds and coverage messages. Operational policy: [comparison-date-ranges.md](operations/comparison-date-ranges.md).
+### Issue #9 dry-run regression coverage
+
+`tests/test_dry_run_filesystem.py` verifies absent, nested, legacy and non-SQLite targets remain unchanged in preview, using byte and directory snapshots. Existing SQLite bytes include schema, rows and index metadata. Mocked HTTP exercises actual single/bulk collection in all scopes on success, partial failure and total failure; mocked Excel input exercises valid filtered counts and parse errors. Tests assert DBClient is never constructed in previews, accidental writes fail closed, setup failures leave targets alone, HTTP sessions close, real collection/import still persist, and live industry tolerance differs intentionally from strict preview failure reporting. No API access or published data is used.

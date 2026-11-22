@@ -1,0 +1,228 @@
+{
+  "schema_version": 1,
+  "policy_fingerprint": "0f4a1f0142c516d2bdd30156e2dfcb4982dc601b9251468847b758346762ab74",
+  "started_at": "2026-11-17T06:09:30.642858+00:00",
+  "completed_at": "2026-11-17T06:10:39.335083+00:00",
+  "observation_date_ny": "2026-11-17",
+  "latest_closed_session": "2026-11-16",
+  "ready": true,
+  "worksheets": {
+    "all": {
+      "routes": [
+        "stocks",
+        "etf"
+      ],
+      "errors": [],
+      "uptrend": {
+        "legacy_count": 508,
+        "candidate_count": 508,
+        "legacy_hash": "af4156de73cb822c9006f28e0996c1fed39d65fd53bf74f99209914ed1ea58ec",
+        "candidate_hash": "af4156de73cb822c9006f28e0996c1fed39d65fd53bf74f99209914ed1ea58ec",
+        "missing": [],
+        "extra": [],
+        "route_counts": {
+          "stocks": 508,
+          "etf": 0
+        }
+      },
+      "total": {
+        "legacy_count": 2730,
+        "candidate_count": 2730,
+        "legacy_hash": "64c879451c73dc148d7214f7f231d58fcca3bbeea1e6fe9248ebb143caa7f03b",
+        "candidate_hash": "64c879451c73dc148d7214f7f231d58fcca3bbeea1e6fe9248ebb143caa7f03b",
+        "missing": [],
+        "extra": [],
+        "route_counts": {
+          "stocks": 2645,
+          "etf": 85
+        }
+      },
+      "legacy_ratio": 0.18608058608058609,
+      "candidate_ratio": 0.18608058608058609
+    },
+    "sec_financial": {
+      "routes": [
+        "stocks",
+        "etf"
+      ],
+      "errors": [],
+      "uptrend": {
+        "legacy_count": 105,
+        "candidate_count": 105,
+        "legacy_hash": "6218e3235a96929362b068138d89b9664c9114e4bc9cd7401e353a2545426e26",
+        "candidate_hash": "6218e3235a96929362b068138d89b9664c9114e4bc9cd7401e353a2545426e26",
+        "missing": [],
+        "extra": [],
+        "route_counts": {
+          "stocks": 105,
+          "etf": 0
+        }
+      },
+      "total": {
+        "legacy_count": 581,
+        "candidate_count": 581,
+        "legacy_hash": "d04263c22f7d67cc1e0f6433efc6a05152b79b075be7af3cf4ff9827a97399a9",
+        "candidate_hash": "d04263c22f7d67cc1e0f6433efc6a05152b79b075be7af3cf4ff9827a97399a9",
+        "missing": [],
+        "extra": [],
+        "route_counts": {
+          "stocks": 496,
+          "etf": 85
+        }
+      },
+      "legacy_ratio": 0.18072289156626506,
+      "candidate_ratio": 0.18072289156626506
+    },
+    "ind_semiconductors": {
+      "routes": [
+        "stocks"
+      ],
+      "errors": [],
+      "uptrend": {
+        "legacy_count": 1,
+        "candidate_count": 1,
+        "legacy_hash": "164aec136bfd0cd8e8296dbf911071c8b3e063a8d23d3eea6ddb2415e6cdb82f",
+        "candidate_hash": "164aec136bfd0cd8e8296dbf911071c8b3e063a8d23d3eea6ddb2415e6cdb82f",
+        "missing": [],
+        "extra": [],
+        "route_counts": {
+          "stocks": 1
+        }
+      },
+      "total": {
+        "legacy_count": 47,
+        "candidate_count": 47,
+        "legacy_hash": "4950cab5c48e410c74d2a4870dc3433cc569b6713e9aa89d504935f0e5f1093a",
+        "candidate_hash": "4950cab5c48e410c74d2a4870dc3433cc569b6713e9aa89d504935f0e5f1093a",
+        "missing": [],
+        "extra": [],
+        "route_counts": {
+          "stocks": 47
+        }
+      },
+      "legacy_ratio": 0.02127659574468085,
+      "candidate_ratio": 0.02127659574468085
+    },
+    "ind_exchangetradedfund": {
+      "routes": [
+        "etf"
+      ],
+      "errors": [],
+      "uptrend": {
+        "legacy_count": 0,
+        "candidate_count": 0,
+        "legacy_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "candidate_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "missing": [],
+        "extra": [],
+        "route_counts": {
+          "etf": 0
+        }
+      },
+      "total": {
+        "legacy_count": 0,
+        "candidate_count": 0,
+        "legacy_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "candidate_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "missing": [],
+        "extra": [],
+        "route_counts": {
+          "etf": 0
+        }
+      },
+      "legacy_ratio": null,
+      "candidate_ratio": null
+    },
+    "ind_closedendfunddebt": {
+      "routes": [
+        "etf"
+      ],
+      "errors": [],
+      "uptrend": {
+        "legacy_count": 0,
+        "candidate_count": 0,
+        "legacy_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "candidate_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "missing": [],
+        "extra": [],
+        "route_counts": {
+          "etf": 0
+        }
+      },
+      "total": {
+        "legacy_count": 47,
+        "candidate_count": 47,
+        "legacy_hash": "7b66da7751972e4027e2f6979b00717515b2deef0a4c52be278dbe7c8f6296a4",
+        "candidate_hash": "7b66da7751972e4027e2f6979b00717515b2deef0a4c52be278dbe7c8f6296a4",
+        "missing": [],
+        "extra": [],
+        "route_counts": {
+          "etf": 47
+        }
+      },
+      "legacy_ratio": 0.0,
+      "candidate_ratio": 0.0
+    },
+    "ind_closedendfundequity": {
+      "routes": [
+        "etf"
+      ],
+      "errors": [],
+      "uptrend": {
+        "legacy_count": 0,
+        "candidate_count": 0,
+        "legacy_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "candidate_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "missing": [],
+        "extra": [],
+        "route_counts": {
+          "etf": 0
+        }
+      },
+      "total": {
+        "legacy_count": 35,
+        "candidate_count": 35,
+        "legacy_hash": "08684a51bf542155554e4f6b22ab9f02d1e6bec66d0a5bde53bc40dd1998aff0",
+        "candidate_hash": "08684a51bf542155554e4f6b22ab9f02d1e6bec66d0a5bde53bc40dd1998aff0",
+        "missing": [],
+        "extra": [],
+        "route_counts": {
+          "etf": 35
+        }
+      },
+      "legacy_ratio": 0.0,
+      "candidate_ratio": 0.0
+    },
+    "ind_closedendfundforeign": {
+      "routes": [
+        "etf"
+      ],
+      "errors": [],
+      "uptrend": {
+        "legacy_count": 0,
+        "candidate_count": 0,
+        "legacy_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "candidate_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "missing": [],
+        "extra": [],
+        "route_counts": {
+          "etf": 0
+        }
+      },
+      "total": {
+        "legacy_count": 3,
+        "candidate_count": 3,
+        "legacy_hash": "66ffa377f9a32f875e0db40270942e364fc0117abbc581fbdc26e8afd23a6b5f",
+        "candidate_hash": "66ffa377f9a32f875e0db40270942e364fc0117abbc581fbdc26e8afd23a6b5f",
+        "missing": [],
+        "extra": [],
+        "route_counts": {
+          "etf": 3
+        }
+      },
+      "legacy_ratio": 0.0,
+      "candidate_ratio": 0.0
+    }
+  },
+  "note": "Point-in-time routing evidence, not a guarantee of future provider semantics."
+}

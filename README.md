@@ -15,11 +15,17 @@ Streamlit + Plotly dashboard for visualizing US market uptrend stock ratios. Dat
 - **Self-Contained Data Collection**: Finviz Elite CSV scraper with cron-ready CLI (161 worksheets)
 - **CSV Export for LLM Access**: Automated CSV generation via GitHub Actions, accessible via raw URL
 
+### Dispersion coverage
+
+The Dispersion Monitor requires finite 10MA values from all 11 configured sectors for each observation. It displays the latest observed date and coverage (for example, `10/11`) separately from the last complete as-of date. When the latest observation is incomplete, current signals, regime-based ranking and action highlights are withheld; historical charts and statistics remain available when complete history exists. Complete coverage alone does not prove the data is current for today's market session.
+
+`sector_dispersion.csv` keeps its original six columns and appends `sector_count`, `expected_sector_count` and `coverage_complete`. Incomplete dates, including warmup and trailing missing observations, remain as diagnostic rows with blank metrics/regimes. Consumers should require `coverage_complete` and inspect `date` before using a row as a current signal; do not substitute an older complete row silently. Missing dates are not invented or forward-filled.
+
 ## Setup
 
 ### Prerequisites
 
-- Python 3.9+
+- Python 3.10+ (collection calendar dependency; CI uses 3.11, deployment specifies 3.12)
 - Finviz Elite API key (for data collection)
 
 ### Installation
@@ -52,8 +58,9 @@ python collect.py --scope industries
 # Dry run (fetch without writing to DB)
 python collect.py --dry-run
 
-# Specific date
-python collect.py --date 2026-02-07
+# Optional assertion of the current New York session (not a backfill)
+# Replace SESSION_DATE with today's New York date; run after the actual close
+python collect.py --date SESSION_DATE
 
 # Single worksheet
 python collect.py --worksheet ind_semiconductors
@@ -70,6 +77,8 @@ python export_csv.py --verbose
 ```bash
 streamlit run app.py
 ```
+
+Development containers launch with CORS and XSRF protections enabled. Keep forwarded port 8501 private and use the [protected-preview setup and verification guide](docs/operations/protected-preview.md) if a preview connection needs diagnosis.
 
 ### Run Tests
 
@@ -156,3 +165,9 @@ After each data collection, CSV files are auto-generated and committed to git. A
 - Values are raw decimals (0.29, not 29%)
 - Dates formatted as `YYYY-MM-DD`
 - NaN exported as empty string
+
+## Collection session safety
+
+Live collection is allowed only after the actual XNYS close on the current New York session date. Holidays, weekends and before-close runs are refused. `--date` asserts that same date; it cannot relabel a current snapshot as historical data. The workflow pins the New York date from its original run-creation timestamp and gates collection/export/commit on a valid session.
+
+See [session policy, read-only date audit and historical-source recovery](docs/operations/collection-sessions.md). For date-label diagnosis without modifying the database, run `python audit_collection_dates.py --db data/uptrend.db`. Historical corrections use a verified source workbook and a separately reviewed candidate DB, never a historical live `--date`.

@@ -1,6 +1,7 @@
 """Tests for import_excel module."""
 
 import sqlite3
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -120,15 +121,11 @@ class TestImportExcel:
         assert dates == ["2024-01-02", "2024-01-03", "2024-01-04"]
 
     def test_dry_run(self, sample_excel, tmp_db):
-        """Dry run should not write to DB."""
+        """Dry run counts valid rows without creating the target DB."""
         result = import_excel(sample_excel, db_path=tmp_db, dry_run=True)
         assert result["all"] == 3
 
-        conn = sqlite3.connect(tmp_db)
-        cursor = conn.execute("SELECT COUNT(*) FROM uptrend_raw")
-        count = cursor.fetchone()[0]
-        conn.close()
-        assert count == 0
+        assert not Path(tmp_db).exists()
 
     def test_invalid_count_total_rows_are_dropped(self, excel_with_invalid_counts, tmp_db):
         """Non-integer/negative/count>total rows should be excluded from import."""
