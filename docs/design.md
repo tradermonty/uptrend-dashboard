@@ -6,7 +6,7 @@
 | Project Name | uptrend-dashboard |
 | Created | 2026-02-08 |
 | Revised | 2026-11-22 |
-| Status | v5.9 Industry Stock List |
+| Status | v6.0 Daily Explainer Pages |
 
 ---
 
@@ -14,6 +14,7 @@
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2026-11-22 | v6.0 | Daily ELI5 explainer pages: after each collection, `run_explainer.py` asks Claude (Opus 5.5, Skills API with vendored `uptrend-analyzer` + `eli5`, code execution) to write Japanese and English pages; `explainer.verify` checks the embedded facts block and visible numbers against the analyzer run locally, then `explainer.site` publishes to the `gh-pages` branch with a dated archive, `latest/`, `manifest.json` and an index page (`.github/workflows/publish-explainer.yml`) |
 | 2026-11-22 | v5.9 | Industry stock list: a separate daily details export (2 extra Finviz requests) stores each industry's constituent snapshot (`industry_constituents`); Industry Detail shows a "Stocks in this Industry" table; the heatmap gains a stock level (size = market cap, color = daily change, tap → Finviz chart); KPI metrics become color-coded cards without emoji |
 | 2026-11-22 | v5.8 | Mobile-friendly layout across all pages (`src/mobile_ui.py`), explicit `st.navigation` so the main page is labeled "Uptrend Ratio" instead of "app", horizontal chart legends, date filter moved out of the sidebar on main/Dispersion pages |
 | 2026-11-17 | v5.7 | Issue #35: evidence-gated stock/ETF Finviz routing, read-only matched ticker comparisons, preserved market/Financial fund denominators and historical raw data; see docs/finviz-migration.md. |
@@ -42,7 +43,37 @@
 | 2026-02-11 | v3.3 | Sector summary bar chart click → Sector Detail page navigation |
 | 2026-02-11 | v3.2 | Data validation hardening, secret masking, CI test workflow. DB CHECK constraints, Python-level count/total validation, import_excel row filtering, mask_secrets/safe_http_error, GitHub Actions pytest |
 
-### v5.9 Key Changes (Industry Stock List)
+### v6.0 Key Changes (Daily Explainer Pages)
+
+**Purpose**: publish a one-minute, picture-first explanation of the latest uptrend ratio every trading day, in Japanese and English, with every past day kept and browsable.
+
+**Flow** (`.github/workflows/publish-explainer.yml`, runs on `workflow_run` of "Collect Finviz Data" and on manual dispatch):
+
+1. `run_explainer.py` runs the vendored `claude_skills/uptrend-analyzer` script locally on `data/uptrend_ratio_timeseries.csv` + `data/sector_summary.csv` and builds `Facts` (date, ratio_pct, count, total, score, zone, exposure). If `manifest.json` already lists that date, it stops without calling the API (`--force` overrides).
+2. `explainer.generate.sync_skills` uploads `claude_skills/*` to the Skills API the first time and a new version only when the files' SHA-256 changes; IDs, pinned version and hash live in `claude_skills/registry.json` (committed back to `main` by an `if: always()` step with push retries). If the registry is lost, a skill with the same display name is found via `skills.list` and gets a new version instead of a duplicate.
+3. `generate_pages` uploads both CSVs (`container_upload`), calls `client.beta.messages.stream` with `model=claude-opus-5-5`, effort `high`, `container={"skills": [...]}`, tool `code_execution_20260521`, server-side fallbacks (`fallbacks="default"`). It continues through `pause_turn` in the same container (max 10 per turn), stops when the whole run passes 400K output tokens, and downloads `uptrend-ja.html` / `uptrend-en.html` from `$OUTPUT_DIR` (both `bash_code_execution_tool_result` and `code_execution_tool_result` blocks). A `max_tokens` stop still checks the files saved so far. The uploaded CSVs are deleted afterwards; the SDK client retries at most once.
+4. `explainer.verify.verify_html` rejects a page unless: the primary `<html lang>` subtag matches, `<body>` and `<title>` exist, the `<script type="application/json" id="uptrend-facts">` object equals the local facts, every element marked `data-fact="ratio_pct" | "count" | "score"` shows the right value (at least one each; `％` accepted), nothing loads from outside (including protocol-relative `//` URLs), and it is under 1 MB. Other numbers on the page are not machine-checked. Problems are sent back for up to 2 fix rounds; if they remain, the run exits 1 and the site is not touched.
+5. `explainer.site.publish` writes into the `gh-pages` checkout.
+
+**Site layout** (`gh-pages` branch, served by GitHub Pages):
+
+| Path | Content |
+|------|---------|
+| `index.html` | Archive: ratio history sparkline, then every day newest first, grouped by month, with ratio, score chip (zone color) and JA/EN links |
+| `manifest.json` | One entry per date (facts + page paths), newest first; upserted |
+| `latest/{ja,en}.html` | Copy of the newest date (a backfilled older date does not replace it) |
+| `YYYY/MM/YYYY-MM-DD-{ja,en}.html` | One page per date, written once and not changed by later days |
+| `.nojekyll` | Serve files as-is |
+
+Each page gets a `<nav id="explainer-nav">` right after `<body>` with relative links (index, latest, previous day, other language), so the site works under the project path. Archived pages are not rewritten, so after a backfill or `--force` of an older date the next day's "previous day" link still points to the date it had; the index is always complete. The gh-pages commit message uses the date just published (`published_date` step output).
+
+**Offline analyzer**: the code execution container has no internet, so the vendored `data_fetcher.UptrendDataFetcher(timeseries_path=, sector_summary_path=)` and CLI flags `--timeseries-csv` / `--sector-summary-csv` read local files; `requests` is imported only for the GitHub download path.
+
+**Secrets / cost**: `ANTHROPIC_API_KEY` repository secret. Estimated ~$1 per trading day (about 100K input + 30K output tokens at $4 / $20 per MTok, unverified until the first run logs `usage`); code execution hours are within the monthly free allowance.
+
+---
+
+## v5.9 Key Changes (Industry Stock List)
 
 - **Purpose**: drill down from an industry (Heatmap table / Sector Detail → Industry Detail) to the stocks it contains, and see which of them meet the uptrend screen
 - **Per-stock chart**: no in-app chart. The Ticker column is a `st.column_config.LinkColumn` holding `finviz_chart_url(ticker)` = `https://finviz.com/quote.ashx?t={ticker}&p=w` (weekly chart), labelled with the bare ticker via `display_text=TICKER_LINK_PATTERN` (`r"t=([^&]+)"`). Tapping opens Finviz in a new tab (on phones Finviz redirects to its mobile `/stock?t=...&p=w` page). Chosen over fetching prices (yfinance/FMP) to avoid a new data dependency
@@ -1153,6 +1184,7 @@ uptrend-dashboard/
 ├── .github/
 │   └── workflows/
 │       ├── collect-data.yml           # Daily data collection (cron)
+│       ├── publish-explainer.yml      # Daily explainer pages → gh-pages (v6.0)
 │       └── test.yml                   # CI: pytest on push/PR (v3.2)
 ├── .streamlit/
 │   └── config.toml                    # Streamlit theme settings
@@ -1239,6 +1271,7 @@ uptrend-dashboard/
 | requests | >= 2.31.0 | Finviz API HTTP requests (Phase 3) | **New** |
 | python-dateutil | >= 2.8.0 | Accurate year arithmetic via `relativedelta` (v4.3) | **New** |
 | python-dotenv | >= 1.0.0 | Environment variable loading | Retained |
+| anthropic | == 2.12.0 | Claude API for daily explainer pages; `requirements-explainer.txt` only, not installed by the Streamlit app (v6.0) | **New** |
 | pytest | >= 8.0.0 | Test framework | Retained |
 | pytest-mock | >= 3.12.0 | Mock library | Retained |
 | ~~gspread~~ | — | — | **Removed** |
@@ -1564,6 +1597,16 @@ Also: `test_data_loader.py` `test_load_constituents` / `test_load_constituents_e
 | `requests.Session.get` | Mocking Finviz API responses (Phase 3: data_collector tests) |
 
 ---
+
+### v6.0 Explainer tests
+
+| File | Covers |
+|------|--------|
+| tests/test_explainer_analyzer.py | Vendored analyzer reads local CSVs without network; CLI writes a JSON report offline |
+| tests/test_explainer_verify.py | `build_facts`; `verify_html` passes good JA/EN pages (also `ja-JP`, `％`) and rejects wrong lang, missing/mismatched/non-object facts block, missing or wrong `data-fact` numbers, numbers outside labelled elements, external (incl. `//`) resources, missing title or body |
+| tests/test_explainer_site.py | Archive + latest, backfill keeps latest, manifest upsert/sort, index links, relative nav, nav not duplicated, missing language rejected |
+| tests/test_explainer_generate.py | Fake client: skills + code execution request, pause_turn continuation in the same container, fix round on failed checks, give-up, refusal (also without container), missing page, Python-saved files, max_tokens after files saved, output token budget, uploaded CSVs deleted, output file collection, skill create/reuse/version, lost registry reuses the skill by name, pycache ignored |
+| tests/test_explainer_cli.py | Analyzer on repo data, skip when already published (no API call), publish on success with `published_date` in `GITHUB_OUTPUT`, exit 1 with site untouched on failure |
 
 ## 10. Relationship with Existing Systems
 
