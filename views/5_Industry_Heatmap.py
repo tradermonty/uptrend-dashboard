@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.data_loader import cached_load_all_constituents, cached_load_all_data
+from src.data_loader import cached_load_all_constituents, cached_load_all_data, cached_load_manifest
 from src.data_processor import (
     build_industry_summary_with_sector,
     filter_industry_summary,
@@ -16,6 +16,7 @@ from src.data_processor import (
     style_status_row,
 )
 from src.chart_builder import build_industry_heatmap
+from src.collection_manifest import coverage_caption
 from src.kpi_cards import KpiCard, render_kpi_cards
 from src.mobile_ui import inject_mobile_css, is_mobile_client, mobile_columns, show_treemap
 
@@ -77,6 +78,11 @@ summary, stale_summary = split_stale_rows(summary)
 if summary.empty:
     st.warning("No industry has data for the latest session.")
     st.stop()
+
+# Latest collection outcome (Issue #6): stored / valid-empty / failed counts
+_coverage = coverage_caption(cached_load_manifest())
+if _coverage:
+    st.caption(_coverage)
 
 # KPI metrics
 total_count = len(summary)

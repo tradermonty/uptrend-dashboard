@@ -42,6 +42,15 @@ class CollectScope(Enum):
     ALL = "all"              # all 161 worksheets
 
 
+def scope_worksheets(scope: "CollectScope") -> List[str]:
+    """Worksheets a collect_all run covers, in collection order."""
+    if scope == CollectScope.SECTORS:
+        return ["all"] + SECTORS
+    if scope == CollectScope.INDUSTRIES:
+        return list(INDUSTRIES)
+    return list(VALID_WORKSHEETS)
+
+
 @dataclass
 class CollectResult:
     """Result of a collect_all run, separating succeeded and failed worksheets."""
@@ -425,6 +434,7 @@ class DataCollector:
         date: Optional[str] = None,
         dry_run: bool = False,
         scope: CollectScope = CollectScope.ALL,
+        result: Optional[CollectResult] = None,
     ) -> CollectResult:
         """Collect data for worksheets determined by scope.
 
@@ -432,17 +442,15 @@ class DataCollector:
             date: Date string in YYYY-MM-DD format (default: today).
             dry_run: If True, fetch data without writing to DB.
             scope: Which worksheets to collect (ALL, SECTORS, or INDUSTRIES).
+            result: Optional CollectResult to fill in place, so a caller still has the
+                partial outcome when a fatal error (session policy, migration evidence)
+                stops the run (collection manifest, v6.4).
         """
         date = resolve_collection_date(date)
 
-        if scope == CollectScope.SECTORS:
-            worksheets = ["all"] + SECTORS
-        elif scope == CollectScope.INDUSTRIES:
-            worksheets = list(INDUSTRIES)
-        else:
-            worksheets = list(VALID_WORKSHEETS)
+        worksheets = scope_worksheets(scope)
 
-        result = CollectResult()
+        result = result if result is not None else CollectResult()
         total = len(worksheets)
         for idx, worksheet in enumerate(worksheets):
             logger.info("Collecting %d/%d: %s", idx + 1, total, worksheet)

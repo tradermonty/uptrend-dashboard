@@ -6,7 +6,7 @@
 | Project Name | uptrend-dashboard |
 | Created | 2026-02-08 |
 | Revised | 2026-11-22 |
-| Status | v6.3.1 Current Ratio → Finviz screener |
+| Status | v6.4 Collection Manifest and Coverage (Issue #6) |
 
 ---
 
@@ -14,6 +14,7 @@
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2026-11-22 | v6.4 | Collection manifest (Issue #6, part 2): each live `collect.py` run writes `data/collection_manifest.json` (next to `--db`, or `--manifest`) giving every expected worksheet one outcome (persisted / empty / failed / missing) and reconciled coverage counters; dry runs write nothing. The collect workflow commits it. Industry Heatmap and Sector Detail (that sector's industries only) show a coverage caption from it. A failed, crashed or cancelled run publishes only its manifest, marked `data_published: false`, so the caption says the data was not published |
 | 2026-11-22 | v6.3.2 | Explainer pages link back to the dashboard: the nav bar on every page starts with a back link "← Dashboard" / "← ダッシュボード" (`site.DASHBOARD_URL` = https://uptrend-dashboard.streamlit.app/) and the index adds an "Open the dashboard" button. `site.refresh_nav(site)` re-renders only the `<nav id="explainer-nav">` block of already-published pages and the index (page bodies untouched); `run_explainer.py --refresh-nav` runs it without any Claude call or analysis |
 | 2026-11-22 | v6.3.1 | Uptrend Ratio page: the Current Ratio KPI card opens Finviz's public stock screener with the dashboard's uptrend filters in a new tab (`kpi_cards.uptrend_screener_url()` = `https://finviz.com/screener/stocks?v=111&f=<UPTREND_FILTERS>&ft=4`, no API key; `KpiCard(new_tab=True)` renders `target="_blank" rel="noopener"`). On 2026-11-22 it listed 181 stocks (stocks only; the card value comes from the stocks+ETF `all` row, 183 that day). If the filter policy cannot be loaded, the card renders without a link. The explainer link below the KPIs now links the English page only (the "日本語で読む" link was removed from the app; the GitHub Pages index is unchanged) |
 | 2026-11-22 | v6.3 | Summary freshness (Issue #6, part 1): sector and industry summaries carry `As Of` (latest observation date) and `Stale` (latest row is `STALE_AFTER_SESSIONS`=1 or more sessions behind the median worksheet's latest date). Stale rows are left out of the heatmap, its KPI cards and the sector/industry ranking charts with a caption naming them; tables list them with the date highlighted. `sector_summary.csv` / `industry_summary.csv` gain the two columns at the end. Collection outcome manifest and coverage counters remain open |
@@ -48,6 +49,27 @@
 | 2026-02-11 | v3.3 | Sector summary bar chart click → Sector Detail page navigation |
 | 2026-02-11 | v3.2 | Data validation hardening, secret masking, CI test workflow. DB CHECK constraints, Python-level count/total validation, import_excel row filtering, mask_secrets/safe_http_error, GitHub Actions pytest |
 
+### v6.4 Key Changes (Collection Manifest, Issue #6)
+
+**Problem**: the collector logged "161 collected" while only 158 rows were stored: industries with `total=0` are skipped on purpose (`collect_worksheet`), and nothing told them apart from API failures.
+
+- `src/collection_manifest.py`:
+  - `build_manifest(result, expected, session_date, scope, dry_run, stored, last_stored, generated_at, aborted=None) -> dict`
+  - `write_manifest(manifest, path) -> bool` (atomic temp file + rename; returns False and leaves the file untouched when only `generated_at` would change, so a repeat run does not create a data commit)
+  - `load_manifest(path=None) -> dict | None` (None when absent or unreadable); `default_manifest_path()` = the directory of `DB_PATH` (default `data/uptrend.db`) + `collection_manifest.json`, matching where `collect.py` writes it
+  - `coverage_caption(manifest, worksheets=None, label=None) -> str`, e.g. `Collection 2026-11-20: 158 of 161 stored · 3 empty (no stocks match the base filters)`; adds `(sectors only)` / `(industries only)` for a scoped run and `run aborted (<error>)` for an aborted one. `worksheets` recounts over a subset from the per-worksheet entries and `label` names it (`Collection D (Technology industries): 12 of 12 stored`); a listed worksheet absent from the manifest counts as not attempted. A manifest with `data_published: false` never claims stored rows: `Collection D: run failed, data not published · 1 failed`, or `Collection D: run did not finish, data not published` when it has no coverage. Empty string without a manifest; a malformed one also gives an empty string instead of raising
+  - `mark_unpublished(path, session_date, generated_at, reason="IncompleteRun") -> dict` sets `data_published: false`. When the file is missing, unreadable or from an earlier session (the run crashed or timed out before writing one), it is replaced by a minimal manifest for `session_date` with `coverage: null` and `aborted: "IncompleteRun"`. With `run_manifest=P` (CLI `--run-manifest P`), the run's manifest is read from P and `path` is the published (main's) copy, which is left unchanged (returns None) when it describes a later session, or this session already published by a successful run. `mark_published(path, session_date) -> bool` drops that marker again for the same session only. CLI: `python -m src.collection_manifest {mark-unpublished|mark-published} --session YYYY-MM-DD [--path P]`
+- Outcomes, one per expected worksheet: `persisted` (total > 0, written), `fetched` (total > 0 in a dry run), `empty` (total = 0, deliberately not written, not a failure), `failed` (request or validation error), `missing` (never attempted). Non-stored outcomes carry `last_stored` (the worksheet's latest stored date, or null). Every worksheet carries `stored` (whether the DB has its row for the session), so a failure on the second same-day run next to a row stored by the first run is visible. `aborted` is null for a completed run, or the fatal error's name. `data_published` is absent for a run whose data was committed and `false` after the workflow's failure step.
+- Coverage: `expected`, `fetched` (= persisted + dry-run fetched + empty), `persisted`, `empty`, `failed`, `missing`, `stored` (expected worksheets with a DB row for the session after the run) and `reconciled` (expected = fetched + failed + missing, and every persisted worksheet has a stored row).
+- `scope_worksheets(scope)` in `src/data_collector.py` gives the expected list (shared with `collect_all`).
+- `DBClient.worksheets_on(date)` and `DBClient.last_dates()` are read-only queries.
+- `collect.py`: after a live `collect_all`, `_write_manifest_safely` writes the manifest and logs the counters (error level when not reconciled). `collect_all(..., result=CollectResult())` fills the caller's result in place, so when `SessionPolicyError` / `MigrationEvidenceError` stops the run, the manifest is still written with `aborted` set and the unreached worksheets as `missing` (exit status stays 1). Any other exception (e.g. `sqlite3.OperationalError`) also writes the manifest with `aborted=<ExcName>` and is then re-raised. Manifest failures are logged and never change the exit status. `--worksheet` runs and dry runs write no manifest.
+- Workflow: `collect-data.yml` adds `data/collection_manifest.json` to the data commit when the file exists. When a step after the session preflight fails, or the job is cancelled or times out, the data is still not committed, as before. A separate `if: (failure() || cancelled())` step saves the manifest, aborts any half-finished rebase, resets the checkout to `origin/main` (dropping an unpushed data commit), runs `mark-unpublished --run-manifest <saved run copy>` for the session and commits the manifest alone. A stale re-run (an old session refused by the session policy) or a failure after the same session was already published keeps main's manifest. The runner's `stored` counts stay in the JSON, but the caption never shows them for an unpublished run. Both steps push with `git push origin HEAD:main` and do nothing unless `GITHUB_REF` is `refs/heads/main`, so a manual run dispatched on another branch never replays that branch's code onto main.
+- Re-run: "Re-run failed jobs" checks out the original SHA, so its data commit conflicts with the manifest-only commit the failure step pushed. The commit step resolves a conflict in `data/collection_manifest.json` alone with the re-run's copy (`git checkout --theirs` during the rebase) and still fails on any other conflict. After the rebase it runs `mark-published` for the session, because a re-run whose outcome matches the checked-out manifest leaves the file unchanged and would otherwise keep the failed run's marker; it pushes only when HEAD is ahead of `origin/main`.
+- Known limits: if `collect.py` fails to write its manifest in a re-run, the first attempt's runner-measured counts are shown as published. A cancellation right after the data push keeps the pushed manifest (same session, published). Whether `cancelled()` steps run after `timeout-minutes` is GitHub's behavior and is not covered by tests.
+- `--worksheet` repair runs do not update the manifest, so a caption keeps showing the failure until the next full run.
+- Pages: Industry Heatmap (above the KPI cards) shows `coverage_caption(cached_load_manifest())`; Sector Detail (industry section) shows it counted over the selected sector's industries. `data_loader.cached_load_manifest()` is an `st.cache_data` (1 hour) entry like the data loaders, so the sidebar Refresh clears both together; each entry has its own TTL, so they can briefly disagree after a deploy until Refresh or expiry.
+
 ### v6.3 Key Changes (Summary Freshness, Issue #6)
 
 **Problem**: an industry whose latest row is old (e.g. `ind_infrastructureoperations`, last observed 2026-03-27) appeared in the heatmap, KPI shares and ranking charts as if it were today's value, and the summary CSVs had no date.
@@ -64,7 +86,7 @@
 - Uptrend Ratio and Sector Detail: the ranking bar charts use fresh rows only, with the same caption. Tables list every row, stale rows last.
 - CSV export: `sector_summary.csv` and `industry_summary.csv` become `..., Status, As Of, Stale`. Columns are only appended, so positional readers of the first six columns keep working (the vendored uptrend-analyzer was run against the new file).
 - Historical data is not modified.
-- **Still open in Issue #6**: a per-run collection manifest that separates persisted, valid-empty (total=0), failed and missing worksheets, and coverage counters that reconcile expected, fetched, persisted, empty and failed.
+- The collection manifest and coverage counters followed in v6.4.
 
 ### v6.0 / v6.1 Key Changes (Daily Explainer Pages)
 
@@ -1602,6 +1624,12 @@ Also: `test_data_loader.py` `test_load_constituents` / `test_load_constituents_e
 | test_is_sector | is_sector() helper function |
 | test_is_industry | is_industry() helper function |
 | test_default_display_years | DEFAULT_DISPLAY_YEARS == 2 (v4.3) |
+
+**test_collection_manifest.py (v6.4):** outcomes per worksheet, reconciled coverage counters, atomic write and unchanged-timestamp skip, captions (scope label, aborted, subset via `worksheets`/`label`, `data_published: false`, malformed manifest gives ""), `mark_unpublished` and its CLI, `collect.py` writing the manifest (live, `--manifest`, dry run writes nothing, `SessionPolicyError` abort, unexpected-exception abort re-raised), and the failure step's trigger and order.
+
+**test_manifest_pages.py (v6.4):** Sector Detail caption counts only the selected sector's industries; Industry Heatmap caption for an unpublished run.
+
+**test_collect_workflow_git.py (v6.4):** runs the workflow's commit and failure step scripts verbatim (bash -eo pipefail) against a local bare remote: a failed run publishes only a marked manifest; a crash without a manifest replaces the previous session's; a re-run after the failure step publishes its data (manifest-only conflict resolved); a real data conflict still fails; a re-run with an unchanged manifest clears the marker; a branch dispatch pushes nothing to main; a run with no changes pushes nothing; a stale re-run's failure keeps a later session's manifest; a failure after the same session was published keeps it; a repeated failure replaces the earlier marker. Global and system git config are disabled in the sandbox.
 
 ### 9.3 Test Fixtures (conftest.py)
 

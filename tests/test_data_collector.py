@@ -510,7 +510,7 @@ class TestCLI:
         main()
         # collect_all called with dry_run=True and scope
         mock_collect_all.assert_called_once_with(
-            date="2026-11-13", dry_run=True, scope=CollectScope.ALL,
+            date="2026-11-13", dry_run=True, scope=CollectScope.ALL, result=mocker.ANY,
         )
         mock_upsert.assert_not_called()
 
@@ -582,7 +582,7 @@ class TestCLI:
         from collect import main
         main()
         mock_collect_all.assert_called_once_with(
-            date="2026-11-13", dry_run=False, scope=CollectScope.SECTORS,
+            date="2026-11-13", dry_run=False, scope=CollectScope.SECTORS, result=mocker.ANY,
         )
 
     def test_cli_scope_worksheet_simultaneous_error(self, tmp_db, mocker):

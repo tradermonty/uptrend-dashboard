@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from src.constants import SECTORS, SECTOR_INDUSTRIES
-from src.data_loader import cached_load_all_data
+from src.data_loader import cached_load_all_data, cached_load_manifest
 from src.data_processor import (
     get_current_status,
     get_sector_display_name,
@@ -20,6 +20,7 @@ from src.data_processor import (
     style_status_row,
 )
 from src.chart_builder import build_ratio_chart, build_industry_summary_chart
+from src.collection_manifest import coverage_caption
 from src.kpi_cards import KpiCard, render_kpi_cards, status_card, trend_card
 from src.mobile_ui import display_years, inject_mobile_css, is_mobile_client, mobile_columns, show_chart
 
@@ -114,6 +115,13 @@ st.markdown("---")
 st.subheader(f"Industries in {selected_display}")
 
 industry_keys = SECTOR_INDUSTRIES.get(selected_key, [])
+
+# Latest collection outcome (Issue #6), counted over this sector's industries only
+_coverage = coverage_caption(cached_load_manifest(), worksheets=industry_keys,
+                             label=f"{selected_display} industries")
+if _coverage:
+    st.caption(_coverage)
+
 has_industry_data = any(
     k in all_data and not all_data[k].empty for k in industry_keys
 )
