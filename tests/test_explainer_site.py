@@ -104,11 +104,12 @@ class TestDashboardLink:
                      "latest/en.html", "latest/ja.html"):
             assert f'href="{DASHBOARD_URL}"' in (site / path).read_text()
 
-    def test_dashboard_link_is_last_in_nav(self, site):
+    def test_dashboard_back_link_is_first_in_nav(self, site):
         publish(site, _facts("2026-11-20"), _pages("2026-11-20"))
         page = (site / "latest/en.html").read_text()
         nav = page[page.index('<nav id="explainer-nav"'):page.index("</nav>")]
-        assert nav.rindex("<a ") == nav.index(f'href="{DASHBOARD_URL}"') - 3
+        assert nav.index("<a ") == nav.index(f'href="{DASHBOARD_URL}"') - 3
+        assert "← Dashboard" in nav
 
     def test_dashboard_label_per_language(self, site):
         publish(site, _facts("2026-11-20"), _pages("2026-11-20"))
