@@ -80,10 +80,32 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/uptrend.db data/uptrend_ratio_timeseries.csv data/sector_summary.csv data/industry_summary.csv data/sector_dispersion.csv
+          if [ -f data/collection_manifest.json ]; then git add data/collection_manifest.json; fi
           if git diff --cached --quiet; then
             echo "No data changes to commit"
           else
             git commit -m "Update uptrend data $(date -u +%Y-%m-%d)"
+            git pull --rebase
+            git push
+          fi
+
+      # A failed or aborted collection keeps its data unpublished (as before), but
+      # its manifest is still published so the dashboard shows the failed/missing
+      # worksheets instead of the previous successful run's coverage.
+      - name: Publish collection manifest after a failed run
+        if: failure() && steps.session.outputs.eligible == 'true'
+        run: |
+          if [ ! -f data/collection_manifest.json ]; then
+            echo "No manifest written"; exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/collection_manifest.json
+          if git diff --cached --quiet; then
+            echo "Manifest unchanged"
+          else
+            git commit -m "Collection manifest (failed run) $(date -u +%Y-%m-%d)"
+            git stash --include-untracked || true
             git pull --rebase
             git push
           fi

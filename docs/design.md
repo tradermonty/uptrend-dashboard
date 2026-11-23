@@ -6,7 +6,7 @@
 | Project Name | uptrend-dashboard |
 | Created | 2026-02-08 |
 | Revised | 2026-11-22 |
-| Status | v6.3 Summary Freshness (As Of / Stale per row, Issue #6) |
+| Status | v6.4 Collection Manifest and Coverage (Issue #6) |
 
 ---
 
@@ -14,6 +14,7 @@
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2026-11-22 | v6.4 | Collection manifest (Issue #6, part 2): each live `collect.py` run writes `data/collection_manifest.json` (next to `--db`, or `--manifest`) giving every expected worksheet one outcome (persisted / empty / failed / missing) and reconciled coverage counters; dry runs write nothing. The collect workflow commits it. Industry Heatmap and Sector Detail show a coverage caption from it |
 | 2026-11-22 | v6.3 | Summary freshness (Issue #6, part 1): sector and industry summaries carry `As Of` (latest observation date) and `Stale` (latest row is `STALE_AFTER_SESSIONS`=1 or more sessions behind the median worksheet's latest date). Stale rows are left out of the heatmap, its KPI cards and the sector/industry ranking charts with a caption naming them; tables list them with the date highlighted. `sector_summary.csv` / `industry_summary.csv` gain the two columns at the end. Collection outcome manifest and coverage counters remain open |
 | 2026-11-22 | v6.2 | Explainer GitHub Pages index is English first ("Read today's explainer" → `latest/en.html`, "日本語で読む" → `latest/ja.html`). The Uptrend Ratio page links to the explainer below "Last updated" (`render_explainer_link()` in `src/page_footer.py`, `EXPLAINER_URL` = https://tradermonty.github.io/uptrend-dashboard/) |
 | 2026-11-22 | v6.1 | Explainer cost fix: the first live run (container + skills + code execution) used 4,982,664 input tokens (about $20.4). Python now does all analysis (`explainer.brief`) and Claude only writes each page in one plain Messages request with the eli5 skill text in the system prompt; no container, Skills API, CSV upload or registry. Cost budget $3 per run across all requests |
@@ -46,6 +47,23 @@
 | 2026-02-11 | v3.3 | Sector summary bar chart click → Sector Detail page navigation |
 | 2026-02-11 | v3.2 | Data validation hardening, secret masking, CI test workflow. DB CHECK constraints, Python-level count/total validation, import_excel row filtering, mask_secrets/safe_http_error, GitHub Actions pytest |
 
+### v6.4 Key Changes (Collection Manifest, Issue #6)
+
+**Problem**: the collector logged "161 collected" while only 158 rows were stored: industries with `total=0` are skipped on purpose (`collect_worksheet`), and nothing told them apart from API failures.
+
+- `src/collection_manifest.py`:
+  - `build_manifest(result, expected, session_date, scope, dry_run, stored, last_stored, generated_at) -> dict`
+  - `write_manifest(manifest, path) -> bool` (atomic temp file + rename; returns False and leaves the file untouched when only `generated_at` would change, so a repeat run does not create a data commit)
+  - `load_manifest(path=None) -> dict | None` (None when absent or unreadable); `default_manifest_path()` = the directory of `DB_PATH` (default `data/uptrend.db`) + `collection_manifest.json`, matching where `collect.py` writes it
+  - `coverage_caption(manifest) -> str`, e.g. `Collection 2026-11-20: 158 of 161 stored · 3 empty (no stocks match the base filters)`; adds `(sectors only)` / `(industries only)` for a scoped run and `run aborted (<error>)` for an aborted one; empty string without a manifest
+- Outcomes, one per expected worksheet: `persisted` (total > 0, written), `fetched` (total > 0 in a dry run), `empty` (total = 0, deliberately not written, not a failure), `failed` (request or validation error), `missing` (never attempted). Non-stored outcomes carry `last_stored` (the worksheet's latest stored date, or null). Every worksheet carries `stored` (whether the DB has its row for the session), so a failure on the second same-day run next to a row stored by the first run is visible. `aborted` is null for a completed run, or the fatal error's name.
+- Coverage: `expected`, `fetched` (= persisted + dry-run fetched + empty), `persisted`, `empty`, `failed`, `missing`, `stored` (expected worksheets with a DB row for the session after the run) and `reconciled` (expected = fetched + failed + missing, and every persisted worksheet has a stored row).
+- `scope_worksheets(scope)` in `src/data_collector.py` gives the expected list (shared with `collect_all`).
+- `DBClient.worksheets_on(date)` and `DBClient.last_dates()` are read-only queries.
+- `collect.py`: after a live `collect_all`, `_write_manifest_safely` writes the manifest and logs the counters (error level when not reconciled). `collect_all(..., result=CollectResult())` fills the caller's result in place, so when `SessionPolicyError` / `MigrationEvidenceError` stops the run, the manifest is still written with `aborted` set and the unreached worksheets as `missing` (exit status stays 1). Manifest failures are logged and never change the exit status. `--worksheet` runs and dry runs write no manifest.
+- Workflow: `collect-data.yml` adds `data/collection_manifest.json` to the data commit when the file exists. When the collect step fails (exit 1/2), the data is still not committed, as before, but a separate `if: failure()` step commits the manifest alone, so the dashboard shows the failed run's coverage rather than the previous successful run's.
+- Pages: Industry Heatmap (above the KPI cards) and Sector Detail (industry section) show `coverage_caption(load_manifest())` when a manifest exists.
+
 ### v6.3 Key Changes (Summary Freshness, Issue #6)
 
 **Problem**: an industry whose latest row is old (e.g. `ind_infrastructureoperations`, last observed 2026-03-27) appeared in the heatmap, KPI shares and ranking charts as if it were today's value, and the summary CSVs had no date.
@@ -62,7 +80,7 @@
 - Uptrend Ratio and Sector Detail: the ranking bar charts use fresh rows only, with the same caption. Tables list every row, stale rows last.
 - CSV export: `sector_summary.csv` and `industry_summary.csv` become `..., Status, As Of, Stale`. Columns are only appended, so positional readers of the first six columns keep working (the vendored uptrend-analyzer was run against the new file).
 - Historical data is not modified.
-- **Still open in Issue #6**: a per-run collection manifest that separates persisted, valid-empty (total=0), failed and missing worksheets, and coverage counters that reconcile expected, fetched, persisted, empty and failed.
+- The collection manifest and coverage counters followed in v6.4.
 
 ### v6.0 / v6.1 Key Changes (Daily Explainer Pages)
 

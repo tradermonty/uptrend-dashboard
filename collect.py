@@ -13,9 +13,12 @@ from src.data_collector import (
     CollectorConfig,
     CollectScope,
     DataCollector,
+    CollectResult,
     configure_logging,
     redact,
+    scope_worksheets,
 )
+from src.collection_manifest import build_manifest, write_manifest
 from src.constituent_collector import collect_constituents_safely
 from src.db_client import DBClient
 from src.finviz_universe import MigrationEvidenceError, load_evidence
@@ -34,6 +37,27 @@ class _DryRunDB:
         raise RuntimeError("Database writes are disabled during dry-run")
 
 
+def _write_manifest_safely(args, db_client, result, scope, session_date, aborted=None) -> None:
+    """Record per-worksheet outcomes and coverage (Issue #6); never changes the exit status."""
+    path = args.manifest or os.path.join(os.path.dirname(args.db) or ".", "collection_manifest.json")
+    try:
+        manifest = build_manifest(
+            result=result, expected=scope_worksheets(scope), session_date=session_date,
+            scope=scope.value, dry_run=False,
+            stored=db_client.worksheets_on(session_date), last_stored=db_client.last_dates(),
+            generated_at=utc_now().isoformat(), aborted=aborted,
+        )
+        write_manifest(manifest, path)
+    except Exception as exc:  # The manifest is a report; collection results stand without it.
+        logger.error("Failed to write collection manifest %s: %s", path, exc)
+        return
+    c = manifest["coverage"]
+    log = logger.info if c["reconciled"] else logger.error
+    log("Coverage %s: expected=%d fetched=%d persisted=%d empty=%d failed=%d missing=%d stored=%d reconciled=%s",
+        session_date, c["expected"], c["fetched"], c["persisted"], c["empty"], c["failed"],
+        c["missing"], c["stored"], c["reconciled"])
+
+
 def main():
     load_dotenv()
 
@@ -45,6 +69,8 @@ def main():
     parser.add_argument("--date", help="Assert current New York session (YYYY-MM-DD); not a historical override")
     parser.add_argument("--dry-run", action="store_true", help="Fetch data without writing to DB")
     parser.add_argument("--verbose", action="store_true", help="Enable debug logging")
+    parser.add_argument("--manifest", default=None,
+                        help="Collection manifest path (default: collection_manifest.json next to --db)")
     args = parser.parse_args()
 
     api_key = os.environ.get("FINVIZ_API_KEY")
@@ -82,6 +108,7 @@ def main():
     db_client = _DryRunDB() if args.dry_run else DBClient(args.db)
     collector = DataCollector(db_client=db_client, config=config)
 
+    partial = None
     try:
         if args.worksheet:
             try:
@@ -95,7 +122,10 @@ def main():
                 logger.error("Failed to collect %s: %s", args.worksheet, redact(str(exc), [api_key]))
                 sys.exit(1)
         else:
-            result = collector.collect_all(date=session_date, dry_run=args.dry_run, scope=scope)
+            partial = CollectResult()  # filled in place; survives a fatal abort
+            result = collector.collect_all(
+                date=session_date, dry_run=args.dry_run, scope=scope, result=partial,
+            )
 
             # Summary
             print("\nCollection Summary:")
@@ -107,6 +137,8 @@ def main():
                 print(f"  Worksheets failed: {len(result.failed)}")
             if args.dry_run:
                 print("  (Dry run - no data written)")
+            else:
+                _write_manifest_safely(args, db_client, result, scope, session_date)
 
             # Industry stock lists (v5.9): 2 extra requests, never affects exit status
             if not args.dry_run and scope in (CollectScope.ALL, CollectScope.INDUSTRIES):
@@ -186,6 +218,9 @@ def main():
                             # exit 0 (fallthrough)
     except (SessionPolicyError, MigrationEvidenceError) as exc:
         logger.error("Collection refused: %s", redact(str(exc), [api_key]))
+        if partial is not None and not args.dry_run:
+            _write_manifest_safely(args, db_client, partial, scope, session_date,
+                                   aborted=type(exc).__name__)
         sys.exit(1)
     finally:
         collector.close()

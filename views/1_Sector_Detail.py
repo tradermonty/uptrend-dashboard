@@ -20,6 +20,7 @@ from src.data_processor import (
     style_status_row,
 )
 from src.chart_builder import build_ratio_chart, build_industry_summary_chart
+from src.collection_manifest import coverage_caption, load_manifest
 from src.kpi_cards import KpiCard, render_kpi_cards, status_card, trend_card
 from src.mobile_ui import display_years, inject_mobile_css, is_mobile_client, mobile_columns, show_chart
 
@@ -112,6 +113,11 @@ show_chart(fig, mobile_height=420)
 # Industries in this Sector
 st.markdown("---")
 st.subheader(f"Industries in {selected_display}")
+
+# Latest collection outcome (Issue #6): stored / valid-empty / failed counts
+_coverage = coverage_caption(load_manifest())
+if _coverage:
+    st.caption(_coverage)
 
 industry_keys = SECTOR_INDUSTRIES.get(selected_key, [])
 has_industry_data = any(

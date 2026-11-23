@@ -292,6 +292,20 @@ class DBClient:
             result = [row[0] for row in cursor.fetchall()]
         return result
 
+    def worksheets_on(self, date: str) -> List[str]:
+        """Worksheets that have a stored row for ``date`` (collection manifest, v6.4)."""
+        with self._connection() as conn:
+            cursor = conn.execute(
+                "SELECT worksheet FROM uptrend_raw WHERE date = ? ORDER BY worksheet", (date,),
+            )
+            return [row[0] for row in cursor.fetchall()]
+
+    def last_dates(self) -> Dict[str, str]:
+        """Latest stored date per worksheet (collection manifest, v6.4)."""
+        with self._connection() as conn:
+            cursor = conn.execute("SELECT worksheet, MAX(date) FROM uptrend_raw GROUP BY worksheet")
+            return {ws: d for ws, d in cursor.fetchall()}
+
     def get_date_range(self, worksheet: str) -> Tuple[str, str]:
         with self._connection() as conn:
             cursor = conn.execute(
