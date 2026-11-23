@@ -24,7 +24,7 @@ LANGS = ("en", "ja")  # English is the primary language; Japanese is offered alo
 LANG_LABEL = {"ja": "日本語", "en": "English"}
 LANG_ATTR = {"ja": ' lang="ja"', "en": ""}  # index page is English
 NAV_ID = "explainer-nav"
-# The Streamlit dashboard these pages explain; linked at the right end of every page's nav
+# The Streamlit dashboard these pages explain; a back link at the left end of every page's nav
 DASHBOARD_URL = "https://uptrend-dashboard.streamlit.app/"
 
 ZONE_COLOR = {  # matches the uptrend-analyzer zones
@@ -54,12 +54,12 @@ def _nav(here: str, date: str, lang: str, prev_date: str | None) -> str:
         "ja": {"dashboard": "ダッシュボード", "index": "一覧", "latest": "最新", "prev": "前の日"},
         "en": {"dashboard": "Dashboard", "index": "All days", "latest": "Latest", "prev": "Previous day"},
     }[lang]
-    links = [(labels["index"], _rel(here, "index.html")),
+    links = [(f"← {labels['dashboard']}", DASHBOARD_URL),  # back link, left end of the bar
+             (labels["index"], _rel(here, "index.html")),
              (labels["latest"], _rel(here, f"latest/{lang}.html"))]
     if prev_date:
         links.append((f"← {labels['prev']}", _rel(here, archive_path(prev_date, lang))))
     links.append((LANG_LABEL[other], _rel(here, archive_path(date, other))))
-    links.append((f"{labels['dashboard']} →", DASHBOARD_URL))  # right end of the bar
     items = " · ".join(
         f'<a href="{html.escape(href)}" style="color:inherit">{html.escape(text)}</a>'
         for text, href in links
