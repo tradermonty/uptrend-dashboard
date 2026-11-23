@@ -12,6 +12,9 @@ from src.data_processor import (
     default_start_date,
     filter_by_date_range,
     prepare_timeseries_csv,
+    order_stale_last,
+    split_stale_rows,
+    stale_rows_caption,
     style_status_row,
 )
 from src.chart_builder import build_ratio_chart, build_sector_summary_chart
@@ -101,9 +104,12 @@ show_chart(fig, mobile_height=420)
 
 # Sector summary
 st.subheader("Sector Summary")
-summary = build_sector_summary(all_data)
+summary = order_stale_last(build_sector_summary(all_data))
 
-fig_summary = build_sector_summary_chart(summary)
+fresh_sectors, stale_sectors = split_stale_rows(summary)
+if not stale_sectors.empty:
+    st.caption(stale_rows_caption(stale_sectors, "Sector") + ".")
+fig_summary = build_sector_summary_chart(fresh_sectors)
 event = show_chart(fig_summary, on_select="rerun", key="sector_summary")
 
 if event and event.selection and event.selection.points:

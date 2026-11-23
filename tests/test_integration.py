@@ -108,7 +108,7 @@ class TestExcelToChartPipeline:
         # Build sector summary
         summary = build_sector_summary(all_data)
         assert len(summary) == 3  # Excludes "all"
-        assert set(summary.columns) == {"Sector", "Ratio", "10MA", "Trend", "Slope", "Status", "_key"}
+        assert set(summary.columns) == {"Sector", "Ratio", "10MA", "Trend", "Slope", "Status", "_key", "As Of", "Stale"}
 
         # Build summary chart
         fig = build_sector_summary_chart(summary)

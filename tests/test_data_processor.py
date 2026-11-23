@@ -94,7 +94,7 @@ class TestBuildSectorSummary:
     def test_build_sector_summary(self, sample_all_data):
         """Should produce summary with correct columns for all sectors."""
         summary = build_sector_summary(sample_all_data)
-        expected_columns = {"Sector", "Ratio", "10MA", "Trend", "Slope", "Status", "_key"}
+        expected_columns = {"Sector", "Ratio", "10MA", "Trend", "Slope", "Status", "_key", "As Of", "Stale"}
         assert set(summary.columns) == expected_columns
         assert len(summary) == 11
 
@@ -158,7 +158,7 @@ class TestEmptyDataFrameGuards:
     def test_build_sector_summary_empty(self):
         """Empty data dict should return DataFrame with correct columns."""
         summary = build_sector_summary({})
-        expected_columns = {"Sector", "Ratio", "10MA", "Trend", "Slope", "Status", "_key"}
+        expected_columns = {"Sector", "Ratio", "10MA", "Trend", "Slope", "Status", "_key", "As Of", "Stale"}
         assert set(summary.columns) == expected_columns
         assert len(summary) == 0
 
@@ -358,7 +358,7 @@ class TestBuildIndustrySummary:
     def test_build_industry_summary(self):
         data = self._make_industry_data()
         summary = build_industry_summary(data)
-        expected_columns = {"Industry", "Ratio", "10MA", "Trend", "Slope", "Status", "_key"}
+        expected_columns = {"Industry", "Ratio", "10MA", "Trend", "Slope", "Status", "_key", "As Of", "Stale"}
         assert set(summary.columns) == expected_columns
         assert len(summary) == 3
 
@@ -397,7 +397,7 @@ class TestBuildIndustrySummary:
 
     def test_build_industry_summary_empty(self):
         summary = build_industry_summary({})
-        expected_columns = {"Industry", "Ratio", "10MA", "Trend", "Slope", "Status", "_key"}
+        expected_columns = {"Industry", "Ratio", "10MA", "Trend", "Slope", "Status", "_key", "As Of", "Stale"}
         assert set(summary.columns) == expected_columns
         assert len(summary) == 0
 
@@ -432,7 +432,7 @@ class TestBuildIndustrySummaryWithSector:
         """Output should contain Sector and Total columns in addition to standard columns."""
         data = self._make_industry_data()
         summary = build_industry_summary_with_sector(data)
-        expected_columns = {"Industry", "Ratio", "10MA", "Trend", "Slope", "Status", "_key", "Sector", "Total"}
+        expected_columns = {"Industry", "Ratio", "10MA", "Trend", "Slope", "Status", "_key", "Sector", "Total", "As Of", "Stale"}
         assert set(summary.columns) == expected_columns
 
     def test_build_industry_summary_with_sector_sector_values(self):
@@ -455,7 +455,7 @@ class TestBuildIndustrySummaryWithSector:
     def test_build_industry_summary_with_sector_empty(self):
         """Empty data should return DataFrame with correct columns."""
         summary = build_industry_summary_with_sector({})
-        expected_columns = {"Industry", "Ratio", "10MA", "Trend", "Slope", "Status", "_key", "Sector", "Total"}
+        expected_columns = {"Industry", "Ratio", "10MA", "Trend", "Slope", "Status", "_key", "Sector", "Total", "As Of", "Stale"}
         assert set(summary.columns) == expected_columns
         assert len(summary) == 0
 

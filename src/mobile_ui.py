@@ -112,7 +112,7 @@ def apply_mobile_layout(
 
 
 # Columns worth the width on a phone; the rest are available on desktop
-MOBILE_TABLE_COLUMNS = ("Sector", "Industry", "Ratio", "Current Ratio", "Trend", "Status", "Regime")
+MOBILE_TABLE_COLUMNS = ("Sector", "Industry", "Ratio", "Current Ratio", "Trend", "Status", "Regime", "Stale")
 # Industry constituent (stock list) table
 MOBILE_CONSTITUENT_COLUMNS = ("Ticker", "Uptrend", "Change", "Perf YTD")
 

@@ -1,5 +1,6 @@
 """Industry Heatmap Page — treemap overview of all industries."""
 
+import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -10,6 +11,8 @@ from src.data_processor import (
     build_industry_summary_with_sector,
     filter_industry_summary,
     parse_heatmap_filter,
+    split_stale_rows,
+    stale_rows_caption,
     style_status_row,
 )
 from src.chart_builder import build_industry_heatmap
@@ -68,6 +71,13 @@ if summary.empty:
     st.warning("No industry data available.")
     st.stop()
 
+# Stale industries (latest row older than the newest session) stay out of the KPIs
+# and the treemap so an old ratio is never shown as today's; the table lists them.
+summary, stale_summary = split_stale_rows(summary)
+if summary.empty:
+    st.warning("No industry has data for the latest session.")
+    st.stop()
+
 # KPI metrics
 total_count = len(summary)
 status_counts = summary["Status"].value_counts()
@@ -100,6 +110,7 @@ if active_filter:
                                 ("Overbought", "overbought"), ("Trend Up", "trend_up"),
                                 ("Trend Down", "trend_down")) if k == active_filter)
     summary = filter_industry_summary(summary, active_filter)
+    stale_summary = filter_industry_summary(stale_summary, active_filter)
     st.markdown(
         f"**Filter: {label}** — {len(summary)} of {total_count} industries · "
         '<a href="#industry-summary" target="_self">Jump to table</a> · '
@@ -109,9 +120,12 @@ if active_filter:
 else:
     st.caption("Tap a card to show only those industries in the heatmap and the table.")
 
-if summary.empty:
+if summary.empty and stale_summary.empty:
     st.info("No industries match this filter.")
     st.stop()
+
+if not stale_summary.empty:
+    st.caption(stale_rows_caption(stale_summary, "Industry") + ". They are listed at the end of the table.")
 
 # Treemap (display only)
 # 149 tiles are unreadable on a phone: phones first see 11 sector tiles and
@@ -144,7 +158,10 @@ st.markdown("---")
 st.subheader("Industry Summary")
 st.caption("Click a row to open the industry with its stock list.")
 
-display_df = summary.sort_values(["Sector", "Industry"]).reset_index(drop=True)
+display_df = pd.concat(
+    [summary.sort_values(["Sector", "Industry"]), stale_summary.sort_values(["Sector", "Industry"])],
+    ignore_index=True,
+)
 
 table_event = st.dataframe(
     display_df.drop(columns=["_key", "Total"]).style

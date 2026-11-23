@@ -523,6 +523,11 @@ MA_PERIOD = 10
 PEAK_DISTANCE = 20
 PEAK_PROMINENCE = 0.015
 
+# Freshness policy (Issue #6): a summary row is stale when its latest observation
+# is this many market sessions (or more) behind the newest date in the data set.
+# Sessions are the distinct dates observed across all loaded worksheets.
+STALE_AFTER_SESSIONS = 1
+
 # Chart layout
 CHART_HEIGHT_RATIO = 500
 CHART_HEIGHT_SUMMARY = 450
