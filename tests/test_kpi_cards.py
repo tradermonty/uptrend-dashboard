@@ -70,3 +70,23 @@ class TestKpiCardsHtml:
         html = kpi_cards_html([KpiCard("a", "1")])
         assert "grid-template-columns" in html
         assert "minmax(" in html
+
+
+class TestExternalLinkCard:
+    def test_new_tab_card_opens_in_new_tab(self):
+        html = kpi_cards_html([KpiCard("Current Ratio", "6.9%", href="https://finviz.com/x", new_tab=True)])
+        assert '<a href="https://finviz.com/x" target="_blank" rel="noopener"' in html
+
+
+class TestUptrendScreenerUrl:
+    def test_uses_the_dashboard_uptrend_filters(self):
+        from src.finviz_universe import UPTREND_FILTERS
+        from src.kpi_cards import uptrend_screener_url
+        url = uptrend_screener_url()
+        assert url.startswith("https://finviz.com/screener/stocks?")
+        assert "f=" + ",".join(UPTREND_FILTERS) in url
+
+    def test_public_screener_never_carries_an_api_key(self):
+        from src.kpi_cards import uptrend_screener_url
+        url = uptrend_screener_url()
+        assert "auth=" not in url and "elite.finviz.com" not in url
