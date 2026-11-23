@@ -237,16 +237,33 @@ def _caption(manifest, worksheets, label) -> str:
     return f"{title}: " + " · ".join(parts)
 
 
+def mark_published(path, session_date: str) -> bool:
+    """Drop the ``data_published: false`` marker from the manifest of ``session_date``.
+
+    Called by the workflow's commit step after a successful run, whose data is on main.
+    A marker for another session, or no manifest, is left alone. Returns True when the
+    file changed.
+    """
+    manifest = load_manifest(path)
+    if (manifest is None or manifest.get("session_date") != session_date
+            or "data_published" not in manifest):
+        return False
+    del manifest["data_published"]
+    return write_manifest(manifest, path)
+
+
 def main(argv=None) -> int:
-    """``python -m src.collection_manifest mark-unpublished --path P --session YYYY-MM-DD``."""
+    """``python -m src.collection_manifest {mark-unpublished|mark-published} --session D [--path P]``."""
     import argparse
     from datetime import date, datetime, timezone
 
     parser = argparse.ArgumentParser(description="Collection manifest maintenance")
     sub = parser.add_subparsers(dest="command", required=True)
-    mark = sub.add_parser("mark-unpublished", help="Mark a failed run's manifest as not published")
-    mark.add_argument("--path", default=None, help="Manifest path (default: next to DB_PATH)")
-    mark.add_argument("--session", required=True, help="Session date of the failed run (YYYY-MM-DD)")
+    for name, text in (("mark-unpublished", "Mark a failed run's manifest as not published"),
+                       ("mark-published", "Drop a not-published marker after a successful run")):
+        cmd = sub.add_parser(name, help=text)
+        cmd.add_argument("--path", default=None, help="Manifest path (default: next to DB_PATH)")
+        cmd.add_argument("--session", required=True, help="Session date of the run (YYYY-MM-DD)")
     args = parser.parse_args(argv)
     try:
         date.fromisoformat(args.session)
@@ -254,6 +271,10 @@ def main(argv=None) -> int:
         print(f"Invalid session date: {args.session!r}")
         return 1
     path = args.path or default_manifest_path()
+    if args.command == "mark-published":
+        changed = mark_published(path, args.session)
+        print(f"{path}: {'marker removed' if changed else 'no marker for this session'}")
+        return 0
     m = mark_unpublished(path, args.session, generated_at=datetime.now(timezone.utc).isoformat())
     print(f"Marked {path} as not published: {coverage_caption(m)}")
     return 0

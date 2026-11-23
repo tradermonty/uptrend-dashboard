@@ -371,3 +371,13 @@ class TestFailureStepWorkflow:
         caption = coverage_caption(_manifest(), worksheets=["ind_semiconductors", "ind_unknown"],
                                    label="x")
         assert caption == "Collection 2026-11-20 (x): 1 of 2 stored · 1 not attempted"
+
+    def test_mark_published_drops_only_this_sessions_marker(self, tmp_path):
+        from src.collection_manifest import mark_published
+        path = tmp_path / "m.json"
+        write_manifest({**_manifest(), "data_published": False}, path)
+        assert mark_published(path, "2026-11-19") is False
+        assert mark_published(path, "2026-11-20") is True
+        assert "data_published" not in load_manifest(path)
+        assert mark_published(path, "2026-11-20") is False
+        assert mark_published(tmp_path / "absent.json", "2026-11-20") is False

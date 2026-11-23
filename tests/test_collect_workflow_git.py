@@ -35,8 +35,15 @@ def step_script(name: str) -> str:
     return "\n".join(lines)
 
 
+# The developer's global/system git config (signing, hooks, pull.rebase...) must not leak in
+GIT_ENV = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1",
+           "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+
+
 def git(cwd, *args, check=True):
-    return subprocess.run(["git", *args], cwd=cwd, check=check, capture_output=True, text=True)
+    return subprocess.run(["git", *args], cwd=cwd, check=check, capture_output=True, text=True,
+                          env=GIT_ENV)
 
 
 def manifest(**extra):
@@ -76,13 +83,12 @@ class Sandbox:
         git(path, "add", "-A")
         git(path, "commit", "-qm", msg)
 
-    def run_step(self, cwd, name):
+    def run_step(self, cwd, name, ref="refs/heads/main"):
         runner_temp = self.tmp / f"runner_temp_{cwd.name}"
         runner_temp.mkdir(exist_ok=True)
-        env = {**os.environ, "RUNNER_TEMP": str(runner_temp), "COLLECTION_SESSION": SESSION,
-               "PATH": f"{Path(sys.executable).parent}{os.pathsep}{os.environ['PATH']}",
-               "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-               "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+        env = {**GIT_ENV, "RUNNER_TEMP": str(runner_temp), "COLLECTION_SESSION": SESSION,
+               "GITHUB_REF": ref,
+               "PATH": f"{Path(sys.executable).parent}{os.pathsep}{os.environ['PATH']}"}
         script = self.tmp / "step.sh"
         script.write_text(step_script(name))
         return subprocess.run(["bash", "--noprofile", "--norc", "-eo", "pipefail", str(script)],
@@ -148,3 +154,41 @@ def test_commit_still_refuses_a_real_data_conflict(box):
     result = box.run_step(run, COMMIT)
     assert result.returncode != 0
     assert box.remote_file("data/uptrend.db") == "other\n"
+
+
+def test_rerun_with_identical_manifest_clears_the_failed_marker(box):
+    first = box.clone("first")
+    rerun = box.clone("rerun")
+    write_run(first)
+    assert box.run_step(first, FAILURE).returncode == 0
+    (rerun / "data" / "uptrend.db").write_text("v3\n")
+    # collect.py skipped rewriting: same outcome as the checked-out manifest
+    (rerun / "data" / "collection_manifest.json").write_text(
+        manifest(session_date="2026-11-12"))
+    git(rerun, "checkout", "--", "data/collection_manifest.json")
+    result = box.run_step(rerun, COMMIT)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert box.remote_file("data/uptrend.db") == "v3\n"
+    m = json.loads(box.remote_file("data/collection_manifest.json"))
+    assert m["session_date"] == SESSION and "data_published" not in m
+
+
+def test_branch_dispatch_never_pushes_branch_code_to_main(box):
+    run = box.clone("run")
+    git(run, "checkout", "-qb", "feature")
+    (run / "src" / "new_code.py").write_text("x = 1\n")
+    box.commit_all(run, "unreviewed code")
+    write_run(run)
+    for step in (COMMIT, FAILURE):
+        assert box.run_step(run, step, ref="refs/heads/feature").returncode == 0
+    assert box.remote_file("data/uptrend.db") == "v1\n"
+    ls = git(box.tmp, "--git-dir", str(box.remote), "ls-tree", "-r", "--name-only", "main").stdout
+    assert "src/new_code.py" not in ls
+
+
+def test_nothing_changed_pushes_nothing(box):
+    run = box.clone("run")
+    before = git(box.tmp, "--git-dir", str(box.remote), "rev-parse", "main").stdout
+    result = box.run_step(run, COMMIT)
+    assert result.returncode == 0 and "No data changes to commit" in result.stdout
+    assert git(box.tmp, "--git-dir", str(box.remote), "rev-parse", "main").stdout == before

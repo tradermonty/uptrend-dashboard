@@ -76,28 +76,47 @@ jobs:
 
       - name: Commit and push if data changed
         if: steps.session.outputs.eligible == 'true'
+        env:
+          COLLECTION_SESSION: ${{ steps.session.outputs.session_date }}
         run: |
+          MANIFEST=data/collection_manifest.json
+          # Data is published to main only from main; a run dispatched on another
+          # branch must not replay that branch's code onto main.
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Run on $GITHUB_REF, not main: data not published"; exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/uptrend.db data/uptrend_ratio_timeseries.csv data/sector_summary.csv data/industry_summary.csv data/sector_dispersion.csv
-          if [ -f data/collection_manifest.json ]; then git add data/collection_manifest.json; fi
-          if git diff --cached --quiet; then
+          if [ -f "$MANIFEST" ]; then git add "$MANIFEST"; fi
+          if ! git diff --cached --quiet; then
+            git commit -m "Update uptrend data $(date -u +%Y-%m-%d)"
+          fi
+          # A failed run may have pushed a manifest-only commit since this checkout
+          # (e.g. "Re-run failed jobs"). This run's manifest supersedes it; any other
+          # conflict still fails the step.
+          if ! git pull --rebase origin main; then
+            if [ "$(git diff --name-only --diff-filter=U)" = "$MANIFEST" ]; then
+              git checkout --theirs "$MANIFEST"
+              git add "$MANIFEST"
+              GIT_EDITOR=true git rebase --continue
+            else
+              git rebase --abort || true
+              exit 1
+            fi
+          fi
+          # This run succeeded, so drop a "not published" marker a failed run of the
+          # same session left on main (the re-run's manifest may be byte-identical).
+          if [ -f "$MANIFEST" ]; then
+            python -m src.collection_manifest mark-published --path "$MANIFEST" --session "$COLLECTION_SESSION"
+            git add "$MANIFEST"
+            if ! git diff --cached --quiet; then
+              git commit -m "Collection manifest (published) $COLLECTION_SESSION"
+            fi
+          fi
+          if [ "$(git rev-list --count origin/main..HEAD)" = "0" ]; then
             echo "No data changes to commit"
           else
-            git commit -m "Update uptrend data $(date -u +%Y-%m-%d)"
-            # A failed run may have pushed a manifest-only commit since this checkout
-            # (e.g. "Re-run failed jobs"). This run's manifest supersedes it; any other
-            # conflict still fails the step.
-            if ! git pull --rebase origin main; then
-              if [ "$(git diff --name-only --diff-filter=U)" = "data/collection_manifest.json" ]; then
-                git checkout --theirs data/collection_manifest.json
-                git add data/collection_manifest.json
-                GIT_EDITOR=true git rebase --continue
-              else
-                git rebase --abort || true
-                exit 1
-              fi
-            fi
             git push origin HEAD:main
           fi
 
@@ -112,6 +131,9 @@ jobs:
           COLLECTION_SESSION: ${{ steps.session.outputs.session_date }}
         run: |
           MANIFEST=data/collection_manifest.json
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Run on $GITHUB_REF, not main: manifest not published"; exit 0
+          fi
           SAVED="$RUNNER_TEMP/collection_manifest.json"
           if [ -f "$MANIFEST" ]; then cp "$MANIFEST" "$SAVED"; fi
           git rebase --abort 2>/dev/null || true
