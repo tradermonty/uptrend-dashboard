@@ -5,7 +5,7 @@ import json
 import pytest
 
 from explainer.facts import Facts
-from explainer.site import LANGS, publish
+from explainer.site import DASHBOARD_URL, LANGS, publish, refresh_nav
 
 PAGE = '<!doctype html><html lang="{lang}"><head><title>t</title></head><body class="x"><h1>{date}</h1></body></html>'
 
@@ -93,3 +93,35 @@ class TestPublish:
     def test_rejects_missing_language(self, site):
         with pytest.raises(ValueError, match="en"):
             publish(site, _facts("2026-11-20"), {"ja": PAGE})
+
+
+class TestDashboardLink:
+    """Every explainer page and the index link back to the Streamlit dashboard."""
+
+    def test_page_nav_links_to_dashboard(self, site):
+        publish(site, _facts("2026-11-20"), _pages("2026-11-20"))
+        for path in ("2026/11/2026-11-20-en.html", "2026/11/2026-11-20-ja.html",
+                     "latest/en.html", "latest/ja.html"):
+            assert f'href="{DASHBOARD_URL}"' in (site / path).read_text()
+
+    def test_dashboard_label_per_language(self, site):
+        publish(site, _facts("2026-11-20"), _pages("2026-11-20"))
+        assert "Dashboard" in (site / "latest/en.html").read_text()
+        assert "ダッシュボード" in (site / "latest/ja.html").read_text()
+
+    def test_index_links_to_dashboard(self, site):
+        publish(site, _facts("2026-11-20"), _pages("2026-11-20"))
+        assert f'href="{DASHBOARD_URL}"' in (site / "index.html").read_text()
+
+    def test_refresh_nav_updates_already_published_pages(self, site):
+        publish(site, _facts("2026-11-19"), _pages("2026-11-19"))
+        publish(site, _facts("2026-11-20"), _pages("2026-11-20"))
+        old = site / "2026/11/2026-11-19-en.html"
+        # Simulate a page published before the dashboard link existed
+        old.write_text(old.read_text().replace(DASHBOARD_URL, "https://example.invalid/"))
+        changed = refresh_nav(site)
+        text = old.read_text()
+        assert f'href="{DASHBOARD_URL}"' in text
+        assert text.count('<nav id="explainer-nav"') == 1
+        assert "<h1>2026-11-19</h1>" in text  # page body untouched
+        assert changed >= 1

@@ -22,7 +22,7 @@ from pathlib import Path
 from explainer.brief import build_brief
 from explainer.facts import build_facts
 from explainer.generate import GenerationError, cost_usd, generate_pages
-from explainer.site import publish
+from explainer.site import publish, refresh_nav
 
 ROOT = Path(__file__).resolve().parent
 ANALYZER = ROOT / "claude_skills" / "uptrend-analyzer" / "scripts" / "uptrend_analyzer.py"
@@ -64,12 +64,18 @@ def parse_args(argv):
     p.add_argument("--sector-csv", type=Path, default=ROOT / "data" / "sector_summary.csv")
     p.add_argument("--skill", type=Path, default=ROOT / "claude_skills" / "eli5" / "SKILL.md")
     p.add_argument("--force", action="store_true", help="regenerate even if the date is published")
+    p.add_argument("--refresh-nav", action="store_true",
+                   help="only re-render the nav bar of published pages and the index (no Claude call)")
     return p.parse_args(argv)
 
 
 def main(argv=None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     args = parse_args(argv)
+
+    if args.refresh_nav:
+        log.info("refresh-nav: %d files updated", refresh_nav(args.site))
+        return 0
 
     with tempfile.TemporaryDirectory() as tmp:
         report = run_analyzer(args.timeseries_csv, args.sector_csv, Path(tmp))
