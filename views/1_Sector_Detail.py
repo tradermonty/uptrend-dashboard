@@ -14,6 +14,9 @@ from src.data_processor import (
     filter_by_date_range,
     prepare_timeseries_csv,
     build_industry_summary,
+    order_stale_last,
+    split_stale_rows,
+    stale_rows_caption,
     style_status_row,
 )
 from src.chart_builder import build_ratio_chart, build_industry_summary_chart
@@ -116,9 +119,13 @@ has_industry_data = any(
 )
 
 if has_industry_data:
-    ind_summary = build_industry_summary(all_data, sector_key=selected_key)
+    ind_summary = order_stale_last(build_industry_summary(all_data, sector_key=selected_key))
     if not ind_summary.empty:
-        fig_ind = build_industry_summary_chart(ind_summary, sector_name=selected_display)
+        # Stale industries are left out of the ranking chart; the table still lists them
+        fresh_ind, stale_ind = split_stale_rows(ind_summary)
+        if not stale_ind.empty:
+            st.caption(stale_rows_caption(stale_ind, "Industry") + ".")
+        fig_ind = build_industry_summary_chart(fresh_ind, sector_name=selected_display)
         ind_chart_event = show_chart(
             fig_ind, on_select="rerun", key="industry_summary_chart",
         )

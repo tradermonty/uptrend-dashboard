@@ -17,6 +17,7 @@ from src.constants import (
     LOWER_THRESHOLD,
     SECTOR_DISPLAY_NAMES,
     SECTOR_INDUSTRIES,
+    STALE_AFTER_SESSIONS,
     UPPER_THRESHOLD,
 )
 
@@ -125,8 +126,78 @@ def _determine_market_status(status: MarketStatus) -> str:
     return "Normal"
 
 
+_FRESHNESS_COLUMNS = ["As Of", "Stale"]
+STALE_STYLE = "color: #ff7f0e; font-weight: bold"
+
+
+def _dates(df: Optional[pd.DataFrame]) -> pd.Series:
+    if df is None or df.empty or "date" not in df.columns:
+        return pd.Series([], dtype="datetime64[ns]")
+    return pd.to_datetime(df["date"]).dropna()
+
+
+@dataclass(frozen=True)
+class _SessionCalendar:
+    """Observed session dates and the reference ("latest") session.
+
+    The reference is the median worksheet's latest date rather than the overall max,
+    so one worksheet with an extra (e.g. future-dated) row, or the market and sector
+    rows landing before the industries during a collection run, does not turn
+    every other row stale.
+    """
+
+    sessions: np.ndarray
+    reference: Optional[np.datetime64]
+
+    @classmethod
+    def from_data(cls, all_data: Dict[str, pd.DataFrame]) -> "_SessionCalendar":
+        series = [s for s in (_dates(df) for df in all_data.values()) if not s.empty]
+        if not series:
+            return cls(np.array([], dtype="datetime64[ns]"), None)
+        sessions = np.sort(pd.concat(series).unique().astype("datetime64[ns]"))
+        lasts = np.sort(np.array([s.max() for s in series], dtype="datetime64[ns]"))
+        return cls(sessions, lasts[len(lasts) // 2])
+
+    def freshness(self, df: pd.DataFrame) -> dict:
+        """As-of date of a worksheet's latest row and whether it lags the reference session."""
+        dates = _dates(df)
+        if dates.empty or self.reference is None:
+            return {"As Of": None, "Stale": True}
+        last = np.datetime64(dates.max(), "ns")
+        behind = int(np.searchsorted(self.sessions, self.reference, side="right")
+                     - np.searchsorted(self.sessions, last, side="right"))
+        return {"As Of": pd.Timestamp(last).strftime("%Y-%m-%d"),
+                "Stale": behind >= STALE_AFTER_SESSIONS}
+
+
+def order_stale_last(summary: pd.DataFrame) -> pd.DataFrame:
+    """Same rows with stale ones moved to the end; the order within each group is kept."""
+    if "Stale" not in summary.columns:
+        return summary
+    stale = summary["Stale"].astype(bool)
+    return pd.concat([summary[~stale], summary[stale]], ignore_index=True)
+
+
+def split_stale_rows(summary: pd.DataFrame) -> tuple:
+    """Split a summary into (fresh, stale) rows; rows without a Stale flag count as fresh."""
+    if "Stale" not in summary.columns:
+        return summary, summary.iloc[0:0]
+    mask = summary["Stale"].astype(bool)
+    return summary[~mask].reset_index(drop=True), summary[mask].reset_index(drop=True)
+
+
+def stale_rows_caption(stale: pd.DataFrame, name_column: str) -> str:
+    """One line naming the stale rows and their as-of dates; empty when none."""
+    if stale.empty:
+        return ""
+    items = ", ".join(f"{r[name_column]} (as of {r['As Of']})" for _, r in stale.iterrows())
+    return (f"{len(stale)} stale {name_column.lower()} row(s) not updated in the latest "
+            f"session, excluded from the chart: {items}")
+
+
 def build_sector_summary(all_data: Dict[str, pd.DataFrame]) -> pd.DataFrame:
     """Build a summary DataFrame of all sectors' latest status."""
+    calendar = _SessionCalendar.from_data(all_data)
     rows = []
     for name, df in all_data.items():
         if not name.startswith("sec_") or df.empty:
@@ -141,11 +212,13 @@ def build_sector_summary(all_data: Dict[str, pd.DataFrame]) -> pd.DataFrame:
                 "Slope": status["slope"],
                 "Status": _determine_market_status(status),
                 "_key": name,
+                **calendar.freshness(df),
             }
         )
 
     if not rows:
-        return pd.DataFrame(columns=["Sector", "Ratio", "10MA", "Trend", "Slope", "Status", "_key"])
+        return pd.DataFrame(columns=["Sector", "Ratio", "10MA", "Trend", "Slope", "Status", "_key",
+                                     *_FRESHNESS_COLUMNS])
 
     summary = pd.DataFrame(rows)
     summary = summary.sort_values("Ratio", ascending=False).reset_index(drop=True)
@@ -167,6 +240,7 @@ def build_industry_summary(
     else:
         target_keys = None
 
+    calendar = _SessionCalendar.from_data(all_data)
     rows = []
     for name, df in all_data.items():
         if not name.startswith("ind_") or df.empty:
@@ -183,11 +257,13 @@ def build_industry_summary(
                 "Slope": status["slope"],
                 "Status": _determine_market_status(status),
                 "_key": name,
+                **calendar.freshness(df),
             }
         )
 
     if not rows:
-        return pd.DataFrame(columns=["Industry", "Ratio", "10MA", "Trend", "Slope", "Status", "_key"])
+        return pd.DataFrame(columns=["Industry", "Ratio", "10MA", "Trend", "Slope", "Status", "_key",
+                                     *_FRESHNESS_COLUMNS])
 
     summary = pd.DataFrame(rows)
     summary = summary.sort_values("Ratio", ascending=False).reset_index(drop=True)
@@ -205,7 +281,8 @@ def build_industry_summary_with_sector(
     Returns:
         DataFrame with columns: Industry, Ratio, 10MA, Trend, Slope, Status, _key, Sector, Total.
     """
-    expected_columns = ["Industry", "Ratio", "10MA", "Trend", "Slope", "Status", "_key", "Sector", "Total"]
+    expected_columns = ["Industry", "Ratio", "10MA", "Trend", "Slope", "Status", "_key",
+                        *_FRESHNESS_COLUMNS, "Sector", "Total"]
 
     summary = build_industry_summary(all_data)
     if summary.empty:
@@ -240,6 +317,8 @@ def style_status_row(row):
             styles.append(trend_colors.get(row["Trend"], "color: #888888"))
         elif col == "Status":
             styles.append(STATUS_STYLES.get(row["Status"], ""))
+        elif col in ("As Of", "Stale"):
+            styles.append(STALE_STYLE if bool(row.get("Stale", False)) else "")
         else:
             styles.append("")
     return styles

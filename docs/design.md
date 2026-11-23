@@ -6,7 +6,7 @@
 | Project Name | uptrend-dashboard |
 | Created | 2026-02-08 |
 | Revised | 2026-11-22 |
-| Status | v6.2 Daily Explainer Pages (English first, linked from the dashboard) |
+| Status | v6.3 Summary Freshness (As Of / Stale per row, Issue #6) |
 
 ---
 
@@ -14,6 +14,7 @@
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2026-11-22 | v6.3 | Summary freshness (Issue #6, part 1): sector and industry summaries carry `As Of` (latest observation date) and `Stale` (latest row is `STALE_AFTER_SESSIONS`=1 or more sessions behind the median worksheet's latest date). Stale rows are left out of the heatmap, its KPI cards and the sector/industry ranking charts with a caption naming them; tables list them with the date highlighted. `sector_summary.csv` / `industry_summary.csv` gain the two columns at the end. Collection outcome manifest and coverage counters remain open |
 | 2026-11-22 | v6.2 | Explainer GitHub Pages index is English first ("Read today's explainer" → `latest/en.html`, "日本語で読む" → `latest/ja.html`). The Uptrend Ratio page links to the explainer below "Last updated" (`render_explainer_link()` in `src/page_footer.py`, `EXPLAINER_URL` = https://tradermonty.github.io/uptrend-dashboard/) |
 | 2026-11-22 | v6.1 | Explainer cost fix: the first live run (container + skills + code execution) used 4,982,664 input tokens (about $20.4). Python now does all analysis (`explainer.brief`) and Claude only writes each page in one plain Messages request with the eli5 skill text in the system prompt; no container, Skills API, CSV upload or registry. Cost budget $3 per run across all requests |
 | 2026-11-22 | v6.0 | Daily ELI5 explainer pages: after each collection, `run_explainer.py` asks Claude (Opus 5.5, Skills API with vendored `uptrend-analyzer` + `eli5`, code execution) to write Japanese and English pages; `explainer.verify` checks the embedded facts block and visible numbers against the analyzer run locally, then `explainer.site` publishes to the `gh-pages` branch with a dated archive, `latest/`, `manifest.json` and an index page (`.github/workflows/publish-explainer.yml`) |
@@ -44,6 +45,24 @@
 | 2026-02-14 | v3.4 | CSV download buttons on main page for LLM data analysis |
 | 2026-02-11 | v3.3 | Sector summary bar chart click → Sector Detail page navigation |
 | 2026-02-11 | v3.2 | Data validation hardening, secret masking, CI test workflow. DB CHECK constraints, Python-level count/total validation, import_excel row filtering, mask_secrets/safe_http_error, GitHub Actions pytest |
+
+### v6.3 Key Changes (Summary Freshness, Issue #6)
+
+**Problem**: an industry whose latest row is old (e.g. `ind_infrastructureoperations`, last observed 2026-03-27) appeared in the heatmap, KPI shares and ranking charts as if it were today's value, and the summary CSVs had no date.
+
+**Staleness policy**: the session calendar is the set of distinct dates observed across all loaded worksheets. The reference session is the median worksheet's latest date (upper median), not the overall max, so a single worksheet with an extra or future-dated row, or the market and sector rows landing before the industries during a collection run, cannot turn every other row stale. A row is stale when its latest observation is `STALE_AFTER_SESSIONS` (= 1, `src/constants.py`) or more sessions behind the reference. One missing session already means the value shown is not the latest session's.
+
+- `build_sector_summary` / `build_industry_summary` / `build_industry_summary_with_sector` append `As Of` (`YYYY-MM-DD`) and `Stale` (bool) after the existing columns. On the Sector Detail page the reference is still computed from every loaded worksheet, not only the selected sector's industries.
+- `split_stale_rows(summary) -> (fresh, stale)`; rows without a `Stale` column count as fresh.
+- `stale_rows_caption(stale, name_column) -> str` names each stale row with its as-of date; empty string when none.
+- `style_status_row` highlights `As Of` / `Stale` in orange bold (`STALE_STYLE`) on stale rows.
+- `order_stale_last(summary)` moves stale rows to the end of a table, keeping the order within each group.
+- Industry Heatmap: KPI cards and treemap use fresh rows only. A caption lists the stale industries, and the table appends them at the end. A KPI filter applies to the stale rows as well.
+- Phones: `Stale` is added to `MOBILE_TABLE_COLUMNS`, so the marker stays visible on compact tables.
+- Uptrend Ratio and Sector Detail: the ranking bar charts use fresh rows only, with the same caption. Tables list every row, stale rows last.
+- CSV export: `sector_summary.csv` and `industry_summary.csv` become `..., Status, As Of, Stale`. Columns are only appended, so positional readers of the first six columns keep working (the vendored uptrend-analyzer was run against the new file).
+- Historical data is not modified.
+- **Still open in Issue #6**: a per-run collection manifest that separates persisted, valid-empty (total=0), failed and missing worksheets, and coverage counters that reconcile expected, fetched, persisted, empty and failed.
 
 ### v6.0 / v6.1 Key Changes (Daily Explainer Pages)
 
@@ -204,7 +223,7 @@ Each page gets a `<nav id="explainer-nav">` right after `<body>` with relative l
 
 - **CSV download buttons**: Added 2 download buttons at the bottom of the main page for LLM-friendly data export
   - **Ratio Time Series**: `date, count, total, ratio, ma_10, slope, trend` — date-filtered `calculate_indicators()` output with string trend column ("up"/"down"), excluding chart-only columns
-  - **Sector Summary**: `Sector, Ratio, 10MA, Trend, Slope, Status` — `build_sector_summary()` output minus internal `_key` column
+  - **Sector Summary**: `Sector, Ratio, 10MA, Trend, Slope, Status` — `build_sector_summary()` output minus internal `_key` column (v6.3 appends `As Of, Stale`)
 - **New function in `data_processor.py`**: `prepare_timeseries_csv()`
 - **Values exported as raw decimals** (e.g., 0.29 not 29%) for machine readability
 - **Tests**: 114 → 117 tests (added 3 CSV export tests)
@@ -729,7 +748,10 @@ Responsibility changes from v1:
 | `get_industry_display_name` | `(name: str) -> str` | Industry key → display name conversion (v4.0) |
 | `build_industry_summary` | `(all_data: Dict, sector_key=None) -> DataFrame` | Industry summary (all or filtered by sector, v4.0) |
 | `get_sector_for_industry` | `(industry_key: str) -> Optional[str]` | Reverse lookup: industry → parent sector (v4.0) |
-| `style_status_row` | `(row) -> list` | Row styling for Trend/Status columns, shared across pages (v4.0) |
+| `style_status_row` | `(row) -> list` | Row styling for Trend/Status columns, shared across pages (v4.0); As Of/Stale highlighted on stale rows (v6.3) |
+| `split_stale_rows` | `(summary: DataFrame) -> tuple[DataFrame, DataFrame]` | Split a summary into fresh and stale rows by the `Stale` column (v6.3) |
+| `order_stale_last` | `(summary: DataFrame) -> DataFrame` | Stale rows moved to the end, order otherwise kept (v6.3) |
+| `stale_rows_caption` | `(stale: DataFrame, name_column: str) -> str` | Caption naming stale rows and their as-of dates (v6.3) |
 | `build_industry_summary_with_sector` | `(all_data: Dict) -> DataFrame` | Industry summary with Sector and Total columns for heatmap (v4.2) |
 | `default_start_date` | `(min_date: date, max_date: date) -> date` | Default start date clamped to at most DEFAULT_DISPLAY_YEARS years before max_date (v4.3) |
 
