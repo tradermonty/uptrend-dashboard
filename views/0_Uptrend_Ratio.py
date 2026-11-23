@@ -19,7 +19,7 @@ from src.data_processor import (
 )
 from src.chart_builder import build_ratio_chart, build_sector_summary_chart
 from src.page_footer import render_ai_skill_note, render_explainer_link
-from src.kpi_cards import KpiCard, regime_card, render_kpi_cards, status_card, trend_card
+from src.kpi_cards import KpiCard, render_kpi_cards, status_card, trend_card, uptrend_screener_url
 from src.mobile_ui import display_years, inject_mobile_css, is_mobile_client, mobile_columns, show_chart
 
 st.set_page_config(
@@ -73,7 +73,8 @@ if df_all is None or df_all.empty:
 status = get_current_status(df_all)
 
 render_kpi_cards([
-    KpiCard("Current Ratio", f"{status['ratio']:.1%}"),
+    # Tap opens Finviz's screener with the same uptrend filters (today's uptrend stocks)
+    KpiCard("Current Ratio", f"{status['ratio']:.1%}", href=uptrend_screener_url(), new_tab=True),
     KpiCard("10MA", f"{status['ratio_10ma']:.1%}" if status["ratio_10ma"] is not None else "N/A"),
     trend_card(status["trend"]),
     status_card(status),

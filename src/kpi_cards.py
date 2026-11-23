@@ -26,6 +26,22 @@ class KpiCard:
     tone: Optional[str] = None  # key of TONE_COLORS; None/"neutral" = no color
     href: Optional[str] = None  # makes the card a same-tab link (e.g. "?filter=trend_up")
     active: bool = False  # highlighted as the currently applied filter
+    new_tab: bool = False  # open href in a new tab (external sites such as Finviz)
+
+
+def uptrend_screener_url() -> Optional[str]:
+    """Public Finviz screener of today's uptrend stocks (same filters as the daily count).
+
+    Stocks only: the `all` count behind the Current Ratio card also includes ETFs, so the
+    list can be a few rows shorter (2026-11-20: 181 stocks vs 183 incl. ETFs).
+    finviz.com (not elite) and no auth: this link is shown to every visitor.
+    Returns None if the filter policy cannot be loaded, so the card still renders.
+    """
+    try:
+        from src.finviz_universe import UPTREND_FILTERS
+    except Exception:  # noqa: BLE001 - a decorative link must never break the landing page
+        return None
+    return "https://finviz.com/screener/stocks?v=111&f=" + ",".join(UPTREND_FILTERS) + "&ft=4"
 
 
 def trend_card(trend: str) -> KpiCard:
@@ -65,8 +81,9 @@ def _card_html(card: KpiCard) -> str:
     )
     if card.href is None:
         return body
+    target = 'target="_blank" rel="noopener"' if card.new_tab else 'target="_self"'
     return (
-        f'<a href="{html.escape(card.href, quote=True)}" target="_self" '
+        f'<a href="{html.escape(card.href, quote=True)}" {target} '
         f'style="text-decoration:none;color:inherit;">{body}</a>'
     )
 

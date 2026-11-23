@@ -24,6 +24,8 @@ LANGS = ("en", "ja")  # English is the primary language; Japanese is offered alo
 LANG_LABEL = {"ja": "日本語", "en": "English"}
 LANG_ATTR = {"ja": ' lang="ja"', "en": ""}  # index page is English
 NAV_ID = "explainer-nav"
+# The Streamlit dashboard these pages explain; a back link at the left end of every page's nav
+DASHBOARD_URL = "https://uptrend-dashboard.streamlit.app/"
 
 ZONE_COLOR = {  # matches the uptrend-analyzer zones
     "Strong Bull": "#12a36b", "Bull": "#6fbf73", "Neutral": "#c9a227",
@@ -49,10 +51,11 @@ def _rel(from_path: str, to_path: str) -> str:
 def _nav(here: str, date: str, lang: str, prev_date: str | None) -> str:
     other = "en" if lang == "ja" else "ja"
     labels = {
-        "ja": {"index": "一覧", "latest": "最新", "prev": "前の日"},
-        "en": {"index": "All days", "latest": "Latest", "prev": "Previous day"},
+        "ja": {"dashboard": "ダッシュボード", "index": "一覧", "latest": "最新", "prev": "前の日"},
+        "en": {"dashboard": "Dashboard", "index": "All days", "latest": "Latest", "prev": "Previous day"},
     }[lang]
-    links = [(labels["index"], _rel(here, "index.html")),
+    links = [(f"← {labels['dashboard']}", DASHBOARD_URL),  # back link, left end of the bar
+             (labels["index"], _rel(here, "index.html")),
              (labels["latest"], _rel(here, f"latest/{lang}.html"))]
     if prev_date:
         links.append((f"← {labels['prev']}", _rel(here, archive_path(prev_date, lang))))
@@ -118,6 +121,43 @@ def publish(site: Path, facts: Facts, pages: dict[str, str]) -> None:
     (site / "index.html").write_text(render_index(manifest), encoding="utf-8")
 
 
+def refresh_nav(site: Path) -> int:
+    """Re-render the nav bar (only) on every published page and the index.
+
+    For nav changes such as the dashboard link: archived page bodies stay exactly
+    as published; only the <nav id="explainer-nav"> block is replaced.
+    Returns the number of files that changed.
+    """
+    manifest = _load_manifest(site)
+    if not manifest:
+        # A wrong --site path must not look like success (and must not write an empty index)
+        raise FileNotFoundError(f"no published pages in {site} (manifest.json missing or empty)")
+    dates = [e["date"] for e in manifest]
+    targets = []
+    for i, e in enumerate(manifest):
+        prev_date = dates[i + 1] if i + 1 < len(dates) else None
+        for lang in LANGS:
+            targets.append((archive_path(e["date"], lang), e["date"], lang, prev_date))
+            if i == 0:
+                targets.append((f"latest/{lang}.html", e["date"], lang, prev_date))
+    changed = 0
+    for here, date, lang, prev_date in targets:
+        path = site / here
+        if not path.exists():
+            continue
+        old = path.read_text(encoding="utf-8")
+        new = _with_nav(old, _nav(here, date, lang, prev_date))
+        if new != old:
+            path.write_text(new, encoding="utf-8")
+            changed += 1
+    index = render_index(manifest)
+    index_path = site / "index.html"
+    if not index_path.exists() or index_path.read_text(encoding="utf-8") != index:
+        index_path.write_text(index, encoding="utf-8")
+        changed += 1
+    return changed
+
+
 def _sparkline(manifest: list[dict]) -> str:
     points = list(reversed(manifest))[-120:]
     if len(points) < 2:
@@ -157,6 +197,7 @@ def render_index(manifest: list[dict]) -> str:
         )
     latest_en = '<a class="btn primary" href="latest/en.html">Read today\'s explainer</a>'
     latest_ja = '<a class="btn" href="latest/ja.html" lang="ja">日本語で読む</a>'
+    dashboard = f'<a class="btn" href="{html.escape(DASHBOARD_URL)}">Open the dashboard</a>'
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -179,7 +220,7 @@ h1{{font-size:26px;margin:0 0 4px}} h2{{font-size:15px;color:var(--muted);margin
 <h1>Daily Uptrend Explainer</h1>
 <p class="sub">Every trading day, a one-minute picture explainer of how many US stocks are in an uptrend. The chip is the breadth score (0-100, higher = healthier).</p>
 <p class="sub" lang="ja">米国株のうち上昇トレンドにある銘柄の割合を、毎営業日やさしく解説します。日本語版もあります。</p>
-<p>{latest_en} {latest_ja}</p>
+<p>{latest_en} {latest_ja} {dashboard}</p>
 {_sparkline(manifest)}
 {''.join(rows)}
 <p class="note">For education only, not investment advice. <span lang="ja">教育目的の情報で、投資助言ではありません。</span></p>

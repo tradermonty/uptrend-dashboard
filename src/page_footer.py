@@ -26,7 +26,7 @@ def render_ai_skill_note() -> None:
 
 
 # Daily one-minute explainer pages written by Claude and published to GitHub Pages
-# (see run_explainer.py). English is the primary language; Japanese is offered alongside.
+# (see run_explainer.py). The app links the English page only.
 EXPLAINER_URL = "https://tradermonty.github.io/uptrend-dashboard/"
 
 
@@ -36,9 +36,7 @@ def explainer_link_html() -> str:
         '<p style="font-size:0.9em;margin:2px 0 10px;">'
         "New to market breadth? "
         f'<a href="{EXPLAINER_URL}latest/en.html" {link}>'
-        "Read today's one-minute explainer &rarr;</a>"
-        ' <span style="color:#777;">·</span> '
-        f'<a href="{EXPLAINER_URL}latest/ja.html" lang="ja" {link}>日本語で読む</a></p>'
+        "Read today's one-minute explainer &rarr;</a></p>"
     )
 
 
