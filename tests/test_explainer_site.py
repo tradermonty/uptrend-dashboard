@@ -104,6 +104,12 @@ class TestDashboardLink:
                      "latest/en.html", "latest/ja.html"):
             assert f'href="{DASHBOARD_URL}"' in (site / path).read_text()
 
+    def test_dashboard_link_is_last_in_nav(self, site):
+        publish(site, _facts("2026-11-20"), _pages("2026-11-20"))
+        page = (site / "latest/en.html").read_text()
+        nav = page[page.index('<nav id="explainer-nav"'):page.index("</nav>")]
+        assert nav.rindex("<a ") == nav.index(f'href="{DASHBOARD_URL}"') - 3
+
     def test_dashboard_label_per_language(self, site):
         publish(site, _facts("2026-11-20"), _pages("2026-11-20"))
         assert "Dashboard" in (site / "latest/en.html").read_text()
@@ -124,4 +130,12 @@ class TestDashboardLink:
         assert f'href="{DASHBOARD_URL}"' in text
         assert text.count('<nav id="explainer-nav"') == 1
         assert "<h1>2026-11-19</h1>" in text  # page body untouched
-        assert changed >= 1
+        assert 'href="2026-11-19-ja.html"' in text  # other-language link kept
+        assert changed == 1  # only the simulated old page differed
+        assert refresh_nav(site) == 0  # idempotent
+
+    def test_refresh_nav_rejects_a_site_without_manifest(self, tmp_path):
+        tmp_path.mkdir(exist_ok=True)
+        with pytest.raises(FileNotFoundError):
+            refresh_nav(tmp_path)
+        assert not (tmp_path / "index.html").exists()
