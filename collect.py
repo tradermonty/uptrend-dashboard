@@ -222,6 +222,14 @@ def main():
             _write_manifest_safely(args, db_client, partial, scope, session_date,
                                    aborted=type(exc).__name__)
         sys.exit(1)
+    except Exception as exc:
+        # Unexpected crash (e.g. sqlite3.OperationalError): record what was reached, then
+        # fail as before. A job timeout or cancellation never gets here; the workflow's
+        # failure step covers it (mark-unpublished).
+        if partial is not None and not args.dry_run:
+            _write_manifest_safely(args, db_client, partial, scope, session_date,
+                                   aborted=type(exc).__name__)
+        raise
     finally:
         collector.close()
 

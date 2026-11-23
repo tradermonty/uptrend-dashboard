@@ -145,21 +145,116 @@ def load_manifest(path=None) -> Optional[dict]:
     return data if isinstance(data, dict) else None
 
 
-def coverage_caption(manifest: Optional[dict]) -> str:
-    """One line such as 'Collection 2026-11-20: 158 of 161 stored · 2 empty · 1 failed'."""
-    if not manifest or not manifest.get("coverage") or "session_date" not in manifest:
+
+
+def mark_unpublished(path, session_date: str, generated_at: str,
+                     reason: str = "IncompleteRun") -> dict:
+    """Mark the manifest of a run whose data was not committed (``data_published: false``).
+
+    Called by the workflow's failure step. The run's DB rows were not pushed, so the
+    ``stored`` counts it measured on the runner do not describe the published DB.
+    When the file is missing, unreadable or from an earlier session (the run crashed or
+    timed out before writing one), it is replaced by a minimal manifest for
+    ``session_date`` with no coverage.
+    """
+    manifest = load_manifest(path)
+    if manifest is None or manifest.get("session_date") != session_date:
+        manifest = {
+            "version": MANIFEST_VERSION, "session_date": session_date, "scope": "all",
+            "dry_run": False, "generated_at": generated_at, "aborted": reason,
+            "coverage": None, "worksheets": {},
+        }
+    manifest["data_published"] = False
+    write_manifest(manifest, path)
+    return manifest
+
+
+def _subset_coverage(manifest: dict, worksheets: Iterable[str]) -> Optional[dict]:
+    """Coverage counters over the given worksheets, from the per-worksheet entries."""
+    entries = [manifest["worksheets"][ws] for ws in worksheets if ws in manifest["worksheets"]]
+    if not entries:
+        return None
+    c = {k: sum(1 for e in entries if e["outcome"] == k)
+         for k in ("persisted", "fetched", "empty", "failed", "missing")}
+    c["expected"] = len(entries)
+    c["fetched"] += c["persisted"] + c["empty"]
+    c["stored"] = (sum(1 for e in entries if e["stored"])
+                   if all("stored" in e for e in entries) else None)
+    return c
+
+
+def coverage_caption(manifest: Optional[dict], worksheets: Optional[Iterable[str]] = None,
+                     label: Optional[str] = None) -> str:
+    """One line such as 'Collection 2026-11-20: 158 of 161 stored · 2 empty · 1 failed'.
+
+    ``worksheets`` limits the counts to those worksheets (e.g. one sector's industries)
+    and ``label`` names that subset. A manifest marked ``data_published: false`` never
+    claims stored rows. Returns "" for a missing or malformed manifest.
+    """
+    try:
+        return _caption(manifest, worksheets, label)
+    except (KeyError, TypeError, ValueError, AttributeError):
         return ""
-    c = manifest["coverage"]
-    stored = c.get("stored")
-    head = (f"{stored} of {c['expected']} stored" if stored is not None
-            else f"{c['fetched']} of {c['expected']} fetched (dry run)")
-    parts = [head]
-    for key, label in (("empty", "empty (no stocks match the base filters)"),
-                       ("failed", "failed"), ("missing", "not attempted")):
-        if c.get(key):
-            parts.append(f"{c[key]} {label}")
-    if manifest.get("aborted"):
-        parts.append(f"run aborted ({manifest['aborted']})")
+
+
+def _caption(manifest, worksheets, label) -> str:
+    if not isinstance(manifest, dict) or "session_date" not in manifest:
+        return ""
+    published = manifest.get("data_published", True) is not False
+    c = manifest.get("coverage")
+    if worksheets is not None and c:
+        c = _subset_coverage(manifest, worksheets)
+        if c is None:
+            return ""
     scope = manifest.get("scope", "all")
-    label = f"Collection {manifest['session_date']}" + ("" if scope == "all" else f" ({scope} only)")
-    return f"{label}: " + " · ".join(parts)
+    title = f"Collection {manifest['session_date']}"
+    if label:
+        title += f" ({label})"
+    elif scope != "all":
+        title += f" ({scope} only)"
+    if not c:
+        if published:
+            return ""
+        return f"{title}: run did not finish, data not published"
+    if not isinstance(c, dict):
+        return ""
+    if not published:
+        head = "run failed, data not published"
+    elif c.get("stored") is not None:
+        head = f"{int(c['stored'])} of {int(c['expected'])} stored"
+    else:
+        head = f"{int(c['fetched'])} of {int(c['expected'])} fetched (dry run)"
+    parts = [head]
+    for key, text in (("empty", "empty (no stocks match the base filters)"),
+                      ("failed", "failed"), ("missing", "not attempted")):
+        if c.get(key):
+            parts.append(f"{int(c[key])} {text}")
+    if manifest.get("aborted") and c:
+        parts.append(f"run aborted ({manifest['aborted']})")
+    return f"{title}: " + " · ".join(parts)
+
+
+def main(argv=None) -> int:
+    """``python -m src.collection_manifest mark-unpublished --path P --session YYYY-MM-DD``."""
+    import argparse
+    from datetime import date, datetime, timezone
+
+    parser = argparse.ArgumentParser(description="Collection manifest maintenance")
+    sub = parser.add_subparsers(dest="command", required=True)
+    mark = sub.add_parser("mark-unpublished", help="Mark a failed run's manifest as not published")
+    mark.add_argument("--path", default=None, help="Manifest path (default: next to DB_PATH)")
+    mark.add_argument("--session", required=True, help="Session date of the failed run (YYYY-MM-DD)")
+    args = parser.parse_args(argv)
+    try:
+        date.fromisoformat(args.session)
+    except ValueError:
+        print(f"Invalid session date: {args.session!r}")
+        return 1
+    path = args.path or default_manifest_path()
+    m = mark_unpublished(path, args.session, generated_at=datetime.now(timezone.utc).isoformat())
+    print(f"Marked {path} as not published: {coverage_caption(m)}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

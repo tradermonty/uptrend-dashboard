@@ -253,3 +253,116 @@ class TestReviewFixes:
         assert default_manifest_path() == tmp_path / "x" / "collection_manifest.json"
         monkeypatch.delenv("DB_PATH")
         assert str(default_manifest_path()) == "data/collection_manifest.json"
+
+
+class TestUnpublishedRuns:
+    """PR #45 review: a failed run's manifest must not claim rows main does not have."""
+
+    def test_mark_unpublished_keeps_same_session_outcomes(self, tmp_path):
+        from src.collection_manifest import mark_unpublished
+        path = tmp_path / "m.json"
+        write_manifest(_manifest(), path)
+        mark_unpublished(path, "2026-11-20", generated_at="t")
+        m = load_manifest(path)
+        assert m["data_published"] is False
+        assert m["coverage"]["failed"] == 1
+
+    @pytest.mark.parametrize("existing", ["older", "absent", "broken"])
+    def test_mark_unpublished_replaces_stale_or_missing_manifest(self, tmp_path, existing):
+        from src.collection_manifest import mark_unpublished
+        path = tmp_path / "m.json"
+        if existing == "older":
+            write_manifest(_manifest(session_date="2026-11-19"), path)
+        elif existing == "broken":
+            path.write_text("{oops")
+        mark_unpublished(path, "2026-11-20", generated_at="t")
+        m = load_manifest(path)
+        assert (m["session_date"], m["data_published"], m["coverage"]) == ("2026-11-20", False, None)
+        assert m["aborted"] == "IncompleteRun"
+
+    def test_caption_for_unpublished_run_claims_no_stored_rows(self):
+        m = {**_manifest(), "data_published": False}
+        caption = coverage_caption(m)
+        assert "not published" in caption and "stored" not in caption
+        assert "1 failed" in caption
+
+    def test_caption_for_run_that_never_wrote_a_manifest(self):
+        m = {"session_date": "2026-11-20", "data_published": False, "coverage": None,
+             "aborted": "IncompleteRun", "worksheets": {}}
+        assert coverage_caption(m) == "Collection 2026-11-20: run did not finish, data not published"
+
+    @pytest.mark.parametrize("bad", [{"session_date": "d", "coverage": {"stored": 1}},
+                                     {"session_date": "d", "coverage": "x"}])
+    def test_caption_never_raises_on_malformed_manifest(self, bad):
+        assert coverage_caption(bad) == ""
+
+    def test_caption_limited_to_given_worksheets(self):
+        caption = coverage_caption(_manifest(), worksheets=["ind_semiconductors", "ind_gold"],
+                                   label="Technology industries")
+        assert caption == "Collection 2026-11-20 (Technology industries): 1 of 2 stored · 1 failed"
+
+    def test_caption_subset_without_failures_has_no_failed_part(self):
+        caption = coverage_caption(_manifest(), worksheets=["ind_semiconductors"], label="x")
+        assert caption.endswith("1 of 1 stored")
+
+    def test_cli_marks_manifest(self, tmp_path):
+        from src.collection_manifest import main as manifest_main
+        path = tmp_path / "m.json"
+        assert manifest_main(["mark-unpublished", "--path", str(path),
+                              "--session", "2026-11-20"]) == 0
+        assert load_manifest(path)["data_published"] is False
+
+    def test_cli_rejects_bad_session(self, tmp_path):
+        from src.collection_manifest import main as manifest_main
+        assert manifest_main(["mark-unpublished", "--path", str(tmp_path / "m.json"),
+                              "--session", "nope"]) == 1
+        assert not (tmp_path / "m.json").exists()
+
+
+class TestUnexpectedCrash:
+
+    @pytest.fixture(autouse=True)
+    def _session_clock(self, mocker):
+        from datetime import datetime, timezone
+        mocker.patch("src.collection_session.utc_now",
+                     return_value=datetime(2026, 11, 13, 22, tzinfo=timezone.utc))
+
+    def test_crash_writes_aborted_manifest_and_reraises(self, tmp_path, mocker):
+        import sqlite3
+        mocker.patch("sys.argv", ["collect.py", "--db", str(tmp_path / "uptrend.db")])
+        mocker.patch.dict("os.environ", {"FINVIZ_API_KEY": "test_key"})
+        mocker.patch("collect.collect_constituents_safely")
+
+        def partial_then_crash(self, date=None, dry_run=False, scope=None, result=None):
+            result.succeeded["all"] = (1, 10)
+            raise sqlite3.OperationalError("disk I/O error")
+
+        mocker.patch("src.data_collector.DataCollector.collect_all", partial_then_crash)
+        from collect import main
+        with pytest.raises(sqlite3.OperationalError):
+            main()
+        m = load_manifest(tmp_path / "collection_manifest.json")
+        assert m["aborted"] == "OperationalError"
+        assert m["coverage"]["missing"] == 160
+
+
+class TestFailureStepWorkflow:
+
+    def _step(self):
+        from pathlib import Path
+        text = (Path(__file__).resolve().parents[1] / ".github/workflows/collect-data.yml").read_text()
+        return text[text.index("- name: Publish collection manifest after a failed run"):]
+
+    def test_runs_on_failure_and_cancellation(self):
+        assert "if: (failure() || cancelled()) && steps.session.outputs.eligible == 'true'" in self._step()
+
+    def test_marks_manifest_unpublished_before_committing(self):
+        step = self._step()
+        assert "python -m src.collection_manifest mark-unpublished" in step
+        assert step.index("mark-unpublished") < step.index("git commit")
+
+    def test_resets_to_remote_before_committing(self):
+        step = self._step()
+        assert "git rebase --abort" in step
+        assert "git reset --hard origin/main" in step
+        assert step.index("git reset --hard origin/main") < step.index("git commit")

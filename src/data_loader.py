@@ -79,3 +79,16 @@ def load_all_constituents(db_path: str = None) -> pd.DataFrame:
 @_cache
 def cached_load_all_constituents(db_path=None):
     return load_all_constituents(db_path)
+
+
+def load_collection_manifest() -> Optional[dict]:
+    """The latest collection manifest next to DB_PATH, or None (Issue #6)."""
+    from src.collection_manifest import load_manifest
+    return load_manifest()
+
+
+@_cache
+def cached_load_manifest():
+    # Cached with the data (cleared by the sidebar Refresh), so the caption and the
+    # charts it describes come from the same deploy.
+    return load_collection_manifest()

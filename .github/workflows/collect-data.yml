@@ -89,23 +89,31 @@ jobs:
             git push
           fi
 
-      # A failed or aborted collection keeps its data unpublished (as before), but
-      # its manifest is still published so the dashboard shows the failed/missing
-      # worksheets instead of the previous successful run's coverage.
+      # A failed, aborted, crashed or timed-out run keeps its data unpublished (as
+      # before). Its manifest is published marked "data_published: false", so the
+      # dashboard says the run failed instead of showing the previous run's coverage
+      # or the runner's unpushed "stored" counts. The checkout is reset to origin/main
+      # first, which drops any half-finished rebase or unpushed data commit.
       - name: Publish collection manifest after a failed run
-        if: failure() && steps.session.outputs.eligible == 'true'
+        if: (failure() || cancelled()) && steps.session.outputs.eligible == 'true'
+        env:
+          COLLECTION_SESSION: ${{ steps.session.outputs.session_date }}
         run: |
-          if [ ! -f data/collection_manifest.json ]; then
-            echo "No manifest written"; exit 0
-          fi
+          MANIFEST=data/collection_manifest.json
+          SAVED="$RUNNER_TEMP/collection_manifest.json"
+          if [ -f "$MANIFEST" ]; then cp "$MANIFEST" "$SAVED"; fi
+          git rebase --abort 2>/dev/null || true
+          git fetch origin main
+          git reset --hard origin/main
+          git clean -fd data/
+          if [ -f "$SAVED" ]; then cp "$SAVED" "$MANIFEST"; fi
+          python -m src.collection_manifest mark-unpublished --path "$MANIFEST" --session "$COLLECTION_SESSION"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/collection_manifest.json
+          git add "$MANIFEST"
           if git diff --cached --quiet; then
             echo "Manifest unchanged"
           else
-            git commit -m "Collection manifest (failed run) $(date -u +%Y-%m-%d)"
-            git stash --include-untracked || true
-            git pull --rebase
-            git push
+            git commit -m "Collection manifest (failed run) $COLLECTION_SESSION"
+            git push || { git pull --rebase && git push; }
           fi
