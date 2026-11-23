@@ -82,3 +82,13 @@ def test_main_returns_1_and_leaves_site_alone_on_failure(tmp_path, monkeypatch):
     monkeypatch.setattr(run_explainer, "generate_pages", boom)
     assert run_explainer.main(["--site", str(site)]) == 1
     assert not (site / "manifest.json").exists()
+
+
+def test_refresh_nav_flag_needs_no_claude_or_analyzer(tmp_path, monkeypatch):
+    """--refresh-nav only rewrites nav bars of published pages: no API call, no analysis."""
+    calls = []
+    monkeypatch.setattr(run_explainer, "refresh_nav", lambda site: calls.append(site) or 3)
+    monkeypatch.setattr(run_explainer, "make_client", lambda: pytest.fail("Claude must not be called"))
+    monkeypatch.setattr(run_explainer, "run_analyzer", lambda *a, **k: pytest.fail("no analysis"))
+    assert run_explainer.main(["--site", str(tmp_path), "--refresh-nav"]) == 0
+    assert calls == [tmp_path]
