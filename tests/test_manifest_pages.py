@@ -22,7 +22,10 @@ def test_sector_caption_counts_only_that_sectors_industries(loaded_data, mocker)
     mocker.patch("src.data_loader.cached_load_manifest", return_value=MANIFEST)
     app = detail_app("1_Sector_Detail.py").run()
     app = select_label(app, "Select Sector", "Technology")
-    assert _captions(app) == ["Collection 2026-11-20 (Technology industries): 1 of 1 stored"]
+    # Only ind_semiconductors of Technology's 12 industries is in this synthetic manifest;
+    # the other sector's failure (ind_gold) is not counted here
+    assert _captions(app) == [
+        "Collection 2026-11-20 (Technology industries): 1 of 12 stored · 11 not attempted"]
 
 
 def test_heatmap_caption_says_unpublished_run_failed(loaded_data, mocker):

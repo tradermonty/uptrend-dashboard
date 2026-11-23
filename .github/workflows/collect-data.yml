@@ -85,8 +85,20 @@ jobs:
             echo "No data changes to commit"
           else
             git commit -m "Update uptrend data $(date -u +%Y-%m-%d)"
-            git pull --rebase
-            git push
+            # A failed run may have pushed a manifest-only commit since this checkout
+            # (e.g. "Re-run failed jobs"). This run's manifest supersedes it; any other
+            # conflict still fails the step.
+            if ! git pull --rebase origin main; then
+              if [ "$(git diff --name-only --diff-filter=U)" = "data/collection_manifest.json" ]; then
+                git checkout --theirs data/collection_manifest.json
+                git add data/collection_manifest.json
+                GIT_EDITOR=true git rebase --continue
+              else
+                git rebase --abort || true
+                exit 1
+              fi
+            fi
+            git push origin HEAD:main
           fi
 
       # A failed, aborted, crashed or timed-out run keeps its data unpublished (as
@@ -115,5 +127,5 @@ jobs:
             echo "Manifest unchanged"
           else
             git commit -m "Collection manifest (failed run) $COLLECTION_SESSION"
-            git push || { git pull --rebase && git push; }
+            git push origin HEAD:main || { git pull --rebase origin main && git push origin HEAD:main; }
           fi

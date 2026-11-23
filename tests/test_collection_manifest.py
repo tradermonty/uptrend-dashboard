@@ -366,3 +366,8 @@ class TestFailureStepWorkflow:
         assert "git rebase --abort" in step
         assert "git reset --hard origin/main" in step
         assert step.index("git reset --hard origin/main") < step.index("git commit")
+
+    def test_caption_subset_counts_unlisted_worksheets_as_not_attempted(self):
+        caption = coverage_caption(_manifest(), worksheets=["ind_semiconductors", "ind_unknown"],
+                                   label="x")
+        assert caption == "Collection 2026-11-20 (x): 1 of 2 stored · 1 not attempted"

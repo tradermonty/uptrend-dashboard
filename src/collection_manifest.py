@@ -171,9 +171,12 @@ def mark_unpublished(path, session_date: str, generated_at: str,
 
 def _subset_coverage(manifest: dict, worksheets: Iterable[str]) -> Optional[dict]:
     """Coverage counters over the given worksheets, from the per-worksheet entries."""
+    worksheets = list(worksheets)
     entries = [manifest["worksheets"][ws] for ws in worksheets if ws in manifest["worksheets"]]
     if not entries:
-        return None
+        return None  # e.g. a sectors-only run has nothing to say about industries
+    # A worksheet the manifest does not list was not attempted by this run
+    entries += [{"outcome": "missing", "stored": False}] * (len(worksheets) - len(entries))
     c = {k: sum(1 for e in entries if e["outcome"] == k)
          for k in ("persisted", "fetched", "empty", "failed", "missing")}
     c["expected"] = len(entries)
