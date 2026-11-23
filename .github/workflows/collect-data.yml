@@ -140,8 +140,10 @@ jobs:
           git fetch origin main
           git reset --hard origin/main
           git clean -fd data/
-          if [ -f "$SAVED" ]; then cp "$SAVED" "$MANIFEST"; fi
-          python -m src.collection_manifest mark-unpublished --path "$MANIFEST" --session "$COLLECTION_SESSION"
+          # $MANIFEST is now main's copy: it is kept when it describes a later session or
+          # this session already published by a successful run (e.g. a stale re-run).
+          python -m src.collection_manifest mark-unpublished --path "$MANIFEST" \
+            --run-manifest "$SAVED" --session "$COLLECTION_SESSION"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add "$MANIFEST"

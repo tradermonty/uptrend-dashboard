@@ -192,3 +192,41 @@ def test_nothing_changed_pushes_nothing(box):
     result = box.run_step(run, COMMIT)
     assert result.returncode == 0 and "No data changes to commit" in result.stdout
     assert git(box.tmp, "--git-dir", str(box.remote), "rev-parse", "main").stdout == before
+
+
+def _publish_on_main(box, name, **manifest_extra):
+    """A successful run already on main (e.g. a later session, or a manual run)."""
+    other = box.clone(name)
+    (other / "data" / "collection_manifest.json").write_text(manifest(**manifest_extra))
+    (other / "data" / "uptrend.db").write_text(f"{name}\n")
+    box.commit_all(other, "published run")
+    git(other, "push", "-q", "origin", "main")
+
+
+def test_stale_rerun_failure_keeps_newer_manifest(box):
+    run = box.clone("run")                                # old SHA, session 2026-11-13
+    _publish_on_main(box, "later", session_date="2026-11-20")
+    (run / "data" / "collection_manifest.json").unlink()  # refused before writing one
+    assert box.run_step(run, FAILURE).returncode == 0
+    m = json.loads(box.remote_file("data/collection_manifest.json"))
+    assert m["session_date"] == "2026-11-20" and "data_published" not in m
+
+
+def test_failure_after_same_session_success_keeps_published_manifest(box):
+    run = box.clone("run")
+    _publish_on_main(box, "manual", generated_at="ok")    # session 2026-11-13, published
+    write_run(run, generated_at="failed")
+    assert box.run_step(run, FAILURE).returncode == 0
+    m = json.loads(box.remote_file("data/collection_manifest.json"))
+    assert m["generated_at"] == "ok" and "data_published" not in m
+
+
+def test_repeated_failure_replaces_the_earlier_marker(box):
+    first = box.clone("first")
+    second = box.clone("second")
+    write_run(first, generated_at="a")
+    assert box.run_step(first, FAILURE).returncode == 0
+    write_run(second, generated_at="b", aborted="OperationalError")  # a different outcome
+    assert box.run_step(second, FAILURE).returncode == 0
+    m = json.loads(box.remote_file("data/collection_manifest.json"))
+    assert (m["aborted"], m["data_published"]) == ("OperationalError", False)

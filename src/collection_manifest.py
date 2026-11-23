@@ -148,16 +148,28 @@ def load_manifest(path=None) -> Optional[dict]:
 
 
 def mark_unpublished(path, session_date: str, generated_at: str,
-                     reason: str = "IncompleteRun") -> dict:
+                     reason: str = "IncompleteRun", run_manifest=None) -> Optional[dict]:
     """Mark the manifest of a run whose data was not committed (``data_published: false``).
 
     Called by the workflow's failure step. The run's DB rows were not pushed, so the
     ``stored`` counts it measured on the runner do not describe the published DB.
-    When the file is missing, unreadable or from an earlier session (the run crashed or
-    timed out before writing one), it is replaced by a minimal manifest for
-    ``session_date`` with no coverage.
+    The run's manifest is read from ``run_manifest`` (default: ``path`` itself). When it
+    is missing, unreadable or from an earlier session (the run crashed or timed out
+    before writing one), a minimal manifest for ``session_date`` with no coverage is used.
+
+    With ``run_manifest``, ``path`` holds the published (main's) manifest, and it is left
+    alone (returns None) when it describes a later session, or this session already
+    published by a successful run: a stale or repeated failure must not hide newer data.
     """
-    manifest = load_manifest(path)
+    if run_manifest is not None:
+        current = load_manifest(path)
+        if current is not None and isinstance(current.get("session_date"), str):
+            later = current["session_date"] > session_date
+            published = (current["session_date"] == session_date
+                         and "data_published" not in current and current.get("coverage"))
+            if later or published:
+                return None
+    manifest = load_manifest(run_manifest if run_manifest is not None else path)
     if manifest is None or manifest.get("session_date") != session_date:
         manifest = {
             "version": MANIFEST_VERSION, "session_date": session_date, "scope": "all",
@@ -264,6 +276,9 @@ def main(argv=None) -> int:
         cmd = sub.add_parser(name, help=text)
         cmd.add_argument("--path", default=None, help="Manifest path (default: next to DB_PATH)")
         cmd.add_argument("--session", required=True, help="Session date of the run (YYYY-MM-DD)")
+        if name == "mark-unpublished":
+            cmd.add_argument("--run-manifest", default=None,
+                             help="The failed run's own manifest; --path is then the published one")
     args = parser.parse_args(argv)
     try:
         date.fromisoformat(args.session)
@@ -275,8 +290,12 @@ def main(argv=None) -> int:
         changed = mark_published(path, args.session)
         print(f"{path}: {'marker removed' if changed else 'no marker for this session'}")
         return 0
-    m = mark_unpublished(path, args.session, generated_at=datetime.now(timezone.utc).isoformat())
-    print(f"Marked {path} as not published: {coverage_caption(m)}")
+    m = mark_unpublished(path, args.session, generated_at=datetime.now(timezone.utc).isoformat(),
+                         run_manifest=args.run_manifest)
+    if m is None:
+        print(f"{path} describes a later or already published session: left unchanged")
+    else:
+        print(f"Marked {path} as not published: {coverage_caption(m)}")
     return 0
 
 

@@ -381,3 +381,23 @@ class TestFailureStepWorkflow:
         assert "data_published" not in load_manifest(path)
         assert mark_published(path, "2026-11-20") is False
         assert mark_published(tmp_path / "absent.json", "2026-11-20") is False
+
+    @pytest.mark.parametrize("published,kept", [
+        ({"session_date": "2026-11-21", "coverage": {"expected": 1}}, True),      # later session
+        ({"session_date": "2026-11-20", "coverage": {"expected": 1}}, True),      # already published
+        ({"session_date": "2026-11-20", "coverage": {"expected": 1},
+          "data_published": False}, False),                                       # earlier failure
+        ({"session_date": "2026-11-19", "coverage": {"expected": 1}}, False),     # older session
+    ])
+    def test_mark_unpublished_guards_the_published_manifest(self, tmp_path, published, kept):
+        from src.collection_manifest import mark_unpublished
+        main_copy, run_copy = tmp_path / "main.json", tmp_path / "run.json"
+        write_manifest(published, main_copy)
+        write_manifest(_manifest(), run_copy)
+        result = mark_unpublished(main_copy, "2026-11-20", generated_at="t", run_manifest=run_copy)
+        assert (result is None) == kept
+        m = load_manifest(main_copy)
+        if kept:
+            assert m == published
+        else:
+            assert m["data_published"] is False and m["coverage"]["failed"] == 1
