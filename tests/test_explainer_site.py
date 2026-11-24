@@ -5,7 +5,7 @@ import json
 import pytest
 
 from explainer.facts import Facts
-from explainer.site import DASHBOARD_URL, LANGS, publish, refresh_nav
+from explainer.site import DASHBOARD_URL, LANGS, SKILL_URL, SKILL_URLS, publish, refresh_nav
 
 PAGE = '<!doctype html><html lang="{lang}"><head><title>t</title></head><body class="x"><h1>{date}</h1></body></html>'
 
@@ -140,3 +140,66 @@ class TestDashboardLink:
         with pytest.raises(FileNotFoundError):
             refresh_nav(tmp_path)
         assert not (tmp_path / "index.html").exists()
+
+
+class TestSkillLink:
+    """Every page points readers to the Uptrend Analyzer skill page in its own language."""
+
+    PAGES = ("2026/11/2026-11-20-en.html", "2026/11/2026-11-20-ja.html",
+             "latest/en.html", "latest/ja.html")
+
+    def test_skill_urls_per_language(self):
+        assert SKILL_URLS == {"en": "https://tradermonty.github.io/claude-trading-skills/en/skills/uptrend-analyzer/",
+                              "ja": "https://tradermonty.github.io/claude-trading-skills/ja/skills/uptrend-analyzer/"}
+        assert SKILL_URL == SKILL_URLS["en"]
+
+    def test_every_page_links_to_the_skill_once(self, site):
+        publish(site, _facts("2026-11-20"), _pages("2026-11-20"))
+        for path in self.PAGES:
+            text = (site / path).read_text()
+            lang = "ja" if "ja" in path else "en"
+            assert text.count(f'href="{SKILL_URLS[lang]}"') == 1, path
+            assert text.count('id="explainer-skill"') == 1, path
+
+    def test_skill_note_sits_at_the_end_of_the_body(self, site):
+        publish(site, _facts("2026-11-20"), _pages("2026-11-20"))
+        text = (site / "latest/en.html").read_text()
+        assert text.index("<h1>2026-11-20</h1>") < text.index('id="explainer-skill"') < text.index("</body>")
+
+    def test_skill_link_opens_in_a_new_tab(self, site):
+        publish(site, _facts("2026-11-20"), _pages("2026-11-20"))
+        text = (site / "latest/en.html").read_text()
+        assert 'target="_blank" rel="noopener"' in text
+
+    def test_skill_label_per_language(self, site):
+        publish(site, _facts("2026-11-20"), _pages("2026-11-20"))
+        assert "Uptrend Analyzer skill" in (site / "latest/en.html").read_text()
+        ja = (site / "latest/ja.html").read_text()
+        assert "スキル" in ja and "英語" not in ja
+        assert "https://tradermonty.github.io/claude-trading-skills/en/skills/uptrend-analyzer/" not in ja
+
+    def test_index_links_to_the_skill(self, site):
+        publish(site, _facts("2026-11-20"), _pages("2026-11-20"))
+        assert f'href="{SKILL_URL}"' in (site / "index.html").read_text()
+
+    def test_refresh_nav_adds_the_skill_link_to_old_pages(self, site):
+        publish(site, _facts("2026-11-19"), _pages("2026-11-19"))
+        publish(site, _facts("2026-11-20"), _pages("2026-11-20"))
+        old = site / "2026/11/2026-11-19-en.html"
+        # Simulate a page published before the skill link existed
+        text = old.read_text()
+        start = text.index('<p id="explainer-skill"')
+        end = text.index("</p>", start) + len("</p>")
+        old.write_text(text[:start] + text[end:])
+        assert refresh_nav(site) == 1
+        text = old.read_text()
+        assert text.count(f'href="{SKILL_URL}"') == 1
+        assert "<h1>2026-11-19</h1>" in text  # page body untouched
+        assert refresh_nav(site) == 0  # idempotent
+
+    def test_skill_note_goes_before_html_end_when_body_end_is_missing(self, site):
+        pages = {lang: f'<html lang="{lang}"><body><h1>2026-11-20</h1></html>' for lang in LANGS}
+        publish(site, _facts("2026-11-20"), pages)
+        text = (site / "latest/en.html").read_text()
+        assert text.index('id="explainer-skill"') < text.index("</html>")
+        assert text.endswith("</html>")

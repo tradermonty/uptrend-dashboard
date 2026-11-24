@@ -10,7 +10,8 @@ Layout (relative to the site root, the gh-pages branch checkout):
 Archived pages are written once per date and not touched when later days
 arrive, so each one stays as it was published. A short navigation bar is
 added to each page with relative links, so the site works under a project
-path such as /uptrend-dashboard/.
+path such as /uptrend-dashboard/. A note at the end of each page links to
+the Uptrend Analyzer skill for Claude.
 """
 
 import html
@@ -26,6 +27,19 @@ LANG_ATTR = {"ja": ' lang="ja"', "en": ""}  # index page is English
 NAV_ID = "explainer-nav"
 # The Streamlit dashboard these pages explain; a back link at the left end of every page's nav
 DASHBOARD_URL = "https://uptrend-dashboard.streamlit.app/"
+SKILL_ID = "explainer-skill"
+# Intro and how-to page of the Claude skill that analyzes this data, per page language
+SKILL_URLS = {
+    "en": "https://tradermonty.github.io/claude-trading-skills/en/skills/uptrend-analyzer/",
+    "ja": "https://tradermonty.github.io/claude-trading-skills/ja/skills/uptrend-analyzer/",
+}
+SKILL_URL = SKILL_URLS["en"]  # the English index links here
+SKILL_TEXT = {
+    "en": ("Want to analyze uptrend ratio data with AI?",
+           "Try the Uptrend Analyzer skill for Claude →"),
+    "ja": ("このデータを AI で分析してみたい方へ。",
+           "Claude 向け Uptrend Analyzer スキルの紹介と使い方 →"),
+}
 
 ZONE_COLOR = {  # matches the uptrend-analyzer zones
     "Strong Bull": "#12a36b", "Bull": "#6fbf73", "Neutral": "#c9a227",
@@ -82,6 +96,37 @@ def _with_nav(page: str, nav: str) -> str:
     return page[: m.end()] + nav + page[m.end():]
 
 
+def _skill_note(lang: str) -> str:
+    lead, label = SKILL_TEXT[lang]
+    return (
+        f'<p id="{SKILL_ID}" style="font:13px/1.6 system-ui,sans-serif;padding:8px 16px 24px;'
+        f'text-align:center;opacity:.85">{html.escape(lead)} '
+        f'<a href="{html.escape(SKILL_URLS[lang])}" target="_blank" rel="noopener" '
+        f'style="color:inherit;font-weight:600">{html.escape(label)}</a></p>'
+    )
+
+
+_SKILL_RE = re.compile(rf'<p id="{SKILL_ID}".*?</p>', re.S)
+_BODY_END_RE = re.compile(r"</body\s*>", re.I)
+_HTML_END_RE = re.compile(r"</html\s*>", re.I)
+
+
+def _with_skill_note(page: str, lang: str) -> str:
+    """Put the note before the last </body> (or </html> if the page has no </body>)."""
+    page = _SKILL_RE.sub("", page)
+    note = _skill_note(lang)
+    ends = list(_BODY_END_RE.finditer(page)) or list(_HTML_END_RE.finditer(page))
+    if not ends:
+        return page + note
+    m = ends[-1]
+    return page[: m.start()] + note + page[m.start():]
+
+
+def _decorate(page: str, nav: str, lang: str) -> str:
+    """Add the fixed parts every page carries: the nav bar and the skill note."""
+    return _with_skill_note(_with_nav(page, nav), lang)
+
+
 def _load_manifest(site: Path) -> list[dict]:
     path = site / "manifest.json"
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
@@ -107,13 +152,13 @@ def publish(site: Path, facts: Facts, pages: dict[str, str]) -> None:
         here = archive_path(facts.date, lang)
         target = site / here
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(_with_nav(pages[lang], _nav(here, facts.date, lang, prev_date)),
+        target.write_text(_decorate(pages[lang], _nav(here, facts.date, lang, prev_date), lang),
                           encoding="utf-8")
         if is_latest:
             latest = f"latest/{lang}.html"
             (site / "latest").mkdir(exist_ok=True)
             (site / latest).write_text(
-                _with_nav(pages[lang], _nav(latest, facts.date, lang, prev_date)),
+                _decorate(pages[lang], _nav(latest, facts.date, lang, prev_date), lang),
                 encoding="utf-8")
 
     (site / "manifest.json").write_text(
@@ -122,10 +167,11 @@ def publish(site: Path, facts: Facts, pages: dict[str, str]) -> None:
 
 
 def refresh_nav(site: Path) -> int:
-    """Re-render the nav bar (only) on every published page and the index.
+    """Re-render the nav bar and skill note (only) on every published page and the index.
 
     For nav changes such as the dashboard link: archived page bodies stay exactly
-    as published; only the <nav id="explainer-nav"> block is replaced.
+    as published; only the <nav id="explainer-nav"> and <p id="explainer-skill">
+    blocks are replaced.
     Returns the number of files that changed.
     """
     manifest = _load_manifest(site)
@@ -146,7 +192,7 @@ def refresh_nav(site: Path) -> int:
         if not path.exists():
             continue
         old = path.read_text(encoding="utf-8")
-        new = _with_nav(old, _nav(here, date, lang, prev_date))
+        new = _decorate(old, _nav(here, date, lang, prev_date), lang)
         if new != old:
             path.write_text(new, encoding="utf-8")
             changed += 1
@@ -198,6 +244,9 @@ def render_index(manifest: list[dict]) -> str:
     latest_en = '<a class="btn primary" href="latest/en.html">Read today\'s explainer</a>'
     latest_ja = '<a class="btn" href="latest/ja.html" lang="ja">日本語で読む</a>'
     dashboard = f'<a class="btn" href="{html.escape(DASHBOARD_URL)}">Open the dashboard</a>'
+    skill = (f'<p class="sub">{html.escape(SKILL_TEXT["en"][0])} '
+             f'<a href="{html.escape(SKILL_URL)}" target="_blank" rel="noopener">'
+             f'{html.escape(SKILL_TEXT["en"][1])}</a></p>')
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -215,12 +264,13 @@ h1{{font-size:26px;margin:0 0 4px}} h2{{font-size:15px;color:var(--muted);margin
 .l a{{color:var(--accent);margin-right:10px}} .d{{font-family:ui-monospace,Menlo,monospace}}
 .spark{{width:100%;height:auto;display:block;margin-top:16px}} .spark .line{{fill:none;stroke:var(--fg);stroke-width:2}}
 .spark .hot{{stroke:var(--hot);stroke-dasharray:4 4}} .spark .cold{{stroke:var(--cold);stroke-dasharray:4 4}}
-.note,.sub{{color:var(--muted);font-size:13px;margin:4px 0}}
+.note,.sub{{color:var(--muted);font-size:13px;margin:4px 0}} .sub a{{color:var(--accent);font-weight:600}}
 </style></head><body><main>
 <h1>Daily Uptrend Explainer</h1>
 <p class="sub">Every trading day, a one-minute picture explainer of how many US stocks are in an uptrend. The chip is the breadth score (0-100, higher = healthier).</p>
 <p class="sub" lang="ja">米国株のうち上昇トレンドにある銘柄の割合を、毎営業日やさしく解説します。日本語版もあります。</p>
 <p>{latest_en} {latest_ja} {dashboard}</p>
+{skill}
 {_sparkline(manifest)}
 {''.join(rows)}
 <p class="note">For education only, not investment advice. <span lang="ja">教育目的の情報で、投資助言ではありません。</span></p>
