@@ -1,0 +1,989 @@
+{
+  "version": 1,
+  "session_date": "2026-11-23",
+  "scope": "all",
+  "dry_run": false,
+  "generated_at": "2026-11-24T04:27:04.575084+00:00",
+  "aborted": null,
+  "coverage": {
+    "expected": 161,
+    "fetched": 161,
+    "persisted": 158,
+    "empty": 3,
+    "failed": 0,
+    "missing": 0,
+    "stored": 158,
+    "reconciled": true
+  },
+  "worksheets": {
+    "all": {
+      "outcome": "persisted",
+      "count": 307,
+      "total": 2681,
+      "stored": true
+    },
+    "sec_basicmaterials": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 130,
+      "stored": true
+    },
+    "sec_communicationservices": {
+      "outcome": "persisted",
+      "count": 20,
+      "total": 99,
+      "stored": true
+    },
+    "sec_consumercyclical": {
+      "outcome": "persisted",
+      "count": 41,
+      "total": 276,
+      "stored": true
+    },
+    "sec_consumerdefensive": {
+      "outcome": "persisted",
+      "count": 20,
+      "total": 116,
+      "stored": true
+    },
+    "sec_energy": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 150,
+      "stored": true
+    },
+    "sec_financial": {
+      "outcome": "persisted",
+      "count": 36,
+      "total": 581,
+      "stored": true
+    },
+    "sec_healthcare": {
+      "outcome": "persisted",
+      "count": 90,
+      "total": 389,
+      "stored": true
+    },
+    "sec_industrials": {
+      "outcome": "persisted",
+      "count": 33,
+      "total": 365,
+      "stored": true
+    },
+    "sec_realestate": {
+      "outcome": "persisted",
+      "count": 11,
+      "total": 127,
+      "stored": true
+    },
+    "sec_technology": {
+      "outcome": "persisted",
+      "count": 54,
+      "total": 373,
+      "stored": true
+    },
+    "sec_utilities": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 75,
+      "stored": true
+    },
+    "ind_advertisingagencies": {
+      "outcome": "persisted",
+      "count": 4,
+      "total": 13,
+      "stored": true
+    },
+    "ind_aerospacedefense": {
+      "outcome": "persisted",
+      "count": 2,
+      "total": 55,
+      "stored": true
+    },
+    "ind_agriculturalinputs": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 6,
+      "stored": true
+    },
+    "ind_airlines": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 11,
+      "stored": true
+    },
+    "ind_airportsairservices": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 3,
+      "stored": true
+    },
+    "ind_aluminum": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 4,
+      "stored": true
+    },
+    "ind_apparelmanufacturing": {
+      "outcome": "persisted",
+      "count": 3,
+      "total": 12,
+      "stored": true
+    },
+    "ind_apparelretail": {
+      "outcome": "persisted",
+      "count": 2,
+      "total": 19,
+      "stored": true
+    },
+    "ind_assetmanagement": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 66,
+      "stored": true
+    },
+    "ind_automanufacturers": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 9,
+      "stored": true
+    },
+    "ind_autoparts": {
+      "outcome": "persisted",
+      "count": 2,
+      "total": 27,
+      "stored": true
+    },
+    "ind_autotruckdealerships": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 12,
+      "stored": true
+    },
+    "ind_banksdiversified": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 20,
+      "stored": true
+    },
+    "ind_banksregional": {
+      "outcome": "persisted",
+      "count": 2,
+      "total": 186,
+      "stored": true
+    },
+    "ind_beveragesbrewers": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 5,
+      "stored": true
+    },
+    "ind_beveragesnonalcoholic": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 11,
+      "stored": true
+    },
+    "ind_beverageswineriesdistilleries": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 4,
+      "stored": true
+    },
+    "ind_biotechnology": {
+      "outcome": "persisted",
+      "count": 32,
+      "total": 174,
+      "stored": true
+    },
+    "ind_broadcasting": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 2,
+      "stored": true
+    },
+    "ind_buildingmaterials": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 10,
+      "stored": true
+    },
+    "ind_buildingproductsequipment": {
+      "outcome": "persisted",
+      "count": 2,
+      "total": 23,
+      "stored": true
+    },
+    "ind_businessequipmentsupplies": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 2,
+      "stored": true
+    },
+    "ind_capitalmarkets": {
+      "outcome": "persisted",
+      "count": 4,
+      "total": 38,
+      "stored": true
+    },
+    "ind_chemicals": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 7,
+      "stored": true
+    },
+    "ind_closedendfunddebt": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 45,
+      "stored": true
+    },
+    "ind_closedendfundequity": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 37,
+      "stored": true
+    },
+    "ind_closedendfundforeign": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 2,
+      "stored": true
+    },
+    "ind_cokingcoal": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 2,
+      "stored": true
+    },
+    "ind_communicationequipment": {
+      "outcome": "persisted",
+      "count": 2,
+      "total": 22,
+      "stored": true
+    },
+    "ind_computerhardware": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 12,
+      "stored": true
+    },
+    "ind_confectioners": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 3,
+      "stored": true
+    },
+    "ind_conglomerates": {
+      "outcome": "persisted",
+      "count": 3,
+      "total": 11,
+      "stored": true
+    },
+    "ind_consultingservices": {
+      "outcome": "persisted",
+      "count": 2,
+      "total": 7,
+      "stored": true
+    },
+    "ind_consumerelectronics": {
+      "outcome": "persisted",
+      "count": 3,
+      "total": 4,
+      "stored": true
+    },
+    "ind_copper": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 5,
+      "stored": true
+    },
+    "ind_creditservices": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 28,
+      "stored": true
+    },
+    "ind_departmentstores": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 3,
+      "stored": true
+    },
+    "ind_diagnosticsresearch": {
+      "outcome": "persisted",
+      "count": 7,
+      "total": 29,
+      "stored": true
+    },
+    "ind_discountstores": {
+      "outcome": "persisted",
+      "count": 6,
+      "total": 9,
+      "stored": true
+    },
+    "ind_drugmanufacturersgeneral": {
+      "outcome": "persisted",
+      "count": 3,
+      "total": 15,
+      "stored": true
+    },
+    "ind_drugmanufacturersspecialtygeneric": {
+      "outcome": "persisted",
+      "count": 10,
+      "total": 27,
+      "stored": true
+    },
+    "ind_educationtrainingservices": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 12,
+      "stored": true
+    },
+    "ind_electricalequipmentparts": {
+      "outcome": "persisted",
+      "count": 2,
+      "total": 14,
+      "stored": true
+    },
+    "ind_electroniccomponents": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 26,
+      "stored": true
+    },
+    "ind_electronicgamingmultimedia": {
+      "outcome": "persisted",
+      "count": 2,
+      "total": 5,
+      "stored": true
+    },
+    "ind_electronicscomputerdistribution": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 7,
+      "stored": true
+    },
+    "ind_engineeringconstruction": {
+      "outcome": "persisted",
+      "count": 3,
+      "total": 27,
+      "stored": true
+    },
+    "ind_entertainment": {
+      "outcome": "persisted",
+      "count": 12,
+      "total": 26,
+      "stored": true
+    },
+    "ind_exchangetradedfund": {
+      "outcome": "empty",
+      "count": 0,
+      "total": 0,
+      "last_stored": null,
+      "stored": false
+    },
+    "ind_farmheavyconstructionmachinery": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 16,
+      "stored": true
+    },
+    "ind_farmproducts": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 6,
+      "stored": true
+    },
+    "ind_financialconglomerates": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 4,
+      "stored": true
+    },
+    "ind_financialdatastockexchanges": {
+      "outcome": "persisted",
+      "count": 2,
+      "total": 11,
+      "stored": true
+    },
+    "ind_fooddistribution": {
+      "outcome": "persisted",
+      "count": 3,
+      "total": 7,
+      "stored": true
+    },
+    "ind_footwearaccessories": {
+      "outcome": "persisted",
+      "count": 2,
+      "total": 7,
+      "stored": true
+    },
+    "ind_furnishingsfixturesappliances": {
+      "outcome": "persisted",
+      "count": 3,
+      "total": 11,
+      "stored": true
+    },
+    "ind_gambling": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 6,
+      "stored": true
+    },
+    "ind_gold": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 29,
+      "stored": true
+    },
+    "ind_grocerystores": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 8,
+      "stored": true
+    },
+    "ind_healthcareplans": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 9,
+      "stored": true
+    },
+    "ind_healthinformationservices": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 20,
+      "stored": true
+    },
+    "ind_homeimprovementretail": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 4,
+      "stored": true
+    },
+    "ind_householdpersonalproducts": {
+      "outcome": "persisted",
+      "count": 5,
+      "total": 14,
+      "stored": true
+    },
+    "ind_industrialdistribution": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 19,
+      "stored": true
+    },
+    "ind_informationtechnologyservices": {
+      "outcome": "persisted",
+      "count": 9,
+      "total": 34,
+      "stored": true
+    },
+    "ind_infrastructureoperations": {
+      "outcome": "empty",
+      "count": 0,
+      "total": 0,
+      "last_stored": "2026-03-27",
+      "stored": false
+    },
+    "ind_insurancebrokers": {
+      "outcome": "persisted",
+      "count": 6,
+      "total": 15,
+      "stored": true
+    },
+    "ind_insurancediversified": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 7,
+      "stored": true
+    },
+    "ind_insurancelife": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 13,
+      "stored": true
+    },
+    "ind_insurancepropertycasualty": {
+      "outcome": "persisted",
+      "count": 14,
+      "total": 37,
+      "stored": true
+    },
+    "ind_insurancereinsurance": {
+      "outcome": "persisted",
+      "count": 4,
+      "total": 6,
+      "stored": true
+    },
+    "ind_insurancespecialty": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 11,
+      "stored": true
+    },
+    "ind_integratedfreightlogistics": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 13,
+      "stored": true
+    },
+    "ind_internetcontentinformation": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 21,
+      "stored": true
+    },
+    "ind_internetretail": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 18,
+      "stored": true
+    },
+    "ind_leisure": {
+      "outcome": "persisted",
+      "count": 4,
+      "total": 13,
+      "stored": true
+    },
+    "ind_lodging": {
+      "outcome": "persisted",
+      "count": 4,
+      "total": 9,
+      "stored": true
+    },
+    "ind_lumberwoodproduction": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 4,
+      "stored": true
+    },
+    "ind_luxurygoods": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 7,
+      "stored": true
+    },
+    "ind_marineshipping": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 15,
+      "stored": true
+    },
+    "ind_medicalcarefacilities": {
+      "outcome": "persisted",
+      "count": 9,
+      "total": 29,
+      "stored": true
+    },
+    "ind_medicaldevices": {
+      "outcome": "persisted",
+      "count": 20,
+      "total": 52,
+      "stored": true
+    },
+    "ind_medicaldistribution": {
+      "outcome": "persisted",
+      "count": 2,
+      "total": 4,
+      "stored": true
+    },
+    "ind_medicalinstrumentssupplies": {
+      "outcome": "persisted",
+      "count": 5,
+      "total": 30,
+      "stored": true
+    },
+    "ind_metalfabrication": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 11,
+      "stored": true
+    },
+    "ind_mortgagefinance": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 5,
+      "stored": true
+    },
+    "ind_oilgasdrilling": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 6,
+      "stored": true
+    },
+    "ind_oilgasep": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 38,
+      "stored": true
+    },
+    "ind_oilgasequipmentservices": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 29,
+      "stored": true
+    },
+    "ind_oilgasintegrated": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 17,
+      "stored": true
+    },
+    "ind_oilgasmidstream": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 43,
+      "stored": true
+    },
+    "ind_oilgasrefiningmarketing": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 12,
+      "stored": true
+    },
+    "ind_otherindustrialmetalsmining": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 8,
+      "stored": true
+    },
+    "ind_otherpreciousmetalsmining": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 4,
+      "stored": true
+    },
+    "ind_packagedfoods": {
+      "outcome": "persisted",
+      "count": 4,
+      "total": 32,
+      "stored": true
+    },
+    "ind_packagingcontainers": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 15,
+      "stored": true
+    },
+    "ind_paperpaperproducts": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 2,
+      "stored": true
+    },
+    "ind_personalservices": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 8,
+      "stored": true
+    },
+    "ind_pharmaceuticalretailers": {
+      "outcome": "empty",
+      "count": 0,
+      "total": 0,
+      "last_stored": null,
+      "stored": false
+    },
+    "ind_pollutiontreatmentcontrols": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 3,
+      "stored": true
+    },
+    "ind_publishing": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 4,
+      "stored": true
+    },
+    "ind_railroads": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 8,
+      "stored": true
+    },
+    "ind_realestatedevelopment": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 3,
+      "stored": true
+    },
+    "ind_realestatediversified": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 2,
+      "stored": true
+    },
+    "ind_realestateservices": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 12,
+      "stored": true
+    },
+    "ind_recreationalvehicles": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 10,
+      "stored": true
+    },
+    "ind_reitdiversified": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 7,
+      "stored": true
+    },
+    "ind_reithealthcarefacilities": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 14,
+      "stored": true
+    },
+    "ind_reithotelmotel": {
+      "outcome": "persisted",
+      "count": 5,
+      "total": 10,
+      "stored": true
+    },
+    "ind_reitindustrial": {
+      "outcome": "persisted",
+      "count": 2,
+      "total": 13,
+      "stored": true
+    },
+    "ind_reitmortgage": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 5,
+      "stored": true
+    },
+    "ind_reitoffice": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 10,
+      "stored": true
+    },
+    "ind_reitresidential": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 15,
+      "stored": true
+    },
+    "ind_reitretail": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 23,
+      "stored": true
+    },
+    "ind_reitspecialty": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 13,
+      "stored": true
+    },
+    "ind_rentalleasingservices": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 16,
+      "stored": true
+    },
+    "ind_residentialconstruction": {
+      "outcome": "persisted",
+      "count": 2,
+      "total": 13,
+      "stored": true
+    },
+    "ind_resortscasinos": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 11,
+      "stored": true
+    },
+    "ind_restaurants": {
+      "outcome": "persisted",
+      "count": 9,
+      "total": 29,
+      "stored": true
+    },
+    "ind_scientifictechnicalinstruments": {
+      "outcome": "persisted",
+      "count": 3,
+      "total": 17,
+      "stored": true
+    },
+    "ind_securityprotectionservices": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 8,
+      "stored": true
+    },
+    "ind_semiconductorequipmentmaterials": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 26,
+      "stored": true
+    },
+    "ind_semiconductors": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 47,
+      "stored": true
+    },
+    "ind_shellcompanies": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 50,
+      "stored": true
+    },
+    "ind_silver": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 2,
+      "stored": true
+    },
+    "ind_softwareapplication": {
+      "outcome": "persisted",
+      "count": 17,
+      "total": 98,
+      "stored": true
+    },
+    "ind_softwareinfrastructure": {
+      "outcome": "persisted",
+      "count": 19,
+      "total": 76,
+      "stored": true
+    },
+    "ind_solar": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 4,
+      "stored": true
+    },
+    "ind_specialtybusinessservices": {
+      "outcome": "persisted",
+      "count": 2,
+      "total": 20,
+      "stored": true
+    },
+    "ind_specialtychemicals": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 37,
+      "stored": true
+    },
+    "ind_specialtyindustrialmachinery": {
+      "outcome": "persisted",
+      "count": 4,
+      "total": 47,
+      "stored": true
+    },
+    "ind_specialtyretail": {
+      "outcome": "persisted",
+      "count": 5,
+      "total": 20,
+      "stored": true
+    },
+    "ind_staffingemploymentservices": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 9,
+      "stored": true
+    },
+    "ind_steel": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 10,
+      "stored": true
+    },
+    "ind_telecomservices": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 28,
+      "stored": true
+    },
+    "ind_textilemanufacturing": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 1,
+      "stored": true
+    },
+    "ind_thermalcoal": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 3,
+      "stored": true
+    },
+    "ind_tobacco": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 5,
+      "stored": true
+    },
+    "ind_toolsaccessories": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 7,
+      "stored": true
+    },
+    "ind_travelservices": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 12,
+      "stored": true
+    },
+    "ind_trucking": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 11,
+      "stored": true
+    },
+    "ind_uranium": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 2,
+      "stored": true
+    },
+    "ind_utilitiesdiversified": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 5,
+      "stored": true
+    },
+    "ind_utilitiesindependentpowerproducers": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 6,
+      "stored": true
+    },
+    "ind_utilitiesregulatedelectric": {
+      "outcome": "persisted",
+      "count": 1,
+      "total": 35,
+      "stored": true
+    },
+    "ind_utilitiesregulatedgas": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 14,
+      "stored": true
+    },
+    "ind_utilitiesregulatedwater": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 8,
+      "stored": true
+    },
+    "ind_utilitiesrenewable": {
+      "outcome": "persisted",
+      "count": 0,
+      "total": 7,
+      "stored": true
+    },
+    "ind_wastemanagement": {
+      "outcome": "persisted",
+      "count": 2,
+      "total": 9,
+      "stored": true
+    }
+  }
+}
