@@ -1,5 +1,18 @@
 [
  {
+  "date": "2026-11-25",
+  "ratio_pct": 14.0,
+  "count": 381,
+  "total": 2714,
+  "score": 21.0,
+  "zone": "Cautious",
+  "exposure": "Defensive (30-60%)",
+  "pages": {
+   "en": "2026/11/2026-11-25-en.html",
+   "ja": "2026/11/2026-11-25-ja.html"
+  }
+ },
+ {
   "date": "2026-11-24",
   "ratio_pct": 13.2,
   "count": 355,

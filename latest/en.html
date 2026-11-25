@@ -3,250 +3,323 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Uptrend Ratio Today: Nov 24, 2026</title>
-<script type="application/json" id="uptrend-facts">{"date": "2026-11-24", "ratio_pct": 13.2, "count": 355, "total": 2698, "score": 19.7}</script>
+<meta name="color-scheme" content="light dark">
+<title>US Uptrend Ratio Explained, Nov 25, 2026</title>
+<script type="application/json" id="uptrend-facts">{"date": "2026-11-25", "ratio_pct": 14.0, "count": 381, "total": 2714, "score": 21.0}</script>
 <style>
 :root{
-  --bg:#ffffff; --fg:#17191c; --muted:#5f6670; --card:#f4f5f2; --track:#e2e4e0;
-  --up:#16955a; --down:#cf3f38; --warn:#c98a10; --line:#2f6fd0; --soft:#9aa0a6;
-  --zone:rgba(207,63,56,.10);
+  --bg:#f7f7f4;--fg:#18181b;--muted:#5b5f66;--card:#ffffff;--grid:#e4e4e0;
+  --line:#2563eb;--fill:rgba(37,99,235,.12);--up:#15803d;--low:#dc2626;--hot:#d97706;--empty:#e4e4df;
 }
 @media (prefers-color-scheme:dark){
   :root{
-    --bg:#111315; --fg:#eceef0; --muted:#a3a9b0; --card:#1c1f23; --track:#343840;
-    --up:#3fcf86; --down:#ff6b63; --warn:#f0b43c; --line:#6ea3ff; --soft:#6d737a;
-    --zone:rgba(255,107,99,.14);
+    --bg:#111318;--fg:#ececf1;--muted:#a3a7ae;--card:#1b1e25;--grid:#2f333c;
+    --line:#60a5fa;--fill:rgba(96,165,250,.15);--up:#4ade80;--low:#f87171;--hot:#fbbf24;--empty:#2c3039;
   }
 }
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--fg)}
-body{font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;overflow-x:hidden}
-main{max-width:640px;margin:0 auto;padding:20px 16px 36px}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.45;overflow-x:hidden}
+main{max-width:680px;margin:0 auto;padding:20px 16px 40px}
 .date{color:var(--muted);font-size:.9rem;margin:0 0 6px}
-h1{font-size:1.65rem;line-height:1.25;margin:0 0 14px}
-.big{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 22px}
-.big div{flex:1 1 30%;min-width:96px;background:var(--card);border-radius:12px;padding:10px 12px}
-.big strong{display:block;font-size:1.6rem;line-height:1.1}
-.big small{color:var(--muted);font-size:.8rem}
-section{background:var(--card);border-radius:16px;padding:14px 14px 12px;margin:0 0 16px}
-h2{font-size:1.1rem;margin:0 0 8px}
-svg{display:block;width:100%;height:auto}
-p{margin:8px 0 0}
-.muted{color:var(--muted);font-size:.85rem}
-.t{fill:var(--fg);font:11px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-.tm{fill:var(--muted);font:10px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-.tb{fill:var(--fg);font:bold 12px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-.up{fill:var(--up)} .dn{fill:var(--down)} .trk{fill:var(--track)} .zone{fill:var(--zone)}
+h1{font-size:1.75rem;line-height:1.2;margin:0 0 10px}
+.def{color:var(--muted);margin:0 0 18px}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px}
+.fact{background:var(--card);border-radius:12px;padding:12px 8px;text-align:center}
+.fact b{display:block;font-size:1.6rem;line-height:1.1}
+.fact small{color:var(--muted);font-size:.78rem;display:block;margin-top:4px}
+.panel{background:var(--card);border-radius:16px;padding:16px;margin:0 0 16px}
+h2{font-size:1.15rem;margin:0 0 10px}
+.panel p{margin:10px 0 0}
+svg{display:block;width:100%;height:auto;max-width:100%}
+svg text{fill:var(--muted);font-size:11px;font-family:inherit}
+svg .t{fill:var(--fg)}
+svg .b{font-weight:700}
+.grid{stroke:var(--grid);stroke-width:1}
 .ln{fill:none;stroke:var(--line);stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
-.dashw{stroke:var(--warn);stroke-width:1.2;stroke-dasharray:4 3}
-.dashd{stroke:var(--down);stroke-width:1.2;stroke-dasharray:4 3}
-.axis{stroke:var(--soft);stroke-width:1}
-.dotl{fill:var(--line)} .ring{fill:var(--bg);stroke:var(--soft);stroke-width:1.6}
-.arcbg{fill:none;stroke:var(--track);stroke-width:18}
-.arcfg{fill:none;stroke:var(--down);stroke-width:18}
-.needle{stroke:var(--fg);stroke-width:3;stroke-linecap:round}
-ul.comp{list-style:none;padding:0;margin:10px 0 0;font-size:.85rem}
-ul.comp li{display:flex;align-items:center;gap:8px;margin:5px 0}
-ul.comp .n{flex:0 0 42%;min-width:0}
-ul.comp .bar{flex:1;height:8px;background:var(--track);border-radius:4px;overflow:hidden}
-ul.comp .bar i{display:block;height:100%;background:var(--down)}
-ul.comp b{flex:0 0 24px;text-align:right}
+.area{fill:var(--fill)}
+.os{stroke:var(--low);stroke-width:1.3;stroke-dasharray:4 3;fill:none}
+.oh{stroke:var(--hot);stroke-width:1.3;stroke-dasharray:4 3;fill:none}
+.md{stroke:var(--muted);stroke-width:1.2;stroke-dasharray:2 3;fill:none}
+.c-up{fill:var(--line)}
+.c-empty{fill:var(--empty)}
+.c-low{fill:var(--low)}
+.c-track{fill:var(--empty)}
+.dot{fill:var(--line);stroke:var(--card);stroke-width:2}
+.dotlow{fill:var(--low);stroke:var(--card);stroke-width:2}
+.ring{fill:var(--card);stroke:var(--low);stroke-width:2}
+.fill2{fill:var(--up)}
+.arrow{stroke:var(--muted);stroke-width:1.5;fill:none}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.8rem;color:var(--muted);margin-top:8px}
+.sw{display:inline-block;width:18px;height:0;border-top:2px dashed;vertical-align:middle;margin-right:4px}
+.dotk{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:middle;margin-right:4px}
+.note{font-size:.85rem;color:var(--muted)}
 .sowhat{font-size:1.1rem;font-weight:600;margin:22px 0 10px}
-.note{color:var(--muted);font-size:.8rem;margin:0}
+.disc{font-size:.8rem;color:var(--muted);margin:0}
 </style>
 </head>
-<body><nav id="explainer-nav" style="font:13px/1.6 system-ui,sans-serif;padding:8px 16px;text-align:center;opacity:.85"><a href="https://uptrend-dashboard.streamlit.app/" style="color:inherit">← Dashboard</a> · <a href="../index.html" style="color:inherit">All days</a> · <a href="en.html" style="color:inherit">Latest</a> · <a href="../2026/11/2026-11-23-en.html" style="color:inherit">← Previous day</a> · <a href="../2026/11/2026-11-24-ja.html" style="color:inherit">日本語</a></nav>
+<body><nav id="explainer-nav" style="font:13px/1.6 system-ui,sans-serif;padding:8px 16px;text-align:center;opacity:.85"><a href="https://uptrend-dashboard.streamlit.app/" style="color:inherit">← Dashboard</a> · <a href="../index.html" style="color:inherit">All days</a> · <a href="en.html" style="color:inherit">Latest</a> · <a href="../2026/11/2026-11-24-en.html" style="color:inherit">← Previous day</a> · <a href="../2026/11/2026-11-25-ja.html" style="color:inherit">日本語</a></nav>
 <main>
-<p class="date">US market breadth · Nov 24, 2026</p>
-<h1>Out of all the US stocks we track, only <span data-fact="ratio_pct">13.2%</span> are in an uptrend right now.</h1>
+  <p class="date">US market breadth · Nov 25, 2026</p>
+  <h1>Right now, only a small slice of US stocks is climbing.</h1>
+  <p class="def">The <strong>uptrend ratio</strong> is the share of tracked US stocks that are in an uptrend.</p>
 
-<div class="big">
-  <div><strong>13.2%</strong><small>uptrend ratio</small></div>
-  <div><strong><span data-fact="count">355</span></strong><small>of 2,698 stocks rising</small></div>
-  <div><strong><span data-fact="score">19.7</span></strong><small>breadth score /100</small></div>
-</div>
+  <div class="facts">
+    <div class="fact"><b><span data-fact="ratio_pct">14.0%</span></b><small>uptrend ratio</small></div>
+    <div class="fact"><b><span data-fact="count">381</span></b><small>stocks in an uptrend, of 2,714</small></div>
+    <div class="fact"><b><span data-fact="score">21</span></b><small>breadth score out of 100</small></div>
+  </div>
 
-<section>
-  <h2>1. What we're measuring</h2>
-  <svg viewBox="0 0 340 74" role="img" aria-label="Bar of 2,698 stocks with 355 highlighted as in an uptrend">
-    <rect class="trk" x="10" y="14" width="320" height="30" rx="6"/>
-    <rect class="up" x="10" y="14" width="42.24" height="30" rx="6"/>
-    <text class="tb" x="10" y="64">355 climbing</text>
-    <text class="t" x="330" y="64" text-anchor="end">2,698 stocks in all</text>
-  </svg>
-  <p>Picture the market as a crowd climbing a hill. The uptrend ratio counts how many are actually going up. Right now, only a small slice is.</p>
-</section>
+  <section class="panel">
+    <h2>Picture 100 squares as all tracked stocks</h2>
+    <svg viewBox="0 0 287 287" role="img" aria-label="100 squares, 14 colored in, showing 14.0% of tracked stocks in an uptrend" style="max-width:250px;margin:0 auto">
+      <g>
+        <rect class="c-up" x="0" y="0" width="26" height="26" rx="4"/><rect class="c-up" x="29" y="0" width="26" height="26" rx="4"/><rect class="c-up" x="58" y="0" width="26" height="26" rx="4"/><rect class="c-up" x="87" y="0" width="26" height="26" rx="4"/><rect class="c-up" x="116" y="0" width="26" height="26" rx="4"/><rect class="c-up" x="145" y="0" width="26" height="26" rx="4"/><rect class="c-up" x="174" y="0" width="26" height="26" rx="4"/><rect class="c-up" x="203" y="0" width="26" height="26" rx="4"/><rect class="c-up" x="232" y="0" width="26" height="26" rx="4"/><rect class="c-up" x="261" y="0" width="26" height="26" rx="4"/>
+        <rect class="c-up" x="0" y="29" width="26" height="26" rx="4"/><rect class="c-up" x="29" y="29" width="26" height="26" rx="4"/><rect class="c-up" x="58" y="29" width="26" height="26" rx="4"/><rect class="c-up" x="87" y="29" width="26" height="26" rx="4"/><rect class="c-empty" x="116" y="29" width="26" height="26" rx="4"/><rect class="c-empty" x="145" y="29" width="26" height="26" rx="4"/><rect class="c-empty" x="174" y="29" width="26" height="26" rx="4"/><rect class="c-empty" x="203" y="29" width="26" height="26" rx="4"/><rect class="c-empty" x="232" y="29" width="26" height="26" rx="4"/><rect class="c-empty" x="261" y="29" width="26" height="26" rx="4"/>
+      </g>
+      <g class="c-empty">
+        <rect x="0" y="58" width="26" height="26" rx="4"/><rect x="29" y="58" width="26" height="26" rx="4"/><rect x="58" y="58" width="26" height="26" rx="4"/><rect x="87" y="58" width="26" height="26" rx="4"/><rect x="116" y="58" width="26" height="26" rx="4"/><rect x="145" y="58" width="26" height="26" rx="4"/><rect x="174" y="58" width="26" height="26" rx="4"/><rect x="203" y="58" width="26" height="26" rx="4"/><rect x="232" y="58" width="26" height="26" rx="4"/><rect x="261" y="58" width="26" height="26" rx="4"/>
+        <rect x="0" y="87" width="26" height="26" rx="4"/><rect x="29" y="87" width="26" height="26" rx="4"/><rect x="58" y="87" width="26" height="26" rx="4"/><rect x="87" y="87" width="26" height="26" rx="4"/><rect x="116" y="87" width="26" height="26" rx="4"/><rect x="145" y="87" width="26" height="26" rx="4"/><rect x="174" y="87" width="26" height="26" rx="4"/><rect x="203" y="87" width="26" height="26" rx="4"/><rect x="232" y="87" width="26" height="26" rx="4"/><rect x="261" y="87" width="26" height="26" rx="4"/>
+        <rect x="0" y="116" width="26" height="26" rx="4"/><rect x="29" y="116" width="26" height="26" rx="4"/><rect x="58" y="116" width="26" height="26" rx="4"/><rect x="87" y="116" width="26" height="26" rx="4"/><rect x="116" y="116" width="26" height="26" rx="4"/><rect x="145" y="116" width="26" height="26" rx="4"/><rect x="174" y="116" width="26" height="26" rx="4"/><rect x="203" y="116" width="26" height="26" rx="4"/><rect x="232" y="116" width="26" height="26" rx="4"/><rect x="261" y="116" width="26" height="26" rx="4"/>
+        <rect x="0" y="145" width="26" height="26" rx="4"/><rect x="29" y="145" width="26" height="26" rx="4"/><rect x="58" y="145" width="26" height="26" rx="4"/><rect x="87" y="145" width="26" height="26" rx="4"/><rect x="116" y="145" width="26" height="26" rx="4"/><rect x="145" y="145" width="26" height="26" rx="4"/><rect x="174" y="145" width="26" height="26" rx="4"/><rect x="203" y="145" width="26" height="26" rx="4"/><rect x="232" y="145" width="26" height="26" rx="4"/><rect x="261" y="145" width="26" height="26" rx="4"/>
+        <rect x="0" y="174" width="26" height="26" rx="4"/><rect x="29" y="174" width="26" height="26" rx="4"/><rect x="58" y="174" width="26" height="26" rx="4"/><rect x="87" y="174" width="26" height="26" rx="4"/><rect x="116" y="174" width="26" height="26" rx="4"/><rect x="145" y="174" width="26" height="26" rx="4"/><rect x="174" y="174" width="26" height="26" rx="4"/><rect x="203" y="174" width="26" height="26" rx="4"/><rect x="232" y="174" width="26" height="26" rx="4"/><rect x="261" y="174" width="26" height="26" rx="4"/>
+        <rect x="0" y="203" width="26" height="26" rx="4"/><rect x="29" y="203" width="26" height="26" rx="4"/><rect x="58" y="203" width="26" height="26" rx="4"/><rect x="87" y="203" width="26" height="26" rx="4"/><rect x="116" y="203" width="26" height="26" rx="4"/><rect x="145" y="203" width="26" height="26" rx="4"/><rect x="174" y="203" width="26" height="26" rx="4"/><rect x="203" y="203" width="26" height="26" rx="4"/><rect x="232" y="203" width="26" height="26" rx="4"/><rect x="261" y="203" width="26" height="26" rx="4"/>
+        <rect x="0" y="232" width="26" height="26" rx="4"/><rect x="29" y="232" width="26" height="26" rx="4"/><rect x="58" y="232" width="26" height="26" rx="4"/><rect x="87" y="232" width="26" height="26" rx="4"/><rect x="116" y="232" width="26" height="26" rx="4"/><rect x="145" y="232" width="26" height="26" rx="4"/><rect x="174" y="232" width="26" height="26" rx="4"/><rect x="203" y="232" width="26" height="26" rx="4"/><rect x="232" y="232" width="26" height="26" rx="4"/><rect x="261" y="232" width="26" height="26" rx="4"/>
+        <rect x="0" y="261" width="26" height="26" rx="4"/><rect x="29" y="261" width="26" height="26" rx="4"/><rect x="58" y="261" width="26" height="26" rx="4"/><rect x="87" y="261" width="26" height="26" rx="4"/><rect x="116" y="261" width="26" height="26" rx="4"/><rect x="145" y="261" width="26" height="26" rx="4"/><rect x="174" y="261" width="26" height="26" rx="4"/><rect x="203" y="261" width="26" height="26" rx="4"/><rect x="232" y="261" width="26" height="26" rx="4"/><rect x="261" y="261" width="26" height="26" rx="4"/>
+      </g>
+    </svg>
+    <p>Blue = in an uptrend. 381 of 2,714 tracked stocks qualify today, which is 14.0%. Most of the crowd is sitting out.</p>
+  </section>
 
-<section>
-  <h2>2. The last six weeks: a fast slide</h2>
-  <svg viewBox="0 0 340 196" role="img" aria-label="Uptrend ratio from Oct 14 to Nov 24, 2026, peaking at 27.7% and falling to 6.9% before rising to 13.2%">
-    <rect class="zone" x="30" y="131.2" width="300" height="38.8"/>
-    <line class="dashw" x1="30" y1="22" x2="330" y2="22"/>
-    <text class="tm" x="32" y="17">Overheated 37%</text>
-    <line class="dashd" x1="30" y1="131.2" x2="330" y2="131.2"/>
-    <text class="tm" x="32" y="145">Oversold 9.7%</text>
-    <line class="axis" x1="30" y1="170" x2="330" y2="170"/>
-    <polyline class="ln" points="30,110.4 40.3,96 50.7,102 61,100.8 71.4,85.2 81.7,79.2 92.1,68.8 102.4,70.8 112.8,69.2 123.1,65.2 133.4,68 143.8,59.2 154.1,72.4 164.5,77.2 174.8,83.6 185.2,65.2 195.5,88.4 205.9,91.2 216.2,71.6 226.6,72.8 236.9,72 247.2,79.6 257.6,80.8 267.9,95.6 278.3,112.8 288.6,112 299,130.8 309.3,142.4 319.7,124 330,117.2"/>
-    <circle class="dotl" cx="143.8" cy="59.2" r="3.5"/>
-    <text class="t" x="143.8" y="50" text-anchor="middle">Oct 29: 27.7%</text>
-    <circle class="dn" cx="309.3" cy="142.4" r="4"/>
-    <text class="t" x="304" y="162" text-anchor="end">Nov 20: 6.9%</text>
-    <circle class="dotl" cx="330" cy="117.2" r="4.5"/>
-    <text class="tb" x="330" y="106" text-anchor="end">Today 13.2%</text>
-    <text class="tm" x="30" y="186">Oct 14</text>
-    <text class="tm" x="330" y="186" text-anchor="end">Nov 24</text>
-  </svg>
-  <p>On Nov 20 it dipped below the "oversold" line, with just 183 stocks rising. It has bounced a little since.</p>
-</section>
+  <section class="panel">
+    <h2>It just bounced off a deep dip</h2>
+    <svg viewBox="0 0 360 190" role="img" aria-label="Daily uptrend ratio from Oct 15 to Nov 25, 2026: peak 27.7% on Oct 29, low 6.9% on Nov 20, today 14.0%">
+      <line class="grid" x1="36" y1="170" x2="350" y2="170"/>
+      <line class="grid" x1="36" y1="132.5" x2="350" y2="132.5"/>
+      <line class="grid" x1="36" y1="95" x2="350" y2="95"/>
+      <line class="grid" x1="36" y1="57.5" x2="350" y2="57.5"/>
+      <line class="grid" x1="36" y1="20" x2="350" y2="20"/>
+      <text x="30" y="174" text-anchor="end">0%</text>
+      <text x="30" y="136.5" text-anchor="end">10%</text>
+      <text x="30" y="99" text-anchor="end">20%</text>
+      <text x="30" y="61.5" text-anchor="end">30%</text>
+      <text x="30" y="24" text-anchor="end">40%</text>
+      <line class="oh" x1="36" y1="31.25" x2="350" y2="31.25"/>
+      <text x="40" y="27" style="fill:var(--hot)">overheated 37.0%</text>
+      <line class="os" x1="36" y1="133.6" x2="350" y2="133.6"/>
+      <text x="40" y="146" style="fill:var(--low)">oversold 9.7%</text>
+      <polygon class="area" points="36,100.6 46.8,106.3 57.7,105.1 68.5,90.5 79.3,84.9 90.1,75.1 101,77 111.8,75.5 122.6,71.8 133.5,74.4 144.3,66.1 155.1,78.5 165.9,83 176.8,89 187.6,71.8 198.4,93.5 209.3,96.1 220.1,77.8 230.9,78.9 241.7,78.1 252.6,85.3 263.4,86.4 274.2,100.3 285,116.4 295.9,115.6 306.7,133.3 317.5,144.1 328.4,126.9 339.2,120.5 350,117.5 350,170 36,170"/>
+      <polyline class="ln" points="36,100.6 46.8,106.3 57.7,105.1 68.5,90.5 79.3,84.9 90.1,75.1 101,77 111.8,75.5 122.6,71.8 133.5,74.4 144.3,66.1 155.1,78.5 165.9,83 176.8,89 187.6,71.8 198.4,93.5 209.3,96.1 220.1,77.8 230.9,78.9 241.7,78.1 252.6,85.3 263.4,86.4 274.2,100.3 285,116.4 295.9,115.6 306.7,133.3 317.5,144.1 328.4,126.9 339.2,120.5 350,117.5"/>
+      <circle class="dot" cx="144.3" cy="66.1" r="4"/>
+      <text class="t" x="144.3" y="56" text-anchor="middle">27.7% · Oct 29</text>
+      <circle class="dotlow" cx="317.5" cy="144.1" r="4.5"/>
+      <text class="t" x="317.5" y="161" text-anchor="middle">6.9% · Nov 20</text>
+      <circle class="dot" cx="350" cy="117.5" r="5"/>
+      <text class="t b" x="348" y="105" text-anchor="end">14.0% today</text>
+      <text x="36" y="186">Oct 15</text>
+      <text x="350" y="186" text-anchor="end">Nov 25</text>
+    </svg>
+    <p>It slid from 27.7% to 6.9%, briefly dropping below the “oversold” line, then climbed back to 14.0%.</p>
+  </section>
 
-<section>
-  <h2>3. Low, but not a record</h2>
-  <svg viewBox="0 0 340 92" role="img" aria-label="Today's 13.2% placed between the record low of 1.1% and high of 44.3%">
-    <line class="axis" x1="27.15" y1="46" x2="308" y2="46" style="stroke-width:6;stroke-linecap:round;stroke:var(--track)"/>
-    <line class="dashd" x1="83.05" y1="36" x2="83.05" y2="56"/>
-    <line class="dashw" x1="260.5" y1="36" x2="260.5" y2="56"/>
-    <line class="axis" x1="170.8" y1="36" x2="170.8" y2="56"/>
-    <circle class="ring" cx="27.15" cy="46" r="4"/>
-    <circle class="ring" cx="308" cy="46" r="4"/>
-    <circle class="dotl" cx="105.8" cy="46" r="7"/>
-    <text class="tm" x="27.15" y="26" text-anchor="middle">Low 1.1%</text>
-    <text class="tb" x="105.8" y="26" text-anchor="middle">Today 13.2%</text>
-    <text class="tm" x="308" y="26" text-anchor="middle">High 44.3%</text>
-    <text class="tm" x="83.05" y="72" text-anchor="middle">Oversold 9.7%</text>
-    <text class="tm" x="170.8" y="72" text-anchor="middle">Middle 23.2%</text>
-    <text class="tm" x="260.5" y="72" text-anchor="middle">Overheated 37%</text>
-  </svg>
-  <p>Across 847 days of data since Aug 2023, only 131 days were lower than today. The record low was 1.1% on Apr 8, 2025.</p>
-</section>
+  <section class="panel">
+    <h2>Low for this market, but not the lowest</h2>
+    <svg viewBox="0 0 360 195" role="img" aria-label="Weekly uptrend ratio from Aug 2023 to Nov 2026, ranging from near zero to 44.3%, with a middle reading of 23.2% and today at 14.0%">
+      <line class="grid" x1="36" y1="170" x2="350" y2="170"/>
+      <line class="grid" x1="36" y1="140" x2="350" y2="140"/>
+      <line class="grid" x1="36" y1="110" x2="350" y2="110"/>
+      <line class="grid" x1="36" y1="80" x2="350" y2="80"/>
+      <line class="grid" x1="36" y1="50" x2="350" y2="50"/>
+      <text x="30" y="174" text-anchor="end">0%</text>
+      <text x="30" y="144" text-anchor="end">10%</text>
+      <text x="30" y="114" text-anchor="end">20%</text>
+      <text x="30" y="84" text-anchor="end">30%</text>
+      <text x="30" y="54" text-anchor="end">40%</text>
+      <line class="grid" x1="73.4" y1="20" x2="73.4" y2="170"/>
+      <line class="grid" x1="169" y1="20" x2="169" y2="170"/>
+      <line class="grid" x1="264.3" y1="20" x2="264.3" y2="170"/>
+      <text x="76" y="186">2024</text>
+      <text x="172" y="186">2025</text>
+      <text x="267" y="186">2026</text>
+      <line class="oh" x1="36" y1="59" x2="350" y2="59"/>
+      <line class="md" x1="36" y1="100.4" x2="350" y2="100.4"/>
+      <line class="os" x1="36" y1="140.9" x2="350" y2="140.9"/>
+      <g transform="translate(36 0) scale(0.261231 1)">
+        <polyline class="ln" vector-effect="non-scaling-stroke" style="stroke-width:1.6" points="0,117.2 12,131.6 21,95.6 33,122.9 41,142.4 48,134 56,142.1 63,127.4 73,150.8 81,149.6 88,128 95,116.6 102,102.5 116,109.1 124,91.7 131,75.8 140,68.3 151,112.4 158,127.7 165,95.9 172,92.6 179,91.7 186,92 194,81.5 201,70.4 208,57.8 215,68.6 222,59.3 229,53.3 238,90.2 245,135.8 252,150.8 259,124.1 266,96.2 273,72.8 280,46.4 285,54.8 290,80 295,90.5 300,113.9 305,125 310,133.1 315,127.4 320,121.1 325,112.7 330,104 335,72.2 340,37.1 345,64.4 350,56 355,53.9 360,140 365,118.1 370,99.8 375,94.1 380,64.7 385,47.9 390,66.8 395,101.9 400,61.7 405,43.7 410,66.5 415,68 420,73.4 427,69.2 434,65 441,97.1 448,102.5 455,46.7 462,75.8 469,47.9 479,43.1 486,102.2 493,108.5 500,144.5 508,150.8 516,139.1 524,116.6 532,72.8 539,77.3 546,86.3 553,98 563,134 570,139.7 577,153.8 584,142.7 591,131 598,144.5 605,165.8 612,143 620,145.4 627,131.3 634,114.5 641,119.9 648,111.2 656,122.6 663,125 670,127.7 677,132.2 685,117.2 696,101.6 703,99.5 710,99.2 717,103.1 724,117.8 731,112.1 738,96.2 745,85.1 753,81.5 760,76.4 767,81.8 774,82.1 781,90.2 788,96.2 795,101.3 802,100.7 809,86.9 816,113.6 823,87.2 830,122.9 837,89.3 845,75.2 852,71.9 859,87.2 866,72.5 875,101.6 882,68.6 889,62 899,69.5 906,75.5 913,63.2 920,71 927,85.4 934,85.4 941,123.5 948,132.5 955,135.2 962,140 969,99.8 983,55.4 990,76.7 997,98.3 1004,94.4 1011,111.5 1018,100.7 1025,107 1032,109.4 1039,86 1046,85.1 1053,75.5 1060,80.6 1067,95.3 1074,100.7 1081,100.4 1088,97.1 1096,84.8 1103,83 1110,96.8 1117,123.5 1124,120.5 1131,130.4 1138,125 1146,131 1155,112.1 1165,118.1 1172,94.4 1180,100.4 1187,96.2 1193,114.2 1200,135.5 1202,128"/>
+      </g>
+      <circle class="dot" cx="350" cy="128" r="5"/>
+      <text class="t b" x="346" y="152" text-anchor="end">today</text>
+    </svg>
+    <div class="legend">
+      <span><i class="sw" style="color:var(--muted)"></i>middle: 23.2%</span>
+      <span><i class="sw" style="color:var(--low)"></i>oversold: 9.7%</span>
+      <span><i class="sw" style="color:var(--hot)"></i>overheated: 37.0%</span>
+    </div>
+    <p>Since Aug 2023, only 150 of 848 days came in lower than today. That puts today at the 17.7th percentile. The record low was 1.1% (Apr 8, 2025).</p>
+  </section>
 
-<section>
-  <h2>4. No sector is climbing</h2>
-  <svg viewBox="0 0 340 262" role="img" aria-label="Uptrend ratio by sector, from Healthcare at 29.9% to Energy at 0%">
-    <line class="dashd" x1="176.8" y1="4" x2="176.8" y2="248"/>
-    <text class="tm" x="176.8" y="258" text-anchor="middle">Oversold 9.7%</text>
-    <g>
-      <text class="t" x="134" y="22" text-anchor="end">Healthcare</text>
-      <rect class="up" x="138" y="12" width="119.6" height="14" rx="3"/>
-      <text class="t" x="261.6" y="23">29.9%</text>
+  <section class="panel">
+    <h2>Few sectors are joining in</h2>
+    <svg viewBox="0 0 360 270" role="img" aria-label="Uptrend ratio by sector, from Healthcare at 27.8% down to Energy at 0.7%">
+      <line class="os" x1="209" y1="2" x2="209" y2="246"/>
+      <text x="209" y="262" text-anchor="middle" style="fill:var(--low)">9.7% oversold line</text>
+      <g text-anchor="end">
+        <text class="t" x="148" y="19">Healthcare</text>
+        <text class="t" x="148" y="41">Consumer Defensive</text>
+        <text class="t" x="148" y="63">Comm. Services</text>
+        <text class="t" x="148" y="85">Technology</text>
+        <text class="t" x="148" y="107">Real Estate</text>
+        <text class="t" x="148" y="129">Consumer Cyclical</text>
+        <text class="t" x="148" y="151">Industrials</text>
+        <text class="t" x="148" y="173">Financial</text>
+        <text class="t" x="148" y="195">Basic Materials</text>
+        <text class="t" x="148" y="217">Utilities ↑</text>
+        <text class="t" x="148" y="239">Energy</text>
+      </g>
+      <rect class="c-up" x="154" y="8" width="157.5" height="14" rx="3"/>
+      <rect class="c-up" x="154" y="30" width="138.3" height="14" rx="3"/>
+      <rect class="c-up" x="154" y="52" width="121.3" height="14" rx="3"/>
+      <rect class="c-up" x="154" y="74" width="103.1" height="14" rx="3"/>
+      <rect class="c-up" x="154" y="96" width="87.8" height="14" rx="3"/>
+      <rect class="c-up" x="154" y="118" width="83.3" height="14" rx="3"/>
+      <rect class="c-up" x="154" y="140" width="55.5" height="14" rx="3"/>
+      <rect class="c-low" x="154" y="162" width="44.2" height="14" rx="3"/>
+      <rect class="c-low" x="154" y="184" width="26.1" height="14" rx="3"/>
+      <rect class="c-low" x="154" y="206" width="15.3" height="14" rx="3"/>
+      <rect class="c-low" x="154" y="228" width="4" height="14" rx="2"/>
+      <text x="315.5" y="19">27.8%</text>
+      <text x="296.3" y="41">24.4%</text>
+      <text x="279.3" y="63">21.4%</text>
+      <text x="261.1" y="85">18.2%</text>
+      <text x="245.8" y="107">15.5%</text>
+      <text x="241.3" y="129">14.7%</text>
+      <text x="213.5" y="151">9.8%</text>
+      <text x="202.2" y="173">7.8%</text>
+      <text x="184.1" y="195">4.6%</text>
+      <text x="173.3" y="217">2.7%</text>
+      <text x="162" y="239">0.7%</text>
+    </svg>
+    <div class="legend">
+      <span><i class="dotk" style="background:var(--low)"></i>oversold</span>
+      <span>↑ trending up</span>
+    </div>
+    <p>Healthcare leads at 27.8%, while Energy sits at 0.7%. Only 1 of 11 sectors (Utilities) is trending up.</p>
+  </section>
 
-      <text class="t" x="134" y="44" text-anchor="end">Consumer Defensive</text>
-      <rect class="up" x="138" y="34" width="91.6" height="14" rx="3"/>
-      <text class="t" x="233.6" y="45">22.9%</text>
+  <section class="panel">
+    <h2>The tool's score: 21 out of 100</h2>
+    <svg viewBox="0 0 360 66" role="img" aria-label="Breadth score gauge from 0 to 100 with a marker at 21">
+      <defs>
+        <linearGradient id="g" x1="0" x2="1" y1="0" y2="0">
+          <stop offset="0" style="stop-color:var(--low)"/>
+          <stop offset="0.5" style="stop-color:var(--hot)"/>
+          <stop offset="1" style="stop-color:var(--up)"/>
+        </linearGradient>
+      </defs>
+      <rect x="20" y="24" width="320" height="14" rx="7" fill="url(#g)"/>
+      <line x1="87.2" y1="18" x2="87.2" y2="44" style="stroke:var(--fg);stroke-width:3"/>
+      <text class="t b" x="87.2" y="13" text-anchor="middle">21</text>
+      <text x="20" y="58">0 · weaker</text>
+      <text x="340" y="58" text-anchor="end">healthier · 100</text>
+    </svg>
+    <p>Zone: <strong>Cautious</strong> (Cautious-Lower). The tool's exposure guidance: <strong>Defensive (30-60%)</strong>.</p>
+    <svg viewBox="0 0 360 114" role="img" aria-label="The five parts of the score, each from 0 to 100" style="margin-top:12px">
+      <text class="t" x="0" y="15">Overall breadth · 30%</text>
+      <rect class="c-track" x="150" y="4" width="180" height="14" rx="3"/>
+      <rect class="c-low" x="150" y="4" width="23.4" height="14" rx="3"/>
+      <text x="336" y="15">13</text>
+      <text class="t" x="0" y="37">Sector participation · 25%</text>
+      <rect class="c-track" x="150" y="26" width="180" height="14" rx="3"/>
+      <rect class="c-up" x="150" y="26" width="54" height="14" rx="3"/>
+      <text x="336" y="37">30</text>
+      <text class="t" x="0" y="59">Momentum · 20%</text>
+      <rect class="c-track" x="150" y="48" width="180" height="14" rx="3"/>
+      <rect class="c-up" x="150" y="48" width="37.8" height="14" rx="3"/>
+      <text x="336" y="59">21</text>
+      <text class="t" x="0" y="81">Sector rotation · 15%</text>
+      <rect class="c-track" x="150" y="70" width="180" height="14" rx="3"/>
+      <rect class="c-up" x="150" y="70" width="79.2" height="14" rx="3"/>
+      <text x="336" y="81">44</text>
+      <text class="t" x="0" y="103">History · 10%</text>
+      <rect class="c-track" x="150" y="92" width="180" height="14" rx="3"/>
+      <rect class="c-up" x="150" y="92" width="32.4" height="14" rx="3"/>
+      <text x="336" y="103">18</text>
+    </svg>
+    <p class="note">Five parts, each scored 0–100, blended by weight. This is the tool's reading, not a recommendation.</p>
+  </section>
 
-      <text class="t" x="134" y="66" text-anchor="end">Communication Services</text>
-      <rect class="up" x="138" y="56" width="84" height="14" rx="3"/>
-      <text class="t" x="226" y="67">21.0%</text>
+  <section class="panel">
+    <h2>Past deep dips: history, not a forecast</h2>
+    <svg viewBox="0 0 360 215" role="img" aria-label="Past oversold episodes: each low point and the reading 20 days later">
+      <line class="grid" x1="30" y1="180" x2="350" y2="180"/>
+      <line class="grid" x1="30" y1="145" x2="350" y2="145"/>
+      <line class="grid" x1="30" y1="110" x2="350" y2="110"/>
+      <line class="grid" x1="30" y1="75" x2="350" y2="75"/>
+      <line class="grid" x1="30" y1="40" x2="350" y2="40"/>
+      <text x="26" y="184" text-anchor="end">0%</text>
+      <text x="26" y="149" text-anchor="end">10%</text>
+      <text x="26" y="114" text-anchor="end">20%</text>
+      <text x="26" y="79" text-anchor="end">30%</text>
+      <text x="26" y="44" text-anchor="end">40%</text>
+      <line class="os" x1="30" y1="146.05" x2="350" y2="146.05"/>
 
-      <text class="t" x="134" y="88" text-anchor="end">Technology</text>
-      <rect class="up" x="138" y="78" width="60.4" height="14" rx="3"/>
-      <text class="t" x="202.4" y="89">15.1%</text>
+      <circle class="ring" cx="50" cy="147.1" r="6"/>
+      <circle class="fill2" cx="50" cy="147.1" r="3"/>
+      <text class="t" x="50" y="133" text-anchor="middle" style="font-size:10px">9.4→9.4%</text>
 
-      <text class="t" x="134" y="110" text-anchor="end">Consumer Cyclical</text>
-      <rect class="up" x="138" y="100" width="58.8" height="14" rx="3"/>
-      <text class="t" x="200.8" y="111">14.7%</text>
+      <line class="arrow" x1="94" y1="160" x2="94" y2="123"/>
+      <circle class="ring" cx="94" cy="164.95" r="5"/>
+      <circle class="fill2" cx="94" cy="118.05" r="5"/>
+      <text x="101" y="169" style="font-size:10px">4.3%</text>
+      <text class="t" x="94" y="108" text-anchor="middle" style="font-size:10px">17.7%</text>
 
-      <text class="t" x="134" y="132" text-anchor="end">Real Estate</text>
-      <rect class="up" x="138" y="122" width="40.8" height="14" rx="3"/>
-      <text class="t" x="182.8" y="133">10.2%</text>
+      <line class="arrow" x1="138" y1="157" x2="138" y2="43"/>
+      <circle class="ring" cx="138" cy="161.8" r="5"/>
+      <circle class="fill2" cx="138" cy="37.55" r="5"/>
+      <text x="145" y="166" style="font-size:10px">5.2%</text>
+      <text class="t" x="138" y="27" text-anchor="middle" style="font-size:10px">40.7%</text>
 
-      <text class="t" x="134" y="154" text-anchor="end">Financial</text>
-      <rect class="dn" x="138" y="144" width="32" height="14" rx="3"/>
-      <text class="t" x="182" y="155">8.0%</text>
+      <line class="arrow" x1="182" y1="153" x2="182" y2="77"/>
+      <circle class="ring" cx="182" cy="157.6" r="5"/>
+      <circle class="fill2" cx="182" cy="71.85" r="5"/>
+      <text x="189" y="162" style="font-size:10px">6.4%</text>
+      <text class="t" x="182" y="62" text-anchor="middle" style="font-size:10px">30.9%</text>
 
-      <text class="t" x="134" y="176" text-anchor="end">Industrials</text>
-      <rect class="dn" x="138" y="166" width="32" height="14" rx="3"/>
-      <text class="t" x="182" y="177">8.0%</text>
+      <line class="arrow" x1="226" y1="171" x2="226" y2="123"/>
+      <circle class="ring" cx="226" cy="176.15" r="5"/>
+      <circle class="fill2" cx="226" cy="117.7" r="5"/>
+      <text x="233" y="174" style="font-size:10px">1.1%</text>
+      <text class="t" x="226" y="108" text-anchor="middle" style="font-size:10px">17.8%</text>
 
-      <text class="t" x="134" y="198" text-anchor="end">Basic Materials</text>
-      <rect class="dn" x="138" y="188" width="6" height="14" rx="2"/>
-      <text class="t" x="182" y="199">1.5%</text>
+      <line class="arrow" x1="270" y1="144" x2="270" y2="77"/>
+      <circle class="ring" cx="270" cy="149.2" r="5"/>
+      <circle class="fill2" cx="270" cy="71.15" r="5"/>
+      <text x="277" y="160" style="font-size:10px">8.8%</text>
+      <text class="t" x="270" y="62" text-anchor="middle" style="font-size:10px">31.1%</text>
 
-      <text class="t" x="134" y="220" text-anchor="end">Utilities</text>
-      <rect class="dn" x="138" y="210" width="5.2" height="14" rx="2"/>
-      <text class="t" x="182" y="221">1.3%</text>
+      <line class="arrow" x1="314" y1="151" x2="314" y2="108" style="stroke-dasharray:3 3"/>
+      <circle class="ring" cx="314" cy="155.85" r="5"/>
+      <text class="t b" x="314" y="102" text-anchor="middle" style="font-size:14px">?</text>
+      <text x="321" y="170" style="font-size:10px">6.9%</text>
 
-      <text class="t" x="134" y="242" text-anchor="end">Energy</text>
-      <rect class="dn" x="138" y="232" width="1.5" height="14"/>
-      <text class="t" x="182" y="243">0.0%</text>
-    </g>
-  </svg>
-  <p>All 11 sectors are trending down (0 of 11 up). Red bars are flagged oversold. In Energy, 0 of 152 stocks are in an uptrend.</p>
-</section>
+      <text x="50" y="198" text-anchor="middle" style="font-size:10px">Aug '23</text>
+      <text x="94" y="198" text-anchor="middle" style="font-size:10px">Oct '23</text>
+      <text x="138" y="198" text-anchor="middle" style="font-size:10px">Apr '24</text>
+      <text x="182" y="198" text-anchor="middle" style="font-size:10px">Dec '24</text>
+      <text x="226" y="198" text-anchor="middle" style="font-size:10px">Apr '25</text>
+      <text x="270" y="198" text-anchor="middle" style="font-size:10px">Mar '26</text>
+      <text class="t b" x="314" y="198" text-anchor="middle" style="font-size:10px">Nov '26</text>
+    </svg>
+    <div class="legend">
+      <span><i class="dotk" style="border:2px solid var(--low)"></i>low point</span>
+      <span><i class="dotk" style="background:var(--up)"></i>20 days later</span>
+      <span><i class="sw" style="color:var(--low)"></i>9.7% oversold line</span>
+    </div>
+    <p>Each past drop below 9.7%: its low, then the reading 20 days later. Outcomes varied widely, and a handful of past cases can't predict the next one.</p>
+  </section>
 
-<section>
-  <h2>5. The tool's score: Bear zone</h2>
-  <svg viewBox="0 0 340 150" role="img" aria-label="Gauge showing a breadth score of 19.7 out of 100">
-    <path class="arcbg" d="M70 130 A100 100 0 0 1 270 130"/>
-    <path class="arcfg" d="M70 130 A100 100 0 0 1 88.54 71.99"/>
-    <line class="needle" x1="170" y1="130" x2="96.7" y2="77.8"/>
-    <circle cx="170" cy="130" r="6" style="fill:var(--fg)"/>
-    <text class="tm" x="70" y="146" text-anchor="middle">0</text>
-    <text class="tm" x="270" y="146" text-anchor="middle">100</text>
-    <text class="tb" x="170" y="104" text-anchor="middle" style="font-size:22px">19.7</text>
-    <text class="t" x="170" y="120" text-anchor="middle">Bear</text>
-  </svg>
-  <p>Higher means healthier breadth. At this reading, the tool's exposure guidance is <strong>Capital Preservation (0-30%)</strong>.</p>
-  <ul class="comp" aria-label="Score ingredients, each out of 100">
-    <li><span class="n">Overall breadth <span class="muted">(30%)</span></span><span class="bar"><i style="width:12%"></i></span><b>12</b></li>
-    <li><span class="n">Sector participation <span class="muted">(25%)</span></span><span class="bar"><i style="width:28%"></i></span><b>28</b></li>
-    <li><span class="n">Momentum <span class="muted">(20%)</span></span><span class="bar"><i style="width:18%"></i></span><b>18</b></li>
-    <li><span class="n">Sector rotation <span class="muted">(15%)</span></span><span class="bar"><i style="width:46%"></i></span><b>46</b></li>
-    <li><span class="n">Historical context <span class="muted">(10%)</span></span><span class="bar"><i style="width:16%"></i></span><b>16</b></li>
-  </ul>
-</section>
-
-<section>
-  <h2>6. Past dips below "oversold"</h2>
-  <svg viewBox="0 0 340 206" role="img" aria-label="Past oversold lows and the ratio 20 days later">
-    <text class="tm" x="4" y="12">Low</text>
-    <circle class="ring" cx="30" cy="9" r="4"/>
-    <text class="tm" x="44" y="12">→ 20 days later</text>
-    <circle class="up" cx="128" cy="9" r="4.5"/>
-
-    <text class="t" x="4" y="38">Aug 2023</text>
-    <circle class="ring" cx="147" cy="34" r="4"/>
-    <circle class="up" cx="147" cy="34" r="4.5"/>
-    <text class="t" x="155" y="38">9.4%</text>
-
-    <text class="t" x="4" y="64">Oct 2023</text>
-    <line class="axis" x1="121.5" y1="60" x2="188.5" y2="60"/>
-    <circle class="ring" cx="121.5" cy="60" r="4"/>
-    <circle class="up" cx="188.5" cy="60" r="4.5"/>
-    <text class="t" x="196" y="64">17.7%</text>
-
-    <text class="t" x="4" y="90">Apr 2024</text>
-    <line class="axis" x1="126" y1="86" x2="303.5" y2="86"/>
-    <circle class="ring" cx="126" cy="86" r="4"/>
-    <circle class="up" cx="303.5" cy="86" r="4.5"/>
-    <text class="t" x="311" y="90">40.7%</text>
-
-    <text class="t" x="4" y="116">Dec 2024</text>
-    <line class="axis" x1="132" y1="112" x2="254.5" y2="112"/>
-    <circle class="ring" cx="132" cy="112" r="4"/>
-    <circle class="up" cx="254.5" cy="112" r="4.5"/>
-    <text class="t" x="262" y="116">30.9%</text>
-
-    <text class="t" x="4" y="142">Apr 2025</text>
-    <line class="axis" x1="105.5" y1="138" x2="189" y2="138"/>
-    <circle class="ring" cx="105.5" cy="138" r="4"/>
-    <circle class="up" cx="189" cy="138" r="4.5"/>
-    <text class="t" x="196" y="142">17.8%</text>
-
-    <text class="t" x="4" y="168">Mar 2026</text>
-    <line class="axis" x1="144" y1="164" x2="255.5" y2="164"/>
-    <circle class="ring" cx="144" cy="164" r="4"/>
-    <circle class="up" cx="255.5" cy="164" r="4.5"/>
-    <text class="t" x="263" y="168">31.1%</text>
-
-    <text class="tb" x="4" y="196">Nov 2026</text>
-    <circle class="ring" cx="134.5" cy="192" r="4"/>
-    <text class="t" x="144" y="196">6.9% → ?</text>
-  </svg>
-  <p>Most past dips were followed by a rebound; in Aug 2023 it was still 9.4% twenty days later. <span class="muted">A handful of past cases can't predict what happens next.</span></p>
-</section>
-
-<p class="sowhat">So what: when only a few stocks are climbing, the market's strength rests on a thin base. Breadth shows you how many stocks are really doing the lifting.</p>
-<p class="note">This page is for education only and is not investment advice.</p>
+  <p class="sowhat">So what? An index can rise while most stocks fall. Breadth shows how many stocks are actually climbing, and today that number is small.</p>
+  <p class="disc">This page is educational only and is not investment advice. Data as of Nov 25, 2026.</p>
 </main>
 <p id="explainer-skill" style="font:13px/1.6 system-ui,sans-serif;padding:8px 16px 24px;text-align:center;opacity:.85">Want to analyze uptrend ratio data with AI? <a href="https://tradermonty.github.io/claude-trading-skills/en/skills/uptrend-analyzer/" target="_blank" rel="noopener" style="color:inherit;font-weight:600">Try the Uptrend Analyzer skill for Claude →</a></p></body>
 </html>
