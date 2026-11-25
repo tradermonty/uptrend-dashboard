@@ -3,312 +3,305 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>米国株アップトレンド比率 2026年11月23日</title>
-<script type="application/json" id="uptrend-facts">{"date": "2026-11-23", "ratio_pct": 11.5, "count": 307, "total": 2681, "score": 20.1}</script>
+<title>米国株の上昇トレンド比率｜2026年11月24日</title>
+<script type="application/json" id="uptrend-facts">{"date": "2026-11-24", "ratio_pct": 13.2, "count": 355, "total": 2698, "score": 19.7}</script>
 <style>
 :root{
-  --bg:#f6f6f3;--card:#ffffff;--fg:#1d1d1f;--muted:#5d636b;--line:#d6d6d0;--grid:#e7e7e2;
-  --accent:#2563eb;--warn:#d9480f;--hot:#a16207;--empty:#e3e3de;--soft:#eef3ff;
+  --bg:#f7f6f2;--fg:#1d1d1f;--muted:#6b6b72;--card:#ffffff;--line:#e2e1dc;
+  --accent:#1f6fd1;--warn:#d24a12;--warnbg:rgba(210,74,18,.12);--hot:#a87700;
+  --empty:#e4e3de;--good:#1f6fd1;
 }
-@media (prefers-color-scheme:dark){
+@media (prefers-color-scheme: dark){
   :root{
-    --bg:#111317;--card:#1b1e24;--fg:#ececec;--muted:#a6acb6;--line:#3a3f48;--grid:#2b2f36;
-    --accent:#6ea8ff;--warn:#ff8a5c;--hot:#f2c14e;--empty:#2e3239;--soft:#1f2a3d;
+    --bg:#121214;--fg:#ececef;--muted:#a3a3ab;--card:#1c1c21;--line:#30303a;
+    --accent:#5aa9ff;--warn:#ff8a5c;--warnbg:rgba(255,138,92,.16);--hot:#e3b341;
+    --empty:#2d2d34;--good:#5aa9ff;
   }
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
 body{
   background:var(--bg);color:var(--fg);
-  font-family:system-ui,-apple-system,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic UI",Meiryo,sans-serif;
+  font-family:system-ui,-apple-system,"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",sans-serif;
   line-height:1.7;overflow-wrap:anywhere;
 }
-main{max-width:640px;margin:0 auto;padding:20px 14px 36px}
-.date{color:var(--muted);font-size:.9rem;margin:0}
-h1{font-size:1.7rem;line-height:1.4;margin:.3em 0 .4em}
-.big{color:var(--accent);font-size:2.4rem;font-weight:800;white-space:nowrap}
-.lead{margin:0 0 18px;color:var(--muted)}
-section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 14px;margin:14px 0}
-h2{font-size:1.1rem;margin:0 0 10px}
+main{max-width:640px;margin:0 auto;padding:20px 16px 40px}
+.date{color:var(--muted);font-size:.9rem;margin:0 0 6px}
+h1{font-size:1.55rem;line-height:1.45;margin:0 0 22px;font-weight:700}
+h1 .big{color:var(--accent);font-size:1.25em}
+section{
+  background:var(--card);border:1px solid var(--line);border-radius:16px;
+  padding:16px 16px 14px;margin:0 0 16px;
+}
+h2{font-size:1.08rem;margin:0 0 10px}
+p{margin:8px 0 0;font-size:.98rem}
 svg{display:block;width:100%;height:auto}
-svg text{fill:var(--muted);font-size:10px;font-family:inherit}
-svg .halo{paint-order:stroke;stroke:var(--card);stroke-width:3px;stroke-linejoin:round}
-svg .strong{fill:var(--fg);font-weight:700}
-svg .acc{fill:var(--accent);font-weight:700}
-svg .wrn{fill:var(--warn);font-weight:700}
-.grid{stroke:var(--grid);stroke-width:1}
-.axis{stroke:var(--line);stroke-width:1}
-.thr-hot{stroke:var(--hot);stroke-width:1.2;stroke-dasharray:4 3}
-.thr-low{stroke:var(--warn);stroke-width:1.2;stroke-dasharray:4 3}
-.thr-mid{stroke:var(--muted);stroke-width:1;stroke-dasharray:2 3}
-.ln{fill:none;stroke:var(--accent);stroke-width:2;stroke-linejoin:round}
-.ln-thin{fill:none;stroke:var(--accent);stroke-width:1.3;stroke-linejoin:round}
-.ma{fill:none;stroke:var(--muted);stroke-width:1.5;stroke-dasharray:3 3}
-.dot-acc{fill:var(--accent)}
-.dot-wrn{fill:var(--warn)}
-.bar-ok{fill:var(--accent)}
-.bar-low{fill:var(--warn)}
-.cell-empty{fill:var(--empty)}
-.cell-on{fill:var(--accent)}
-.track{fill:var(--empty)}
-.link{stroke:var(--line);stroke-width:3;stroke-linecap:round}
-p{margin:8px 0 0}
-.note{font-size:.85rem;color:var(--muted)}
-.legend{font-size:.8rem;color:var(--muted);margin-top:6px}
-.sw{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:middle;margin:0 3px 0 8px}
-.sw.a{background:var(--accent)}.sw.w{background:var(--warn)}
-.num{font-weight:700}
-.tag{display:inline-block;background:var(--soft);color:var(--accent);border-radius:999px;padding:0 10px;font-weight:700}
-.sowhat{font-size:1.05rem;font-weight:700;margin:22px 0 8px}
-.disc{font-size:.8rem;color:var(--muted);margin:0}
-.grid-wrap{max-width:240px;margin:0 auto}
+.waffle{max-width:240px;margin:4px auto 0}
+.num{font-weight:700;color:var(--accent)}
+.warn{color:var(--warn);font-weight:700}
+.note{color:var(--muted);font-size:.88rem}
+.sowhat{font-size:1.08rem;font-weight:700;margin:24px 0 10px;line-height:1.6}
+.disclaimer{color:var(--muted);font-size:.82rem;margin:0}
+/* SVG colors */
+.t{fill:var(--fg)}
+.m{fill:var(--muted)}
+.ac{fill:var(--accent)}
+.wn{fill:var(--warn)}
+.em{fill:var(--empty)}
+.grid{stroke:var(--line);stroke-width:1}
+.zone{fill:var(--warnbg)}
+.hotline{stroke:var(--hot);stroke-width:1.5;stroke-dasharray:5 4}
+.osline{stroke:var(--warn);stroke-width:1.5;stroke-dasharray:5 4}
+.ln{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
+.conn{stroke:var(--muted);stroke-width:2}
+.ring{fill:var(--card);stroke:var(--accent);stroke-width:2.5}
+svg text{font-family:inherit}
 </style>
 </head>
-<body><nav id="explainer-nav" style="font:13px/1.6 system-ui,sans-serif;padding:8px 16px;text-align:center;opacity:.85"><a href="https://uptrend-dashboard.streamlit.app/" style="color:inherit">← ダッシュボード</a> · <a href="../index.html" style="color:inherit">一覧</a> · <a href="ja.html" style="color:inherit">最新</a> · <a href="../2026/11/2026-11-20-ja.html" style="color:inherit">← 前の日</a> · <a href="../2026/11/2026-11-23-en.html" style="color:inherit">English</a></nav>
+<body><nav id="explainer-nav" style="font:13px/1.6 system-ui,sans-serif;padding:8px 16px;text-align:center;opacity:.85"><a href="https://uptrend-dashboard.streamlit.app/" style="color:inherit">← ダッシュボード</a> · <a href="../index.html" style="color:inherit">一覧</a> · <a href="ja.html" style="color:inherit">最新</a> · <a href="../2026/11/2026-11-23-ja.html" style="color:inherit">← 前の日</a> · <a href="../2026/11/2026-11-24-en.html" style="color:inherit">English</a></nav>
 <main>
 
-<p class="date">2026年11月23日・米国株</p>
-<h1>いま上昇トレンドにいる米国株は<br><span class="big" data-fact="ratio_pct">11.5%</span></h1>
-<p class="lead">「上がり調子の株が何割あるか」で、相場全体の元気さを測る物差しです。</p>
+<p class="date">2026年11月24日（米国株）</p>
+<h1>今日、上昇トレンドにある米国株は<br>2,698銘柄中 <span data-fact="count">355</span>銘柄、<br>わずか <span class="big"><span data-fact="ratio_pct">13.2%</span></span>。</h1>
 
-<!-- ① 定義 -->
+<!-- 1. 何を数えているか -->
 <section>
-  <h2>① アップトレンド比率ってなに？</h2>
-  <div class="grid-wrap">
-  <svg viewBox="0 0 220 220" role="img" aria-label="100マスのうち11.5マスが塗られた図">
+  <h2>① 上昇トレンド比率って？</h2>
+  <svg class="waffle" viewBox="0 0 276 276" role="img" aria-label="100マスのうち13.2マスが色つき">
     <defs>
-      <pattern id="cells" width="22" height="22" patternUnits="userSpaceOnUse">
-        <rect x="1" y="1" width="20" height="20" rx="3" class="cell-empty"/>
+      <pattern id="cellE" width="28" height="28" patternUnits="userSpaceOnUse">
+        <rect class="em" width="24" height="24" rx="4"/>
+      </pattern>
+      <pattern id="cellF" width="28" height="28" patternUnits="userSpaceOnUse">
+        <rect class="ac" width="24" height="24" rx="4"/>
       </pattern>
     </defs>
-    <rect x="0" y="0" width="220" height="220" fill="url(#cells)"/>
-    <rect x="1" y="1" width="20" height="20" rx="3" class="cell-on"/>
-    <rect x="23" y="1" width="20" height="20" rx="3" class="cell-on"/>
-    <rect x="45" y="1" width="20" height="20" rx="3" class="cell-on"/>
-    <rect x="67" y="1" width="20" height="20" rx="3" class="cell-on"/>
-    <rect x="89" y="1" width="20" height="20" rx="3" class="cell-on"/>
-    <rect x="111" y="1" width="20" height="20" rx="3" class="cell-on"/>
-    <rect x="133" y="1" width="20" height="20" rx="3" class="cell-on"/>
-    <rect x="155" y="1" width="20" height="20" rx="3" class="cell-on"/>
-    <rect x="177" y="1" width="20" height="20" rx="3" class="cell-on"/>
-    <rect x="199" y="1" width="20" height="20" rx="3" class="cell-on"/>
-    <rect x="1" y="23" width="20" height="20" rx="3" class="cell-on"/>
-    <rect x="23" y="23" width="10" height="20" class="cell-on"/>
+    <rect x="0" y="0" width="280" height="280" fill="url(#cellE)"/>
+    <rect x="0" y="0" width="280" height="28" fill="url(#cellF)"/>
+    <rect x="0" y="28" width="84" height="28" fill="url(#cellF)"/>
+    <rect class="ac" x="84" y="28" width="4.8" height="24"/>
   </svg>
-  </div>
-  <p>追跡している米国株 <span class="num">2,681</span>銘柄のうち、上昇トレンドにあるのは <span class="num" data-fact="count">307</span>銘柄。</p>
-  <p class="note">1マス＝1%。100マス中、青いのはこれだけです。</p>
+  <p>追跡している米国株のうち、<b>上昇トレンドにある株の割合</b>です。全体を100マスにすると、色つきは13.2マスぶん。</p>
+  <p class="note">株価指数が「クラスの平均点」なら、これは「元気な生徒が何人いるか」。</p>
 </section>
 
-<!-- ② 直近30日 -->
+<!-- 2. 直近1か月 -->
 <section>
-  <h2>② この1か月で急ブレーキ</h2>
-  <svg viewBox="0 0 360 192" role="img" aria-label="2026年10月13日から11月23日までのアップトレンド比率の推移">
-    <line x1="36" y1="170" x2="350" y2="170" class="axis"/>
-    <line x1="36" y1="130" x2="350" y2="130" class="grid"/>
-    <line x1="36" y1="90" x2="350" y2="90" class="grid"/>
-    <line x1="36" y1="50" x2="350" y2="50" class="grid"/>
-    <line x1="36" y1="10" x2="350" y2="10" class="grid"/>
-    <text x="32" y="173" text-anchor="end">0%</text>
-    <text x="32" y="133" text-anchor="end">10</text>
-    <text x="32" y="93" text-anchor="end">20</text>
-    <text x="32" y="53" text-anchor="end">30</text>
-    <text x="32" y="13" text-anchor="end">40</text>
-    <line x1="36" y1="22" x2="350" y2="22" class="thr-hot"/>
-    <line x1="36" y1="131.2" x2="350" y2="131.2" class="thr-low"/>
-    <polyline class="ma" points="36.0,108.8 46.8,108.4 57.7,106.4 68.5,104.8 79.3,103.2 90.1,100.8 101.0,98.0 111.8,94.4 122.6,90.4 133.4,88.0 144.3,84.8 155.1,80.4 165.9,76.8 176.8,74.0 187.6,71.6 198.4,71.2 209.2,70.0 220.1,72.0 230.9,74.0 241.7,74.0 252.6,74.8 263.4,75.2 274.2,77.6 285.0,78.4 295.9,80.0 306.7,83.2 317.5,87.6 328.3,92.0 339.2,97.2 350.0,102.4"/>
-    <polyline class="ln" points="36.0,99.6 46.8,110.4 57.7,96.0 68.5,102.0 79.3,100.8 90.1,85.2 101.0,79.2 111.8,68.8 122.6,70.8 133.4,69.2 144.3,65.2 155.1,68.0 165.9,59.2 176.8,72.4 187.6,77.2 198.4,83.6 209.2,65.2 220.1,88.4 230.9,91.2 241.7,71.6 252.6,72.8 263.4,72.0 274.2,79.6 285.0,80.8 295.9,95.6 306.7,112.8 317.5,112.0 328.3,130.8 339.2,142.4 350.0,124.0"/>
-    <text x="40" y="19" class="halo" style="fill:var(--hot)">過熱ライン 37%</text>
-    <text x="40" y="127" class="halo" style="fill:var(--warn)">売られすぎライン 9.7%</text>
-    <circle cx="165.9" cy="59.2" r="3.5" class="dot-acc"/>
-    <text x="165.9" y="51" text-anchor="middle" class="halo">10/29 27.7%</text>
-    <circle cx="339.2" cy="142.4" r="4" class="dot-wrn"/>
-    <text x="335" y="158" text-anchor="end" class="halo wrn">11/20 6.9%</text>
-    <circle cx="350" cy="124" r="4.5" class="dot-acc"/>
-    <text x="346" y="119" text-anchor="end" class="halo acc">今日 11.5%</text>
-    <text x="36" y="186">10/13</text>
-    <text x="198.4" y="186" text-anchor="middle">11/3</text>
-    <text x="350" y="186" text-anchor="end">11/23</text>
+  <h2>② この1か月で急降下</h2>
+  <svg viewBox="0 0 340 195" role="img" aria-label="10月14日から11月24日までの上昇トレンド比率の推移">
+    <rect class="zone" x="36" y="131.2" width="294" height="38.8"/>
+    <line class="grid" x1="36" y1="170" x2="330" y2="170"/>
+    <line class="grid" x1="36" y1="130" x2="330" y2="130"/>
+    <line class="grid" x1="36" y1="90" x2="330" y2="90"/>
+    <line class="grid" x1="36" y1="50" x2="330" y2="50"/>
+    <line class="grid" x1="36" y1="10" x2="330" y2="10"/>
+    <text class="m" x="30" y="174" font-size="10" text-anchor="end">0%</text>
+    <text class="m" x="30" y="134" font-size="10" text-anchor="end">10%</text>
+    <text class="m" x="30" y="94" font-size="10" text-anchor="end">20%</text>
+    <text class="m" x="30" y="54" font-size="10" text-anchor="end">30%</text>
+    <text class="m" x="30" y="14" font-size="10" text-anchor="end">40%</text>
+    <line class="hotline" x1="36" y1="22" x2="330" y2="22"/>
+    <text x="40" y="34" font-size="10.5" style="fill:var(--hot)">過熱ライン 37%</text>
+    <line class="osline" x1="36" y1="131.2" x2="330" y2="131.2"/>
+    <text class="wn" x="40" y="164" font-size="10.5">売られすぎ 9.7%未満</text>
+    <path class="ln" d="M36,110.4 L46.1,96 L56.3,102 L66.4,100.8 L76.6,85.2 L86.7,79.2 L96.8,68.8 L107,70.8 L117.1,69.2 L127.2,65.2 L137.4,68 L147.5,59.2 L157.7,72.4 L167.8,77.2 L177.9,83.6 L188.1,65.2 L198.2,88.4 L208.3,91.2 L218.5,71.6 L228.6,72.8 L238.8,72 L248.9,79.6 L259,80.8 L269.2,95.6 L279.3,112.8 L289.4,112 L299.6,130.8 L309.7,142.4 L319.9,124 L330,117.2"/>
+    <circle class="ac" cx="147.5" cy="59.2" r="3.5"/>
+    <text class="t" x="147.5" y="50" font-size="11" text-anchor="middle" font-weight="700">27.7%</text>
+    <circle class="wn" cx="309.7" cy="142.4" r="4"/>
+    <text class="wn" x="300" y="158" font-size="11" text-anchor="end" font-weight="700">6.9%</text>
+    <circle class="ring" cx="330" cy="117.2" r="5"/>
+    <text class="t" x="326" y="104" font-size="11" text-anchor="end" font-weight="700">今日 13.2%</text>
+    <text class="m" x="36" y="187" font-size="10">10/14</text>
+    <text class="m" x="167.8" y="187" font-size="10" text-anchor="middle">11/3</text>
+    <text class="m" x="336" y="187" font-size="10" text-anchor="end">11/24</text>
   </svg>
-  <p class="legend"><span class="sw a"></span>毎日の値　<span style="letter-spacing:-1px">┅</span> 10日平均</p>
-  <p>11/20には売られすぎラインを割り込み、今日は11.5%に戻しました。ただ10日平均は16.9%で、流れはまだ下向きです。</p>
+  <p>10月末の27.7%から、11/20には<span class="warn">6.9%</span>まで低下して「売られすぎ」ゾーンへ。今日は13.2%まで少し戻りました。</p>
 </section>
 
-<!-- ③ 過去との比較 -->
+<!-- 3. 過去との比較 -->
 <section>
-  <h2>③ 過去と比べても、かなり低い</h2>
-  <svg viewBox="0 0 360 192" role="img" aria-label="2023年8月から2026年11月までのアップトレンド比率の推移">
-    <line x1="30" y1="170" x2="350" y2="170" class="axis"/>
-    <line x1="30" y1="138" x2="350" y2="138" class="grid"/>
-    <line x1="30" y1="106" x2="350" y2="106" class="grid"/>
-    <line x1="30" y1="74" x2="350" y2="74" class="grid"/>
-    <line x1="30" y1="42" x2="350" y2="42" class="grid"/>
-    <text x="26" y="173" text-anchor="end">0%</text>
-    <text x="26" y="141" text-anchor="end">10</text>
-    <text x="26" y="109" text-anchor="end">20</text>
-    <text x="26" y="77" text-anchor="end">30</text>
-    <text x="26" y="45" text-anchor="end">40</text>
-    <line x1="30" y1="95.4" x2="350" y2="95.4" class="thr-mid"/>
-    <line x1="30" y1="139.0" x2="350" y2="139.0" class="thr-low"/>
-    <polyline class="ln-thin" points="30.0,113.7 33.2,129.0 35.6,90.6 38.8,119.8 40.9,140.6 42.8,131.6 44.9,140.2 46.8,124.6 49.5,149.5 51.6,148.2 53.5,125.2 55.3,113.0 57.2,98.0 60.9,105.0 63.1,86.5 64.9,69.5 67.3,61.5 70.3,108.6 72.1,124.9 74.0,91.0 75.9,87.4 77.7,86.5 79.6,86.8 81.7,75.6 83.6,63.8 85.5,50.3 87.3,61.8 89.2,51.9 91.1,45.5 93.5,84.9 95.3,133.5 97.2,149.5 99.1,121.0 100.9,91.3 102.8,66.3 104.7,38.2 106.0,47.1 107.3,74.0 108.7,85.2 110.0,110.2 111.3,122.0 112.7,130.6 114.0,124.6 115.3,117.8 116.7,108.9 118.0,99.6 119.3,65.7 120.7,28.2 122.0,57.4 123.3,48.4 124.7,46.2 126.0,138.0 127.3,114.6 128.7,95.1 130.0,89.0 131.3,57.7 132.7,39.8 134.0,59.9 135.3,97.4 136.7,54.5 138.0,35.3 139.3,59.6 140.7,61.2 142.0,67.0 143.9,62.5 145.7,58.0 147.6,92.2 149.5,98.0 151.3,38.5 153.2,69.5 155.1,39.8 157.7,34.6 159.6,97.7 161.5,104.4 163.3,142.8 165.5,149.5 167.6,137.0 169.7,113.0 171.9,66.3 173.7,71.1 175.6,80.7 177.5,93.2 180.1,131.6 182.0,137.7 183.9,152.7 185.7,140.9 187.6,128.4 189.5,142.8 191.3,165.5 193.2,141.2 195.3,143.8 197.2,128.7 199.1,110.8 200.9,116.6 202.8,107.3 204.9,119.4 206.8,122.0 208.7,124.9 210.5,129.7 212.7,113.7 215.6,97.0 217.5,94.8 219.3,94.5 221.2,98.6 223.1,114.3 224.9,108.2 226.8,91.3 228.7,79.4 230.8,75.6 232.7,70.2 234.5,75.9 236.4,76.2 238.3,84.9 240.1,91.3 242.0,96.7 243.9,96.1 245.7,81.4 247.6,109.8 249.5,81.7 251.3,119.8 253.2,83.9 255.3,68.9 257.2,65.4 259.1,81.7 260.9,66.0 263.3,97.0 265.2,61.8 267.1,54.8 269.7,62.8 271.6,69.2 273.5,56.1 275.3,64.4 277.2,79.8 279.1,79.8 280.9,120.4 282.8,130.0 284.7,132.9 286.5,138.0 288.4,95.1 292.1,47.8 294.0,70.5 295.9,93.5 297.7,89.4 299.6,107.6 301.5,96.1 303.3,102.8 305.2,105.4 307.1,80.4 308.9,79.4 310.8,69.2 312.7,74.6 314.5,90.3 316.4,96.1 318.3,95.8 320.1,92.2 322.3,79.1 324.1,77.2 326.0,91.9 327.9,120.4 329.7,117.2 331.6,127.8 333.5,122.0 335.6,128.4 338.0,108.2 340.7,114.6 342.5,89.4 344.7,95.8 346.5,91.3 348.1,110.5 350.0,133.2"/>
-    <text x="34" y="91" class="halo">ふだん（中央値）23.3%</text>
-    <text x="228" y="135" class="halo" style="fill:var(--warn)">売られすぎ 9.7%</text>
-    <circle cx="191.6" cy="166.5" r="3" class="dot-wrn"/>
-    <text x="198" y="165" class="halo wrn">最低 1.1%（2025/4/8）</text>
-    <circle cx="350" cy="133.2" r="4.5" class="dot-acc"/>
-    <text x="346" y="154" text-anchor="end" class="halo acc">今日 11.5%</text>
-    <line x1="68.1" y1="170" x2="68.1" y2="174" class="axis"/>
-    <line x1="165.7" y1="170" x2="165.7" y2="174" class="axis"/>
-    <line x1="263.1" y1="170" x2="263.1" y2="174" class="axis"/>
-    <text x="68.1" y="186" text-anchor="middle">2024</text>
-    <text x="165.7" y="186" text-anchor="middle">2025</text>
-    <text x="263.1" y="186" text-anchor="middle">2026</text>
+  <h2>③ 過去と比べても低い</h2>
+  <svg viewBox="0 0 340 110" role="img" aria-label="過去の最低1.1%から最高44.3%の範囲の中で、今日の13.2%は低い位置">
+    <rect class="em" x="27.3" y="55" width="285.1" height="10" rx="5"/>
+    <line x1="173.1" y1="49" x2="173.1" y2="71" stroke="var(--muted)" stroke-width="2"/>
+    <circle class="wn" cx="27.3" cy="60" r="4"/>
+    <circle class="ac" cx="312.4" cy="60" r="4"/>
+    <circle class="ring" cx="107.1" cy="60" r="7"/>
+    <text class="t" x="107.1" y="40" font-size="12" text-anchor="middle" font-weight="700">今日 13.2%</text>
+    <text class="m" x="173.1" y="88" font-size="11" text-anchor="middle">中央値 23.2%</text>
+    <text class="m" x="20" y="88" font-size="11">最低 1.1%</text>
+    <text class="m" x="20" y="103" font-size="10">2025/4/8</text>
+    <text class="m" x="320" y="88" font-size="11" text-anchor="end">最高 44.3%</text>
   </svg>
-  <p>2023年8月からの <span class="num">846</span>日のうち、今日より低かった日は <span class="num">94</span>日だけです。</p>
+  <p>2023年8月からの847日のうち、今日より低かった日は131日だけ。<b>下から15.5%</b>の位置です。</p>
 </section>
 
-<!-- ④ 業種 -->
+<!-- 4. 業種別 -->
 <section>
-  <h2>④ 上向きの業種はひとつもない</h2>
-  <svg viewBox="0 0 360 248" role="img" aria-label="11業種それぞれのアップトレンド比率">
-    <line x1="130" y1="2" x2="130" y2="244" class="axis"/>
-    <text x="124" y="17" text-anchor="end" class="strong">ヘルスケア</text>
-    <rect x="130" y="6" width="184.8" height="14" rx="2" class="bar-ok"/>
-    <text x="318.8" y="17">23.1%</text>
-    <text x="124" y="39" text-anchor="end" class="strong">通信サービス</text>
-    <rect x="130" y="28" width="161.6" height="14" rx="2" class="bar-ok"/>
-    <text x="295.6" y="39">20.2%</text>
-    <text x="124" y="61" text-anchor="end" class="strong">生活必需品</text>
-    <rect x="130" y="50" width="137.6" height="14" rx="2" class="bar-ok"/>
-    <text x="271.6" y="61">17.2%</text>
-    <text x="124" y="83" text-anchor="end" class="strong">一般消費財</text>
-    <rect x="130" y="72" width="119.2" height="14" rx="2" class="bar-ok"/>
-    <text x="253.2" y="83">14.9%</text>
-    <text x="124" y="105" text-anchor="end" class="strong">テクノロジー</text>
-    <rect x="130" y="94" width="116.0" height="14" rx="2" class="bar-ok"/>
-    <text x="250.0" y="105">14.5%</text>
-    <text x="124" y="127" text-anchor="end" class="strong">資本財</text>
-    <rect x="130" y="116" width="72.0" height="14" rx="2" class="bar-low"/>
-    <text x="206.0" y="127">9.0%</text>
-    <text x="124" y="149" text-anchor="end" class="strong">不動産</text>
-    <rect x="130" y="138" width="69.6" height="14" rx="2" class="bar-low"/>
-    <text x="203.6" y="149">8.7%</text>
-    <text x="124" y="171" text-anchor="end" class="strong">金融</text>
-    <rect x="130" y="160" width="49.6" height="14" rx="2" class="bar-low"/>
-    <text x="183.6" y="171">6.2%</text>
-    <text x="124" y="193" text-anchor="end" class="strong">公益</text>
-    <rect x="130" y="182" width="10.4" height="14" rx="2" class="bar-low"/>
-    <text x="144.4" y="193">1.3%</text>
-    <text x="124" y="215" text-anchor="end" class="strong">素材</text>
-    <rect x="130" y="204" width="6.4" height="14" rx="2" class="bar-low"/>
-    <text x="140.4" y="215">0.8%</text>
-    <text x="124" y="237" text-anchor="end" class="strong">エネルギー</text>
-    <text x="134" y="237" class="wrn">0%</text>
+  <h2>④ 業種別：どこも元気がない</h2>
+  <svg viewBox="0 0 340 292" role="img" aria-label="11業種の上昇トレンド比率。ヘルスケア29.9%からエネルギー0.0%まで">
+    <line class="osline" x1="144.5" y1="18" x2="144.5" y2="286" opacity=".7"/>
+    <text class="wn" x="144.5" y="12" font-size="10.5" text-anchor="middle">売られすぎ 9.7%</text>
+    <g font-size="12">
+      <text class="t" x="90" y="34" text-anchor="end">ヘルスケア</text>
+      <rect class="ac" x="96" y="22" width="149.5" height="16" rx="3"/>
+      <text class="t" x="249.5" y="34">29.9%</text>
+
+      <text class="t" x="90" y="58" text-anchor="end">生活必需品</text>
+      <rect class="ac" x="96" y="46" width="114.5" height="16" rx="3"/>
+      <text class="t" x="214.5" y="58">22.9%</text>
+
+      <text class="t" x="90" y="82" text-anchor="end">通信</text>
+      <rect class="ac" x="96" y="70" width="105" height="16" rx="3"/>
+      <text class="t" x="205" y="82">21.0%</text>
+
+      <text class="t" x="90" y="106" text-anchor="end">テクノロジー</text>
+      <rect class="ac" x="96" y="94" width="75.5" height="16" rx="3"/>
+      <text class="t" x="175.5" y="106">15.1%</text>
+
+      <text class="t" x="90" y="130" text-anchor="end">一般消費財</text>
+      <rect class="ac" x="96" y="118" width="73.5" height="16" rx="3"/>
+      <text class="t" x="173.5" y="130">14.7%</text>
+
+      <text class="t" x="90" y="154" text-anchor="end">不動産</text>
+      <rect class="ac" x="96" y="142" width="51" height="16" rx="3"/>
+      <text class="t" x="151" y="154">10.2%</text>
+
+      <text class="t" x="90" y="178" text-anchor="end">金融</text>
+      <rect class="wn" x="96" y="166" width="40" height="16" rx="3"/>
+      <text class="wn" x="150" y="178">8.0%</text>
+
+      <text class="t" x="90" y="202" text-anchor="end">資本財</text>
+      <rect class="wn" x="96" y="190" width="40" height="16" rx="3"/>
+      <text class="wn" x="150" y="202">8.0%</text>
+
+      <text class="t" x="90" y="226" text-anchor="end">素材</text>
+      <rect class="wn" x="96" y="214" width="7.5" height="16" rx="2"/>
+      <text class="wn" x="107.5" y="226">1.5%</text>
+
+      <text class="t" x="90" y="250" text-anchor="end">公益</text>
+      <rect class="wn" x="96" y="238" width="6.5" height="16" rx="2"/>
+      <text class="wn" x="106.5" y="250">1.3%</text>
+
+      <text class="t" x="90" y="274" text-anchor="end">エネルギー</text>
+      <text class="wn" x="100" y="274">0.0%</text>
+    </g>
   </svg>
-  <p class="legend"><span class="sw a"></span>通常　<span class="sw w"></span>売られすぎ</p>
-  <p>11業種のうち、上昇トレンドと判定された業種は <span class="num">0</span>。どの業種も数字が下向きです。</p>
+  <p>11業種すべてが下向き。<span class="warn">5業種</span>が「売られすぎ」で、エネルギーは152銘柄中0銘柄です。</p>
 </section>
 
-<!-- ⑤ スコア -->
+<!-- 5. スコア -->
 <section>
-  <h2>⑤ 相場の健康度スコア</h2>
-  <svg viewBox="0 0 360 70" role="img" aria-label="0から100のスコアで20.1の位置">
-    <rect x="20" y="24" width="320" height="16" rx="8" class="track"/>
-    <rect x="20" y="24" width="64.3" height="16" rx="8" class="bar-low"/>
-    <line x1="84.3" y1="20" x2="84.3" y2="44" stroke="var(--fg)" stroke-width="2"/>
-    <text x="84.3" y="15" text-anchor="middle" class="strong" style="font-size:13px">20.1</text>
-    <text x="20" y="58">0 弱い</text>
-    <text x="180" y="58" text-anchor="middle">50</text>
-    <text x="340" y="58" text-anchor="end">100 健全</text>
+  <h2>⑤ ツールの総合点</h2>
+  <svg viewBox="0 0 340 66" role="img" aria-label="総合点 19.7点（100点満点）">
+    <rect class="em" x="20" y="26" width="300" height="16" rx="8"/>
+    <rect class="wn" x="20" y="26" width="59.1" height="16" rx="8"/>
+    <circle class="ring" cx="79.1" cy="34" r="8" style="stroke:var(--warn)"/>
+    <text class="wn" x="79.1" y="16" font-size="13" text-anchor="middle" font-weight="700">19.7</text>
+    <text class="m" x="20" y="60" font-size="10">0（弱い）</text>
+    <text class="m" x="320" y="60" font-size="10" text-anchor="end">100（健全）</text>
   </svg>
-  <p>100点満点で <span class="num" data-fact="score">20.1</span>点。ツールの判定は <span class="tag">慎重（Cautious）</span></p>
-  <p>ツールが示す投資配分の目安は「守り寄り（Defensive 30〜60%）」です。</p>
-  <svg viewBox="0 0 360 124" role="img" aria-label="スコアの内訳" style="margin-top:10px">
-    <text x="144" y="14" text-anchor="end" class="strong">市場全体（30%）</text>
-    <rect x="150" y="4" width="180" height="12" rx="3" class="track"/>
-    <rect x="150" y="4" width="14.4" height="12" rx="3" class="bar-low"/>
-    <text x="168.4" y="14">8</text>
-    <text x="144" y="38" text-anchor="end" class="strong">業種の参加（25%）</text>
-    <rect x="150" y="28" width="180" height="12" rx="3" class="track"/>
-    <rect x="150" y="28" width="59.4" height="12" rx="3" class="bar-ok"/>
-    <text x="213.4" y="38">33</text>
-    <text x="144" y="62" text-anchor="end" class="strong">業種の循環（15%）</text>
-    <rect x="150" y="52" width="180" height="12" rx="3" class="track"/>
-    <rect x="150" y="52" width="95.4" height="12" rx="3" class="bar-ok"/>
-    <text x="249.4" y="62">53</text>
-    <text x="144" y="86" text-anchor="end" class="strong">勢い（20%）</text>
-    <rect x="150" y="76" width="180" height="12" rx="3" class="track"/>
-    <rect x="150" y="76" width="30.6" height="12" rx="3" class="bar-low"/>
-    <text x="184.6" y="86">17</text>
-    <text x="144" y="110" text-anchor="end" class="strong">過去との比較（10%）</text>
-    <rect x="150" y="100" width="180" height="12" rx="3" class="track"/>
-    <rect x="150" y="100" width="19.8" height="12" rx="3" class="bar-low"/>
-    <text x="173.8" y="110">11</text>
+  <p>総合点は <span class="warn"><span data-fact="score">19.7</span></span> / 100。ツールの判定は<b>「ベア（弱気）」ゾーン</b>、目安は<b>「資本保全（株式 0〜30%）」</b>です。</p>
+  <svg viewBox="0 0 340 128" role="img" aria-label="総合点の内訳">
+    <g font-size="11">
+      <text class="m" x="124" y="18" text-anchor="end">全体の広がり（30%）</text>
+      <rect class="em" x="130" y="8" width="160" height="12" rx="6"/>
+      <rect class="wn" x="130" y="8" width="19.2" height="12" rx="6"/>
+      <text class="t" x="298" y="18">12</text>
+
+      <text class="m" x="124" y="43" text-anchor="end">業種の参加度（25%）</text>
+      <rect class="em" x="130" y="33" width="160" height="12" rx="6"/>
+      <rect class="wn" x="130" y="33" width="44.8" height="12" rx="6"/>
+      <text class="t" x="298" y="43">28</text>
+
+      <text class="m" x="124" y="68" text-anchor="end">勢い（20%）</text>
+      <rect class="em" x="130" y="58" width="160" height="12" rx="6"/>
+      <rect class="wn" x="130" y="58" width="28.8" height="12" rx="6"/>
+      <text class="t" x="298" y="68">18</text>
+
+      <text class="m" x="124" y="93" text-anchor="end">業種の入れ替わり（15%）</text>
+      <rect class="em" x="130" y="83" width="160" height="12" rx="6"/>
+      <rect class="ac" x="130" y="83" width="73.6" height="12" rx="6"/>
+      <text class="t" x="298" y="93">46</text>
+
+      <text class="m" x="124" y="118" text-anchor="end">過去との比較（10%）</text>
+      <rect class="em" x="130" y="108" width="160" height="12" rx="6"/>
+      <rect class="wn" x="130" y="108" width="25.6" height="12" rx="6"/>
+      <text class="t" x="298" y="118">16</text>
+    </g>
   </svg>
-  <p class="note">内訳（各100点満点）。かっこ内はスコアに占める重み。</p>
+  <p class="note">内訳（カッコ内は配点の重み）。「業種の入れ替わり」以外はどれも低め。</p>
 </section>
 
-<!-- ⑥ 過去の売られすぎ -->
+<!-- 6. 過去の売られすぎ -->
 <section>
-  <h2>⑥ 過去に「売られすぎ」になったときは？</h2>
-  <svg viewBox="0 0 360 198" role="img" aria-label="過去の売られすぎ局面の底の値と20営業日後の値">
-    <line x1="112" y1="12" x2="112" y2="176" class="thr-low"/>
-    <text x="114" y="9" style="fill:var(--warn);font-size:9px">売られすぎ 9.7%</text>
+  <h2>⑥ 過去の「売られすぎ」のあと</h2>
+  <svg viewBox="0 0 340 232" role="img" aria-label="過去に売られすぎゾーンに入ったときの底の値と、その20日後の値">
+    <circle class="wn" cx="112" cy="10" r="5"/>
+    <text class="t" x="121" y="14" font-size="11">底</text>
+    <circle class="ac" cx="160" cy="10" r="5"/>
+    <text class="t" x="169" y="14" font-size="11">その20日後</text>
 
-    <text x="70" y="25" text-anchor="end" class="strong">2023/8/24</text>
-    <circle cx="110.9" cy="22" r="4.5" class="dot-wrn"/>
-    <circle cx="110.9" cy="22" r="2.5" class="dot-acc"/>
-    <text x="262" y="25">9.4% → 9.4%</text>
+    <line class="grid" x1="110" y1="24" x2="110" y2="206"/>
+    <line class="grid" x1="154" y1="24" x2="154" y2="206"/>
+    <line class="grid" x1="198" y1="24" x2="198" y2="206"/>
+    <line class="grid" x1="242" y1="24" x2="242" y2="206"/>
+    <line class="grid" x1="286" y1="24" x2="286" y2="206"/>
+    <g font-size="10" text-anchor="middle">
+      <text class="m" x="110" y="222">0%</text>
+      <text class="m" x="154" y="222">10%</text>
+      <text class="m" x="198" y="222">20%</text>
+      <text class="m" x="242" y="222">30%</text>
+      <text class="m" x="286" y="222">40%</text>
+    </g>
 
-    <text x="70" y="49" text-anchor="end" class="strong">2023/10/3</text>
-    <line x1="93.1" y1="46" x2="140.0" y2="46" class="link"/>
-    <circle cx="93.1" cy="46" r="4" class="dot-wrn"/>
-    <circle cx="140.0" cy="46" r="4" class="dot-acc"/>
-    <text x="262" y="49">4.3% → 17.7%</text>
+    <g font-size="11">
+      <text class="t" x="100" y="40" text-anchor="end">2023/08</text>
+      <circle class="ac" cx="151.4" cy="36" r="5"/>
+      <circle class="wn" cx="151.4" cy="36" r="3"/>
+      <text class="m" x="160" y="40">9.4% のまま</text>
 
-    <text x="70" y="73" text-anchor="end" class="strong">2024/4/18</text>
-    <line x1="96.2" y1="70" x2="220.5" y2="70" class="link"/>
-    <circle cx="96.2" cy="70" r="4" class="dot-wrn"/>
-    <circle cx="220.5" cy="70" r="4" class="dot-acc"/>
-    <text x="262" y="73">5.2% → 40.7%</text>
+      <text class="t" x="100" y="66" text-anchor="end">2023/10</text>
+      <line class="conn" x1="128.9" y1="62" x2="187.9" y2="62"/>
+      <circle class="wn" cx="128.9" cy="62" r="5"/>
+      <circle class="ac" cx="187.9" cy="62" r="5"/>
+      <text class="m" x="195" y="66">17.7%</text>
 
-    <text x="70" y="97" text-anchor="end" class="strong">2024/12/31</text>
-    <line x1="100.4" y1="94" x2="186.2" y2="94" class="link"/>
-    <circle cx="100.4" cy="94" r="4" class="dot-wrn"/>
-    <circle cx="186.2" cy="94" r="4" class="dot-acc"/>
-    <text x="262" y="97">6.4% → 30.9%</text>
+      <text class="t" x="100" y="92" text-anchor="end">2024/04</text>
+      <line class="conn" x1="132.9" y1="88" x2="289.1" y2="88"/>
+      <circle class="wn" cx="132.9" cy="88" r="5"/>
+      <circle class="ac" cx="289.1" cy="88" r="5"/>
+      <text class="m" x="296" y="92">40.7%</text>
 
-    <text x="70" y="121" text-anchor="end" class="strong">2025/4/8</text>
-    <line x1="81.9" y1="118" x2="140.3" y2="118" class="link"/>
-    <circle cx="81.9" cy="118" r="4" class="dot-wrn"/>
-    <circle cx="140.3" cy="118" r="4" class="dot-acc"/>
-    <text x="262" y="121">1.1% → 17.8%</text>
+      <text class="t" x="100" y="118" text-anchor="end">2024/12</text>
+      <line class="conn" x1="138.2" y1="114" x2="246" y2="114"/>
+      <circle class="wn" cx="138.2" cy="114" r="5"/>
+      <circle class="ac" cx="246" cy="114" r="5"/>
+      <text class="m" x="253" y="118">30.9%</text>
 
-    <text x="70" y="145" text-anchor="end" class="strong">2026/3/20</text>
-    <line x1="108.8" y1="142" x2="186.9" y2="142" class="link"/>
-    <circle cx="108.8" cy="142" r="4" class="dot-wrn"/>
-    <circle cx="186.9" cy="142" r="4" class="dot-acc"/>
-    <text x="262" y="145">8.8% → 31.1%</text>
+      <text class="t" x="100" y="144" text-anchor="end">2025/04</text>
+      <line class="conn" x1="114.8" y1="140" x2="188.3" y2="140"/>
+      <circle class="wn" cx="114.8" cy="140" r="5"/>
+      <circle class="ac" cx="188.3" cy="140" r="5"/>
+      <text class="m" x="195" y="144">17.8%</text>
 
-    <text x="70" y="169" text-anchor="end" class="strong">2026/11/20</text>
-    <circle cx="102.2" cy="166" r="4" class="dot-wrn"/>
-    <text x="124" y="170" class="strong" style="font-size:13px">？</text>
-    <text x="262" y="169">6.9% → まだ不明</text>
+      <text class="t" x="100" y="170" text-anchor="end">2026/03</text>
+      <line class="conn" x1="148.7" y1="166" x2="246.8" y2="166"/>
+      <circle class="wn" cx="148.7" cy="166" r="5"/>
+      <circle class="ac" cx="246.8" cy="166" r="5"/>
+      <text class="m" x="253" y="170">31.1%</text>
 
-    <line x1="78" y1="180" x2="253" y2="180" class="axis"/>
-    <text x="78" y="193" text-anchor="middle">0%</text>
-    <text x="113" y="193" text-anchor="middle">10</text>
-    <text x="148" y="193" text-anchor="middle">20</text>
-    <text x="183" y="193" text-anchor="middle">30</text>
-    <text x="218" y="193" text-anchor="middle">40</text>
-    <text x="253" y="193" text-anchor="middle">50</text>
+      <text class="t" x="100" y="196" text-anchor="end" font-weight="700">今回 2026/11</text>
+      <circle class="wn" cx="140.4" cy="192" r="5"/>
+      <text class="t" x="152" y="196" font-weight="700">6.9% → ？</text>
+    </g>
   </svg>
-  <p class="legend"><span class="sw w"></span>底の日の値　<span class="sw a"></span>その20営業日後の値</p>
-  <p>大きく戻った回もあれば、2023年8月のように戻らなかった回もあります。過去の数回の例は、次の展開を予言するものではありません。</p>
+  <p>戻った例もあれば、2023年8月のように20日後も9.4%のままだった例もあります。</p>
+  <p class="note">過去の数回のケースは、次も同じになることを示すものではありません。</p>
 </section>
 
-<p class="sowhat">株価指数だけでは見えない「上がっている株の少なさ」が、この数字ならひと目でわかります。</p>
-<p class="disc">※このページは学習用の解説であり、投資助言ではありません。</p>
+<p class="sowhat">指数だけを見ていると気づきにくい「上がっている株がどれだけ少ないか」。それが今、はっきり見えています。</p>
+<p class="disclaimer">※このページは教育目的の解説であり、投資助言ではありません。</p>
 
 </main>
 <p id="explainer-skill" style="font:13px/1.6 system-ui,sans-serif;padding:8px 16px 24px;text-align:center;opacity:.85">このデータを AI で分析してみたい方へ。 <a href="https://tradermonty.github.io/claude-trading-skills/ja/skills/uptrend-analyzer/" target="_blank" rel="noopener" style="color:inherit;font-weight:600">Claude 向け Uptrend Analyzer スキルの紹介と使い方 →</a></p></body>

@@ -1,5 +1,18 @@
 [
  {
+  "date": "2026-11-24",
+  "ratio_pct": 13.2,
+  "count": 355,
+  "total": 2698,
+  "score": 19.7,
+  "zone": "Bear",
+  "exposure": "Capital Preservation (0-30%)",
+  "pages": {
+   "en": "2026/11/2026-11-24-en.html",
+   "ja": "2026/11/2026-11-24-ja.html"
+  }
+ },
+ {
   "date": "2026-11-23",
   "ratio_pct": 11.5,
   "count": 307,
