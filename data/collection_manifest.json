@@ -1,9 +1,9 @@
 {
   "version": 1,
-  "session_date": "2026-11-24",
+  "session_date": "2026-11-25",
   "scope": "all",
   "dry_run": false,
-  "generated_at": "2026-11-25T03:41:01.277759+00:00",
+  "generated_at": "2026-11-25T22:06:28.533650+00:00",
   "aborted": null,
   "coverage": {
     "expected": 161,
@@ -18,79 +18,79 @@
   "worksheets": {
     "all": {
       "outcome": "persisted",
-      "count": 355,
-      "total": 2698,
+      "count": 381,
+      "total": 2714,
       "stored": true
     },
     "sec_basicmaterials": {
       "outcome": "persisted",
-      "count": 2,
-      "total": 130,
+      "count": 6,
+      "total": 131,
       "stored": true
     },
     "sec_communicationservices": {
       "outcome": "persisted",
-      "count": 21,
-      "total": 100,
+      "count": 22,
+      "total": 103,
       "stored": true
     },
     "sec_consumercyclical": {
       "outcome": "persisted",
       "count": 41,
-      "total": 278,
+      "total": 279,
       "stored": true
     },
     "sec_consumerdefensive": {
       "outcome": "persisted",
-      "count": 27,
-      "total": 118,
+      "count": 29,
+      "total": 119,
       "stored": true
     },
     "sec_energy": {
       "outcome": "persisted",
-      "count": 0,
-      "total": 152,
+      "count": 1,
+      "total": 151,
       "stored": true
     },
     "sec_financial": {
       "outcome": "persisted",
-      "count": 47,
-      "total": 588,
+      "count": 46,
+      "total": 593,
       "stored": true
     },
     "sec_healthcare": {
       "outcome": "persisted",
-      "count": 118,
+      "count": 110,
       "total": 395,
       "stored": true
     },
     "sec_industrials": {
       "outcome": "persisted",
-      "count": 29,
-      "total": 364,
+      "count": 36,
+      "total": 366,
       "stored": true
     },
     "sec_realestate": {
       "outcome": "persisted",
-      "count": 13,
-      "total": 128,
+      "count": 20,
+      "total": 129,
       "stored": true
     },
     "sec_technology": {
       "outcome": "persisted",
-      "count": 56,
-      "total": 370,
+      "count": 68,
+      "total": 373,
       "stored": true
     },
     "sec_utilities": {
       "outcome": "persisted",
-      "count": 1,
+      "count": 2,
       "total": 75,
       "stored": true
     },
     "ind_advertisingagencies": {
       "outcome": "persisted",
-      "count": 4,
+      "count": 5,
       "total": 13,
       "stored": true
     },
@@ -144,13 +144,13 @@
     },
     "ind_automanufacturers": {
       "outcome": "persisted",
-      "count": 0,
+      "count": 1,
       "total": 9,
       "stored": true
     },
     "ind_autoparts": {
       "outcome": "persisted",
-      "count": 2,
+      "count": 4,
       "total": 27,
       "stored": true
     },
@@ -192,7 +192,7 @@
     },
     "ind_biotechnology": {
       "outcome": "persisted",
-      "count": 49,
+      "count": 45,
       "total": 180,
       "stored": true
     },
@@ -210,7 +210,7 @@
     },
     "ind_buildingproductsequipment": {
       "outcome": "persisted",
-      "count": 2,
+      "count": 4,
       "total": 23,
       "stored": true
     },
@@ -222,7 +222,7 @@
     },
     "ind_capitalmarkets": {
       "outcome": "persisted",
-      "count": 5,
+      "count": 6,
       "total": 38,
       "stored": true
     },
@@ -235,13 +235,13 @@
     "ind_closedendfunddebt": {
       "outcome": "persisted",
       "count": 0,
-      "total": 46,
+      "total": 51,
       "stored": true
     },
     "ind_closedendfundequity": {
       "outcome": "persisted",
       "count": 0,
-      "total": 36,
+      "total": 37,
       "stored": true
     },
     "ind_closedendfundforeign": {
@@ -282,13 +282,13 @@
     },
     "ind_consultingservices": {
       "outcome": "persisted",
-      "count": 3,
-      "total": 7,
+      "count": 4,
+      "total": 8,
       "stored": true
     },
     "ind_consumerelectronics": {
       "outcome": "persisted",
-      "count": 3,
+      "count": 2,
       "total": 4,
       "stored": true
     },
@@ -306,13 +306,13 @@
     },
     "ind_departmentstores": {
       "outcome": "persisted",
-      "count": 2,
+      "count": 1,
       "total": 3,
       "stored": true
     },
     "ind_diagnosticsresearch": {
       "outcome": "persisted",
-      "count": 8,
+      "count": 6,
       "total": 29,
       "stored": true
     },
@@ -324,20 +324,20 @@
     },
     "ind_drugmanufacturersgeneral": {
       "outcome": "persisted",
-      "count": 8,
+      "count": 4,
       "total": 15,
       "stored": true
     },
     "ind_drugmanufacturersspecialtygeneric": {
       "outcome": "persisted",
-      "count": 11,
+      "count": 12,
       "total": 27,
       "stored": true
     },
     "ind_educationtrainingservices": {
       "outcome": "persisted",
       "count": 0,
-      "total": 12,
+      "total": 13,
       "stored": true
     },
     "ind_electricalequipmentparts": {
@@ -349,7 +349,7 @@
     "ind_electroniccomponents": {
       "outcome": "persisted",
       "count": 0,
-      "total": 25,
+      "total": 26,
       "stored": true
     },
     "ind_electronicgamingmultimedia": {
@@ -385,7 +385,7 @@
     },
     "ind_farmheavyconstructionmachinery": {
       "outcome": "persisted",
-      "count": 0,
+      "count": 1,
       "total": 16,
       "stored": true
     },
@@ -403,7 +403,7 @@
     },
     "ind_financialdatastockexchanges": {
       "outcome": "persisted",
-      "count": 3,
+      "count": 2,
       "total": 11,
       "stored": true
     },
@@ -421,7 +421,7 @@
     },
     "ind_furnishingsfixturesappliances": {
       "outcome": "persisted",
-      "count": 2,
+      "count": 3,
       "total": 11,
       "stored": true
     },
@@ -439,7 +439,7 @@
     },
     "ind_grocerystores": {
       "outcome": "persisted",
-      "count": 1,
+      "count": 0,
       "total": 8,
       "stored": true
     },
@@ -451,7 +451,7 @@
     },
     "ind_healthinformationservices": {
       "outcome": "persisted",
-      "count": 2,
+      "count": 1,
       "total": 20,
       "stored": true
     },
@@ -463,7 +463,7 @@
     },
     "ind_householdpersonalproducts": {
       "outcome": "persisted",
-      "count": 6,
+      "count": 7,
       "total": 14,
       "stored": true
     },
@@ -475,8 +475,8 @@
     },
     "ind_informationtechnologyservices": {
       "outcome": "persisted",
-      "count": 10,
-      "total": 35,
+      "count": 13,
+      "total": 36,
       "stored": true
     },
     "ind_infrastructureoperations": {
@@ -506,8 +506,8 @@
     },
     "ind_insurancepropertycasualty": {
       "outcome": "persisted",
-      "count": 17,
-      "total": 39,
+      "count": 16,
+      "total": 38,
       "stored": true
     },
     "ind_insurancereinsurance": {
@@ -524,14 +524,14 @@
     },
     "ind_integratedfreightlogistics": {
       "outcome": "persisted",
-      "count": 2,
+      "count": 0,
       "total": 13,
       "stored": true
     },
     "ind_internetcontentinformation": {
       "outcome": "persisted",
       "count": 2,
-      "total": 21,
+      "total": 22,
       "stored": true
     },
     "ind_internetretail": {
@@ -542,13 +542,13 @@
     },
     "ind_leisure": {
       "outcome": "persisted",
-      "count": 4,
+      "count": 2,
       "total": 13,
       "stored": true
     },
     "ind_lodging": {
       "outcome": "persisted",
-      "count": 2,
+      "count": 1,
       "total": 9,
       "stored": true
     },
@@ -572,7 +572,7 @@
     },
     "ind_medicalcarefacilities": {
       "outcome": "persisted",
-      "count": 9,
+      "count": 12,
       "total": 29,
       "stored": true
     },
@@ -590,7 +590,7 @@
     },
     "ind_medicalinstrumentssupplies": {
       "outcome": "persisted",
-      "count": 8,
+      "count": 7,
       "total": 30,
       "stored": true
     },
@@ -615,7 +615,7 @@
     "ind_oilgasep": {
       "outcome": "persisted",
       "count": 0,
-      "total": 40,
+      "total": 39,
       "stored": true
     },
     "ind_oilgasequipmentservices": {
@@ -632,7 +632,7 @@
     },
     "ind_oilgasmidstream": {
       "outcome": "persisted",
-      "count": 0,
+      "count": 1,
       "total": 43,
       "stored": true
     },
@@ -651,18 +651,18 @@
     "ind_otherpreciousmetalsmining": {
       "outcome": "persisted",
       "count": 0,
-      "total": 4,
+      "total": 5,
       "stored": true
     },
     "ind_packagedfoods": {
       "outcome": "persisted",
-      "count": 3,
+      "count": 5,
       "total": 33,
       "stored": true
     },
     "ind_packagingcontainers": {
       "outcome": "persisted",
-      "count": 1,
+      "count": 2,
       "total": 15,
       "stored": true
     },
@@ -699,13 +699,13 @@
     },
     "ind_railroads": {
       "outcome": "persisted",
-      "count": 1,
+      "count": 2,
       "total": 8,
       "stored": true
     },
     "ind_realestatedevelopment": {
       "outcome": "persisted",
-      "count": 0,
+      "count": 1,
       "total": 3,
       "stored": true
     },
@@ -717,8 +717,8 @@
     },
     "ind_realestateservices": {
       "outcome": "persisted",
-      "count": 1,
-      "total": 12,
+      "count": 2,
+      "total": 13,
       "stored": true
     },
     "ind_recreationalvehicles": {
@@ -735,7 +735,7 @@
     },
     "ind_reithealthcarefacilities": {
       "outcome": "persisted",
-      "count": 2,
+      "count": 4,
       "total": 14,
       "stored": true
     },
@@ -747,7 +747,7 @@
     },
     "ind_reitindustrial": {
       "outcome": "persisted",
-      "count": 2,
+      "count": 3,
       "total": 13,
       "stored": true
     },
@@ -759,7 +759,7 @@
     },
     "ind_reitoffice": {
       "outcome": "persisted",
-      "count": 2,
+      "count": 3,
       "total": 10,
       "stored": true
     },
@@ -771,7 +771,7 @@
     },
     "ind_reitretail": {
       "outcome": "persisted",
-      "count": 0,
+      "count": 1,
       "total": 23,
       "stored": true
     },
@@ -783,7 +783,7 @@
     },
     "ind_rentalleasingservices": {
       "outcome": "persisted",
-      "count": 0,
+      "count": 1,
       "total": 16,
       "stored": true
     },
@@ -801,7 +801,7 @@
     },
     "ind_restaurants": {
       "outcome": "persisted",
-      "count": 6,
+      "count": 5,
       "total": 30,
       "stored": true
     },
@@ -813,7 +813,7 @@
     },
     "ind_securityprotectionservices": {
       "outcome": "persisted",
-      "count": 1,
+      "count": 2,
       "total": 8,
       "stored": true
     },
@@ -843,14 +843,14 @@
     },
     "ind_softwareapplication": {
       "outcome": "persisted",
-      "count": 21,
-      "total": 98,
+      "count": 28,
+      "total": 97,
       "stored": true
     },
     "ind_softwareinfrastructure": {
       "outcome": "persisted",
-      "count": 17,
-      "total": 75,
+      "count": 20,
+      "total": 77,
       "stored": true
     },
     "ind_solar": {
@@ -861,13 +861,13 @@
     },
     "ind_specialtybusinessservices": {
       "outcome": "persisted",
-      "count": 2,
+      "count": 4,
       "total": 20,
       "stored": true
     },
     "ind_specialtychemicals": {
       "outcome": "persisted",
-      "count": 1,
+      "count": 5,
       "total": 37,
       "stored": true
     },
@@ -879,13 +879,13 @@
     },
     "ind_specialtyretail": {
       "outcome": "persisted",
-      "count": 5,
-      "total": 20,
+      "count": 6,
+      "total": 21,
       "stored": true
     },
     "ind_staffingemploymentservices": {
       "outcome": "persisted",
-      "count": 2,
+      "count": 1,
       "total": 9,
       "stored": true
     },
@@ -898,7 +898,7 @@
     "ind_telecomservices": {
       "outcome": "persisted",
       "count": 1,
-      "total": 29,
+      "total": 31,
       "stored": true
     },
     "ind_textilemanufacturing": {
@@ -921,20 +921,20 @@
     },
     "ind_toolsaccessories": {
       "outcome": "persisted",
-      "count": 0,
+      "count": 1,
       "total": 7,
       "stored": true
     },
     "ind_travelservices": {
       "outcome": "persisted",
-      "count": 1,
+      "count": 0,
       "total": 12,
       "stored": true
     },
     "ind_trucking": {
       "outcome": "persisted",
       "count": 1,
-      "total": 11,
+      "total": 12,
       "stored": true
     },
     "ind_uranium": {
@@ -945,7 +945,7 @@
     },
     "ind_utilitiesdiversified": {
       "outcome": "persisted",
-      "count": 0,
+      "count": 1,
       "total": 6,
       "stored": true
     },
