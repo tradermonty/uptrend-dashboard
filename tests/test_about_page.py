@@ -111,6 +111,14 @@ class TestAboutPageHtml:
         for svg in _pictures(about_page_html(EXAMPLE)):
             assert '<rect width="360"' in svg and 'fill="#ffffff"' in svg
 
+    def test_explains_the_deeper_oversold_shading(self):
+        from src.chart_builder import COLOR_OVERSOLD_BAND
+        html = about_page_html(EXAMPLE)
+        assert f"Deeper pink: the ratio is below {LOWER_THRESHOLD * 100:g}% (Oversold)" in html
+        assert COLOR_OVERSOLD_BAND in html
+        chart = _pictures(html)[-1]
+        assert 'class="deep"' in chart
+
     def test_says_it_is_not_advice(self):
         assert "Not investment advice" in about_page_html(EXAMPLE)
 

@@ -257,6 +257,8 @@ PRICE_TRACE_NAME = "S&P 500"
 PRICE_PANEL_LABEL = "S&P 500 (SPY)"
 DOWNTREND_BAND_NAME = "ratio-downtrend"
 COLOR_DOWNTREND_BAND = "rgba(233, 30, 99, 0.08)"  # pale pink, like the Market Breadth page
+OVERSOLD_BAND_NAME = "ratio-oversold"
+COLOR_OVERSOLD_BAND = "rgba(233, 30, 99, 0.28)"  # deeper pink: ratio below the Oversold level
 PANEL_DIVIDER_NAME = "panel-divider"
 COLOR_PANEL_DIVIDER = "#c8ced8"
 
@@ -266,29 +268,49 @@ def has_price_panel(fig: go.Figure) -> bool:
     return any(t.name == PRICE_TRACE_NAME for t in fig.data)
 
 
-def _add_downtrend_bands(fig: go.Figure, df: pd.DataFrame) -> None:
-    """Shade each run of sessions whose 10MA slope is down, in both panels.
+def _add_bands(fig: go.Figure, dates: list, mask: list, name: str, color: str) -> None:
+    """Shade each run of True sessions in `mask`, in both panels.
 
-    A band runs from the first down session to the next session (or the last
-    one), so consecutive bands meet the line segments they describe. Each panel
+    A band runs from the first session of the run to the next session (or the last
+    one), so consecutive bands meet the line segments they describe. A run of only
+    the last session would have no width, so it gets one session's width instead
+    (the day the Status card turns Oversold must show on the chart). Each panel
     gets its own band, leaving the gap between the panels white.
     """
-    dates = list(df["date"])
-    down = [_get_trend_state(s) == "down" for s in df["slope"]]
+    step = dates[-1] - dates[-2] if len(dates) > 1 else pd.Timedelta(days=1)
     i = 0
-    while i < len(down):
-        if not down[i]:
+    while i < len(mask):
+        if not mask[i]:
             i += 1
             continue
         j = i
-        while j + 1 < len(down) and down[j + 1]:
+        while j + 1 < len(mask) and mask[j + 1]:
             j += 1
         end = dates[min(j + 1, len(dates) - 1)]
+        if end == dates[i]:
+            end = dates[i] + step
         for xref, yref in (("x", "y domain"), ("x2", "y2 domain")):
-            fig.add_shape(type="rect", name=DOWNTREND_BAND_NAME, xref=xref, yref=yref,
-                          x0=dates[i], x1=end, y0=0, y1=1, fillcolor=COLOR_DOWNTREND_BAND,
+            fig.add_shape(type="rect", name=name, xref=xref, yref=yref,
+                          x0=dates[i], x1=end, y0=0, y1=1, fillcolor=color,
                           line=dict(width=0), layer="below")
         i = j + 1
+
+
+def _add_downtrend_bands(fig: go.Figure, df: pd.DataFrame) -> None:
+    """Pale pink where the ratio's 10MA slope is down (or flat)."""
+    down = [_get_trend_state(s) == "down" for s in df["slope"]]
+    _add_bands(fig, list(df["date"]), down, DOWNTREND_BAND_NAME, COLOR_DOWNTREND_BAND)
+
+
+def _add_oversold_bands(fig: go.Figure, df: pd.DataFrame) -> None:
+    """Deeper pink where the ratio is below the Oversold level, whatever the 10MA does.
+
+    Same rule as the Status card (ratio < lower). Drawn after the downtrend bands,
+    so it sits on top of them.
+    """
+    lower = df["lower"].fillna(LOWER_THRESHOLD)
+    oversold = list((pd.to_numeric(df["ratio"], errors="coerce") < lower).fillna(False))
+    _add_bands(fig, list(df["date"]), oversold, OVERSOLD_BAND_NAME, COLOR_OVERSOLD_BAND)
 
 
 def _add_panel_divider(fig: go.Figure) -> None:
@@ -325,6 +347,7 @@ def build_market_chart(df: pd.DataFrame, prices: pd.DataFrame, title: str = "Upt
         row=1, col=1,
     )
     _add_downtrend_bands(fig, df)
+    _add_oversold_bands(fig, df)
     _add_panel_divider(fig)
     _add_ratio_segments(fig, df, row=2)
     _add_moving_average(fig, df, row=2)
