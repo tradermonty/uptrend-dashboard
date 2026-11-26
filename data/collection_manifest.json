@@ -3,7 +3,7 @@
   "session_date": "2026-11-25",
   "scope": "all",
   "dry_run": false,
-  "generated_at": "2026-11-25T22:06:28.533650+00:00",
+  "generated_at": "2026-11-26T03:35:47.444478+00:00",
   "aborted": null,
   "coverage": {
     "expected": 161,
@@ -18,7 +18,7 @@
   "worksheets": {
     "all": {
       "outcome": "persisted",
-      "count": 381,
+      "count": 380,
       "total": 2714,
       "stored": true
     },
@@ -42,7 +42,7 @@
     },
     "sec_consumerdefensive": {
       "outcome": "persisted",
-      "count": 29,
+      "count": 28,
       "total": 119,
       "stored": true
     },
@@ -656,7 +656,7 @@
     },
     "ind_packagedfoods": {
       "outcome": "persisted",
-      "count": 5,
+      "count": 4,
       "total": 33,
       "stored": true
     },
