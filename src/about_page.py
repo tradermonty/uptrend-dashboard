@@ -18,7 +18,14 @@ from typing import Optional
 
 import pandas as pd
 
-from src.chart_builder import COLOR_LOWER, COLOR_MA, COLOR_TREND_DOWN, COLOR_TREND_UP, COLOR_UPPER
+from src.chart_builder import (
+    COLOR_LOWER,
+    COLOR_MA,
+    COLOR_OVERSOLD_BAND,
+    COLOR_TREND_DOWN,
+    COLOR_TREND_UP,
+    COLOR_UPPER,
+)
 from src.constants import LOWER_THRESHOLD, UPPER_THRESHOLD
 from src.kpi_cards import uptrend_screener_url
 from src.page_footer import UPTREND_ANALYZER_SKILL_URL
@@ -63,7 +70,7 @@ _SVG_STYLE = (
     "<style>"
     ".big{fill:#1f2430;font:700 34px sans-serif}.lbl{fill:#5f6675;font:14px sans-serif}"
     ".dot{fill:#c8ced8}.up{fill:#087a4d}.price{stroke:#087a4d}.axis{stroke:#d9dee6}"
-    ".pink{fill:rgba(233,30,99,.10)}"
+    ".pink{fill:rgba(233,30,99,.10)}.deep{fill:rgba(233,30,99,.28)}"
     "</style>"
 )
 
@@ -165,7 +172,8 @@ _AVERAGES_SVG = (
 
 def _chart_svg(upper: str, lower: str) -> str:
     return (
-        '<rect class="pink" x="150" y="10" width="110" height="180"/>'
+        '<rect class="pink" x="150" y="10" width="112" height="180"/>'
+        '<rect class="deep" x="250" y="10" width="30" height="180"/>'
         f'<line x1="10" y1="40" x2="350" y2="40" stroke="{COLOR_UPPER}" stroke-width="2" stroke-dasharray="3 4"/>'
         f'<text x="14" y="32" class="lbl">{upper}</text>'
         f'<line x1="10" y1="165" x2="350" y2="165" stroke="{COLOR_LOWER}" stroke-width="2" stroke-dasharray="3 4"/>'
@@ -174,9 +182,9 @@ def _chart_svg(upper: str, lower: str) -> str:
         f'stroke="{COLOR_MA}" stroke-width="2"/>'
         '<path d="M10 150 L30 128 L50 135 L70 105 L90 112 L110 80 L130 72 L150 52" fill="none" '
         f'stroke="{COLOR_TREND_UP}" stroke-width="3"/>'
-        '<path d="M150 52 L170 78 L190 70 L210 110 L230 118 L250 150 L260 155" fill="none" '
+        '<path d="M150 52 L170 78 L190 70 L210 110 L230 118 L245 158 L255 174 L262 178" fill="none" '
         f'stroke="{COLOR_TREND_DOWN}" stroke-width="3"/>'
-        f'<path d="M260 155 L280 128 L300 136 L320 108 L350 92" fill="none" stroke="{COLOR_TREND_UP}" stroke-width="3"/>'
+        f'<path d="M262 178 L280 150 L290 128 L300 136 L320 108 L350 92" fill="none" stroke="{COLOR_TREND_UP}" stroke-width="3"/>'
     )
 
 
@@ -208,7 +216,8 @@ def about_page_html(example: Optional[RatioExample]) -> str:
     chart = _picture(
         _chart_svg(upper, lower), 200,
         f"Example chart: the ratio line is green while its purple 10-day average rises and red, "
-        f"with pink shading, while it falls; dotted lines mark {upper} and {lower}",
+        f"with pink shading, while it falls; deeper pink where it drops below {lower}; "
+        f"dotted lines mark {upper} and {lower}",
     )
     return STYLE + f"""
 <div class="about-ur">
@@ -252,6 +261,7 @@ def about_page_html(example: Optional[RatioExample]) -> str:
 <div class="sw" style="border-color:{COLOR_TREND_UP}"></div><div>Green: the 10-day average is rising</div>
 <div class="sw" style="border-color:{COLOR_TREND_DOWN}"></div><div>Red: the 10-day average is falling or flat</div>
 <div class="sw box"></div><div>Pink shading: the red stretches (Uptrend Ratio page, both panels)</div>
+<div class="sw box" style="background:{COLOR_OVERSOLD_BAND}"></div><div>Deeper pink: the ratio is below {lower} (Oversold)</div>
 <div class="sw dotted" style="border-color:{COLOR_UPPER}"></div><div>Dotted {upper} line: many stocks are already stretched. In the past, rallies have often paused around here.</div>
 <div class="sw dotted" style="border-color:{COLOR_LOWER}"></div><div>Dotted {lower} line: very few stocks are rising. In the past, selloffs have often ended around here.</div>
 </div>
