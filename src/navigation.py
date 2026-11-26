@@ -18,6 +18,8 @@ class PageSpec:
     default: bool = False
 
 
+ABOUT_PAGE = "views/7_About_Uptrend_Ratio.py"
+
 # Menu order = how often the pages are used (most used first). File names keep
 # their original numbers so URLs and st.switch_page() paths do not change.
 PAGE_SPECS = (
@@ -28,4 +30,21 @@ PAGE_SPECS = (
     PageSpec("views/3_Industry_Detail.py", "Industry Detail", "🏭"),
     PageSpec("views/4_Industry_Comparison.py", "Industry Comparison", "📊"),
     PageSpec("views/6_Dispersion_Monitor.py", "Dispersion Monitor", "📡"),
+    PageSpec(ABOUT_PAGE, "About Uptrend Ratio", "📖"),
 )
+
+
+def about_page_link() -> None:
+    """Link to the About Uptrend Ratio page.
+
+    st.page_link only knows pages registered with st.navigation, so a page script
+    run on its own (AppTest, `streamlit run views/...`) has no About page to link to;
+    the link is then left out instead of breaking the page.
+    """
+    import streamlit as st
+    from streamlit.errors import StreamlitPageNotFoundError
+
+    try:
+        st.page_link(ABOUT_PAGE, label="What is the Uptrend Ratio? How it is counted", icon="📖")
+    except StreamlitPageNotFoundError:
+        pass
