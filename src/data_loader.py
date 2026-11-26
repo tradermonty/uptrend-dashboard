@@ -6,7 +6,9 @@ from typing import Dict, List, Optional
 
 import pandas as pd
 
-from src.constants import INDUSTRIES, SECTORS, SECTOR_INDUSTRIES
+from src.constants import (
+    INDUSTRIES, SECTORS, SECTOR_INDUSTRIES, SP500_PRICE_COLUMN, SP500_PRICE_CSV_URL,
+)
 from src.db_client import DBClient
 from src.indicator_calculator import calculate_indicators
 
@@ -79,6 +81,66 @@ def load_all_constituents(db_path: str = None) -> pd.DataFrame:
 @_cache
 def cached_load_all_constituents(db_path=None):
     return load_all_constituents(db_path)
+
+
+_PRICE_COLUMNS = ["date", "close"]
+
+
+# (connect, read) seconds: the page waits for this call, so keep it short
+SP500_FETCH_TIMEOUT = (3, 5)
+
+
+def load_sp500_prices(source: Optional[str] = None, timeout=SP500_FETCH_TIMEOUT) -> pd.DataFrame:
+    """S&P 500 daily closes as (date, close), oldest first.
+
+    ``source`` is a URL or a local CSV path with ``Date`` and ``S&P500_Price``
+    columns (default: env SP500_PRICE_CSV, else the Market Breadth CSV). Any
+    failure gives an empty frame, so the page falls back to the plain ratio chart.
+    """
+    if source is None:
+        source = os.environ.get("SP500_PRICE_CSV", SP500_PRICE_CSV_URL)
+    empty = pd.DataFrame(columns=_PRICE_COLUMNS)
+    if not source:
+        return empty
+    try:
+        if source.startswith(("http://", "https://")):
+            import io
+            import requests
+            resp = requests.get(source, timeout=timeout)
+            resp.raise_for_status()
+            raw = pd.read_csv(io.StringIO(resp.text), usecols=["Date", SP500_PRICE_COLUMN])
+        else:
+            raw = pd.read_csv(source, usecols=["Date", SP500_PRICE_COLUMN])
+    except Exception as exc:  # network, missing file or column: the panel is optional
+        logger.warning("S&P 500 prices unavailable from %s: %s", source, exc)
+        return empty
+    df = pd.DataFrame({
+        "date": pd.to_datetime(raw["Date"], errors="coerce"),
+        "close": pd.to_numeric(raw[SP500_PRICE_COLUMN], errors="coerce"),
+    }).dropna()
+    return df.sort_values("date").reset_index(drop=True)
+
+
+class _NoPrices(Exception):
+    """Raised inside the cached loader so a failed fetch is not cached."""
+
+
+@_cache
+def _cached_sp500_prices(source):
+    df = load_sp500_prices(source)
+    if df.empty:
+        raise _NoPrices(source)  # st.cache_data does not store exceptions
+    return df
+
+
+def cached_load_sp500_prices() -> pd.DataFrame:
+    """Cached S&P 500 closes; a failure is retried on the next run instead of
+    hiding the panel for the whole cache TTL."""
+    source = os.environ.get("SP500_PRICE_CSV", SP500_PRICE_CSV_URL)
+    try:
+        return _cached_sp500_prices(source)
+    except _NoPrices:
+        return pd.DataFrame(columns=_PRICE_COLUMNS)
 
 
 def load_collection_manifest() -> Optional[dict]:

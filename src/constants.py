@@ -530,6 +530,15 @@ STALE_AFTER_SESSIONS = 1
 
 # Chart layout
 CHART_HEIGHT_RATIO = 500
+# Market chart: S&P 500 panel above the ratio, sized so both fit one screen
+CHART_HEIGHT_MARKET = 650
+CHART_HEIGHT_MARKET_MOBILE = 560
+MARKET_PRICE_PANEL_SHARE = 0.35  # share of the plot height for the price panel
+
+# S&P 500 daily closes (SPY) from the Market Breadth project's public CSV.
+# Override with env SP500_PRICE_CSV (a URL or a local path); an empty value disables the panel.
+SP500_PRICE_CSV_URL = "https://tradermonty.github.io/market-breadth-analysis/market_breadth_data.csv"
+SP500_PRICE_COLUMN = "S&P500_Price"
 CHART_HEIGHT_SUMMARY = 450
 CHART_HEIGHT_COMPARISON = 600
 CHART_Y_MAX_MIN = 0.6
