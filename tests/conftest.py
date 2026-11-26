@@ -7,6 +7,12 @@ import numpy as np
 from src.constants import SECTORS, SECTOR_INDUSTRIES, VALID_WORKSHEETS as ALL_WORKSHEET_NAMES
 
 
+@pytest.fixture(autouse=True)
+def _no_sp500_network(monkeypatch):
+    """Pages must not fetch the S&P 500 CSV in tests; tests that need it set a local path."""
+    monkeypatch.setenv("SP500_PRICE_CSV", "")
+
+
 @pytest.fixture
 def tmp_db(tmp_path):
     """Temporary database path for testing."""

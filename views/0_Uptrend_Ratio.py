@@ -5,7 +5,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.data_loader import cached_load_sector_data
+from src.data_loader import cached_load_sector_data, cached_load_sp500_prices
+from src.constants import CHART_HEIGHT_MARKET_MOBILE
 from src.data_processor import (
     get_current_status,
     build_sector_summary,
@@ -17,7 +18,7 @@ from src.data_processor import (
     stale_rows_caption,
     style_status_row,
 )
-from src.chart_builder import build_ratio_chart, build_sector_summary_chart
+from src.chart_builder import build_market_chart, build_sector_summary_chart, has_price_panel
 from src.page_footer import render_ai_skill_note, render_explainer_link
 from src.kpi_cards import KpiCard, render_kpi_cards, status_card, trend_card, uptrend_screener_url
 from src.mobile_ui import display_years, inject_mobile_css, is_mobile_client, mobile_columns, show_chart
@@ -100,8 +101,9 @@ else:
 
 # Full market ratio chart
 st.subheader("Full Market Ratio")
-fig = build_ratio_chart(df_filtered, title="US Market Uptrend Ratio")
-show_chart(fig, mobile_height=420)
+# S&P 500 above the ratio on one time axis; sized so both panels fit one phone screen
+fig = build_market_chart(df_filtered, cached_load_sp500_prices(), title="US Market Uptrend Ratio")
+show_chart(fig, mobile_height=CHART_HEIGHT_MARKET_MOBILE if has_price_panel(fig) else 420)
 
 # Sector summary
 st.subheader("Sector Summary")

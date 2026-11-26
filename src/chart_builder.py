@@ -15,6 +15,8 @@ from src.constants import (
     UPPER_THRESHOLD,
     LOWER_THRESHOLD,
     CHART_HEIGHT_RATIO,
+    CHART_HEIGHT_MARKET,
+    MARKET_PRICE_PANEL_SHARE,
     CHART_HEIGHT_SUMMARY,
     CHART_HEIGHT_COMPARISON,
     CHART_HEIGHT_HEATMAP,
@@ -113,7 +115,7 @@ def _trend_legend_name(state: str) -> str:
     return "Ratio (N/A)"
 
 
-def _add_ratio_segments(fig: go.Figure, df: pd.DataFrame) -> None:
+def _add_ratio_segments(fig: go.Figure, df: pd.DataFrame, row: Optional[int] = None) -> None:
     """Add color-coded ratio trend segments to the figure."""
     segments = []
     if len(df) > 0:
@@ -145,11 +147,12 @@ def _add_ratio_segments(fig: go.Figure, df: pd.DataFrame) -> None:
                 name=name,
                 line=dict(color=_trend_color(state), width=2),
                 showlegend=show_legend,
-            )
+            ),
+            row=row, col=row and 1,
         )
 
 
-def _add_moving_average(fig: go.Figure, df: pd.DataFrame) -> None:
+def _add_moving_average(fig: go.Figure, df: pd.DataFrame, row: Optional[int] = None) -> None:
     """Add 10MA line to the figure."""
     fig.add_trace(
         go.Scatter(
@@ -159,11 +162,12 @@ def _add_moving_average(fig: go.Figure, df: pd.DataFrame) -> None:
             name="10MA",
             line=dict(color=COLOR_MA, width=1.5),
             opacity=0.85,
-        )
+        ),
+        row=row, col=row and 1,
     )
 
 
-def _add_peaks_and_troughs(fig: go.Figure, df: pd.DataFrame) -> None:
+def _add_peaks_and_troughs(fig: go.Figure, df: pd.DataFrame, row: Optional[int] = None) -> None:
     """Add peak and trough markers to the figure."""
     if "is_peak" in df.columns:
         peak_df = df[df["is_peak"]]
@@ -175,7 +179,8 @@ def _add_peaks_and_troughs(fig: go.Figure, df: pd.DataFrame) -> None:
                     mode="markers",
                     name="10MA Peak",
                     marker=dict(symbol="triangle-down", size=10, color=COLOR_PEAK),
-                )
+                ),
+                row=row, col=row and 1,
             )
 
     if "is_trough" in df.columns:
@@ -188,11 +193,12 @@ def _add_peaks_and_troughs(fig: go.Figure, df: pd.DataFrame) -> None:
                     mode="markers",
                     name="10MA Trough",
                     marker=dict(symbol="triangle-up", size=10, color=COLOR_TROUGH),
-                )
+                ),
+                row=row, col=row and 1,
             )
 
 
-def _add_threshold_lines(fig: go.Figure, df: pd.DataFrame) -> None:
+def _add_threshold_lines(fig: go.Figure, df: pd.DataFrame, row: Optional[int] = None) -> None:
     """Add upper and lower threshold lines to the figure."""
     upper_val = df["upper"].dropna().iloc[0] if not df["upper"].dropna().empty else UPPER_THRESHOLD
     fig.add_trace(
@@ -202,7 +208,8 @@ def _add_threshold_lines(fig: go.Figure, df: pd.DataFrame) -> None:
             mode="lines",
             name="Upper",
             line=dict(color=COLOR_UPPER, width=1, dash="dot"),
-        )
+        ),
+        row=row, col=row and 1,
     )
 
     lower_val = df["lower"].dropna().iloc[0] if not df["lower"].dropna().empty else LOWER_THRESHOLD
@@ -213,7 +220,8 @@ def _add_threshold_lines(fig: go.Figure, df: pd.DataFrame) -> None:
             mode="lines",
             name="Lower",
             line=dict(color=COLOR_LOWER, width=1, dash="dot"),
-        )
+        ),
+        row=row, col=row and 1,
     )
 
 
@@ -241,6 +249,108 @@ def build_ratio_chart(df: pd.DataFrame, title: str = "Uptrend Ratio") -> go.Figu
     _add_peaks_and_troughs(fig, df)
     _add_threshold_lines(fig, df)
     _apply_chart_layout(fig, df, title)
+    return fig
+
+
+COLOR_PRICE = "#17becf"
+PRICE_TRACE_NAME = "S&P 500"
+PRICE_PANEL_LABEL = "S&P 500 (SPY)"
+DOWNTREND_BAND_NAME = "ratio-downtrend"
+COLOR_DOWNTREND_BAND = "rgba(233, 30, 99, 0.08)"  # pale pink, like the Market Breadth page
+PANEL_DIVIDER_NAME = "panel-divider"
+COLOR_PANEL_DIVIDER = "#c8ced8"
+
+
+def has_price_panel(fig: go.Figure) -> bool:
+    """True when build_market_chart drew the S&P 500 panel (not the plain fallback)."""
+    return any(t.name == PRICE_TRACE_NAME for t in fig.data)
+
+
+def _add_downtrend_bands(fig: go.Figure, df: pd.DataFrame) -> None:
+    """Shade each run of sessions whose 10MA slope is down, in both panels.
+
+    A band runs from the first down session to the next session (or the last
+    one), so consecutive bands meet the line segments they describe. Each panel
+    gets its own band, leaving the gap between the panels white.
+    """
+    dates = list(df["date"])
+    down = [_get_trend_state(s) == "down" for s in df["slope"]]
+    i = 0
+    while i < len(down):
+        if not down[i]:
+            i += 1
+            continue
+        j = i
+        while j + 1 < len(down) and down[j + 1]:
+            j += 1
+        end = dates[min(j + 1, len(dates) - 1)]
+        for xref, yref in (("x", "y domain"), ("x2", "y2 domain")):
+            fig.add_shape(type="rect", name=DOWNTREND_BAND_NAME, xref=xref, yref=yref,
+                          x0=dates[i], x1=end, y0=0, y1=1, fillcolor=COLOR_DOWNTREND_BAND,
+                          line=dict(width=0), layer="below")
+        i = j + 1
+
+
+def _add_panel_divider(fig: go.Figure) -> None:
+    """A thin full-width line in the gap, so the two panels read as separate charts."""
+    y = (fig.layout.yaxis.domain[0] + fig.layout.yaxis2.domain[1]) / 2
+    fig.add_shape(type="line", name=PANEL_DIVIDER_NAME, xref="paper", yref="paper",
+                  x0=0, x1=1, y0=y, y1=y, line=dict(color=COLOR_PANEL_DIVIDER, width=1))
+
+
+def build_market_chart(df: pd.DataFrame, prices: pd.DataFrame, title: str = "Uptrend Ratio") -> go.Figure:
+    """S&P 500 (log scale) above the market Uptrend Ratio, on one shared time axis.
+
+    ``prices`` has (date, close). Without prices inside the ratio's date range the
+    result is the plain ratio chart, so a missing price source never hides the ratio.
+    """
+    if prices is not None and len(prices) and len(df):
+        start, end = df["date"].min(), df["date"].max()
+        prices = prices[(prices["date"] >= start) & (prices["date"] <= end)]
+    if prices is None or prices.empty or df.empty:
+        return build_ratio_chart(df, title=title)
+
+    last = prices.iloc[-1]
+    label = (f"<b>{PRICE_PANEL_LABEL}</b> {last['close']:,.2f} "
+             f"<span style='color:#888'>({last['date'].month}/{last['date'].day}, log)</span>")
+    fig = make_subplots(
+        rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.07,
+        row_heights=[MARKET_PRICE_PANEL_SHARE, 1 - MARKET_PRICE_PANEL_SHARE],
+        subplot_titles=(label, ""),
+    )
+    fig.add_trace(
+        go.Scatter(x=prices["date"], y=prices["close"], mode="lines", name=PRICE_TRACE_NAME,
+                   line=dict(color=COLOR_PRICE, width=2), showlegend=False,
+                   hovertemplate="S&P 500: %{y:,.2f}<extra></extra>"),
+        row=1, col=1,
+    )
+    _add_downtrend_bands(fig, df)
+    _add_panel_divider(fig)
+    _add_ratio_segments(fig, df, row=2)
+    _add_moving_average(fig, df, row=2)
+    _add_peaks_and_troughs(fig, df, row=2)
+    _add_threshold_lines(fig, df, row=2)
+
+    fig.update_layout(
+        title=title,
+        template="plotly_white",
+        height=CHART_HEIGHT_MARKET,
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="top", y=-0.08, xanchor="left", x=0),
+    )
+    # Subplot titles sit left-aligned above each panel, like the Market Breadth page
+    for ann in fig.layout.annotations:
+        ann.update(x=0, xanchor="left", font=dict(size=13))
+    fig.update_yaxes(type="log", row=1, col=1)
+    fig.update_yaxes(
+        title_text="Ratio", tickformat=".0%", row=2, col=1,
+        range=[0, max(CHART_Y_MAX_MIN, df["ratio"].max() * CHART_Y_MAX_MULTIPLIER)],
+    )
+    # One hover box covering both panels at the touched date (plotly >= 5.21)
+    try:
+        fig.update_layout(hoversubplots="axis")
+    except ValueError:
+        pass
     return fig
 
 
