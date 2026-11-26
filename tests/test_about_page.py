@@ -119,6 +119,25 @@ class TestAboutPageHtml:
         chart = _pictures(html)[-1]
         assert 'class="deep"' in chart
 
+    def test_example_chart_shading_matches_its_lines(self):
+        """Pale pink from the top of the red line to where it drops below 9.7%; deep pink while below."""
+        chart = _pictures(about_page_html(EXAMPLE))[-1]
+        rect = lambda cls: tuple(map(float, re.search(  # noqa: E731
+            rf'<rect class="{cls}" x="([\d.]+)" y="[\d.]+" width="([\d.]+)"', chart).groups()))
+        (px, pw), (dx, dw) = rect("pink"), rect("deep")
+        lower_y = 165  # the dotted 9.7% line
+        line = []  # the ratio polyline: the three green/red paths, in order
+        for d in re.findall(r'<path d="(M[\d. L]+)" fill="none" stroke="#(?:00cc96|ef553b)"', chart):
+            line += [tuple(map(float, xy.split())) for xy in re.findall(r"[ML]\s*([\d.]+ [\d.]+)", d)]
+        crossings = [x0 + (x1 - x0) * (lower_y - y0) / (y1 - y0)
+                     for (x0, y0), (x1, y1) in zip(line, line[1:]) if (y0 - lower_y) * (y1 - lower_y) < 0]
+        red_start = float(re.search(r'<path d="M([\d.]+) [\d.]+[^"]*" fill="none" stroke="#ef553b"', chart).group(1))
+        assert px == red_start and px + pw == dx  # pale: red start to the drop below the level
+        assert [dx, dx + dw] == pytest.approx(crossings)  # deep: exactly while below the level
+
+    def test_legend_says_pale_pink_stops_at_the_level(self):
+        assert "Pale pink: the red stretches while the ratio is above 9.7%" in about_page_html(EXAMPLE)
+
     def test_says_it_is_not_advice(self):
         assert "Not investment advice" in about_page_html(EXAMPLE)
 

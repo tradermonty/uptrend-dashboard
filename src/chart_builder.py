@@ -296,21 +296,29 @@ def _add_bands(fig: go.Figure, dates: list, mask: list, name: str, color: str) -
         i = j + 1
 
 
+def _oversold_mask(df: pd.DataFrame) -> list:
+    """Sessions below the Oversold level: ratio < lower, the Status card's rule.
+
+    A blank `lower` uses LOWER_THRESHOLD; a blank ratio is never oversold.
+    """
+    lower = df["lower"].fillna(LOWER_THRESHOLD)
+    return list((pd.to_numeric(df["ratio"], errors="coerce") < lower).fillna(False))
+
+
 def _add_downtrend_bands(fig: go.Figure, df: pd.DataFrame) -> None:
-    """Pale pink where the ratio's 10MA slope is down (or flat)."""
-    down = [_get_trend_state(s) == "down" for s in df["slope"]]
+    """Pale pink where the ratio's 10MA slope is down (or flat), except Oversold sessions.
+
+    Oversold sessions get only the deep band, so the two never overlap and the
+    deep pink is one shade whether or not the 10MA is falling.
+    """
+    oversold = _oversold_mask(df)
+    down = [_get_trend_state(s) == "down" and not o for s, o in zip(df["slope"], oversold)]
     _add_bands(fig, list(df["date"]), down, DOWNTREND_BAND_NAME, COLOR_DOWNTREND_BAND)
 
 
 def _add_oversold_bands(fig: go.Figure, df: pd.DataFrame) -> None:
-    """Deeper pink where the ratio is below the Oversold level, whatever the 10MA does.
-
-    Same rule as the Status card (ratio < lower). Drawn after the downtrend bands,
-    so it sits on top of them.
-    """
-    lower = df["lower"].fillna(LOWER_THRESHOLD)
-    oversold = list((pd.to_numeric(df["ratio"], errors="coerce") < lower).fillna(False))
-    _add_bands(fig, list(df["date"]), oversold, OVERSOLD_BAND_NAME, COLOR_OVERSOLD_BAND)
+    """Deeper pink where the ratio is below the Oversold level, whatever the 10MA does."""
+    _add_bands(fig, list(df["date"]), _oversold_mask(df), OVERSOLD_BAND_NAME, COLOR_OVERSOLD_BAND)
 
 
 def _add_panel_divider(fig: go.Figure) -> None:
