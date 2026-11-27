@@ -172,8 +172,10 @@ _AVERAGES_SVG = (
 
 def _chart_svg(upper: str, lower: str) -> str:
     return (
-        '<rect class="pink" x="150" y="10" width="112" height="180"/>'
-        '<rect class="deep" x="250" y="10" width="30" height="180"/>'
+        # pale pink while the 10MA falls, until the line drops below the level (x=249);
+        # deep pink exactly while the line is below the level (x=249..270)
+        '<rect class="pink" x="150" y="10" width="99" height="180"/>'
+        '<rect class="deep" x="249" y="10" width="21" height="180"/>'
         f'<line x1="10" y1="40" x2="350" y2="40" stroke="{COLOR_UPPER}" stroke-width="2" stroke-dasharray="3 4"/>'
         f'<text x="14" y="32" class="lbl">{upper}</text>'
         f'<line x1="10" y1="165" x2="350" y2="165" stroke="{COLOR_LOWER}" stroke-width="2" stroke-dasharray="3 4"/>'
@@ -182,9 +184,9 @@ def _chart_svg(upper: str, lower: str) -> str:
         f'stroke="{COLOR_MA}" stroke-width="2"/>'
         '<path d="M10 150 L30 128 L50 135 L70 105 L90 112 L110 80 L130 72 L150 52" fill="none" '
         f'stroke="{COLOR_TREND_UP}" stroke-width="3"/>'
-        '<path d="M150 52 L170 78 L190 70 L210 110 L230 118 L245 158 L255 174 L262 178" fill="none" '
+        '<path d="M150 52 L170 78 L190 70 L210 110 L230 118 L245 157 L253 173 L261 177" fill="none" '
         f'stroke="{COLOR_TREND_DOWN}" stroke-width="3"/>'
-        f'<path d="M262 178 L280 150 L290 128 L300 136 L320 108 L350 92" fill="none" stroke="{COLOR_TREND_UP}" stroke-width="3"/>'
+        f'<path d="M261 177 L279 153 L290 128 L300 136 L320 108 L350 92" fill="none" stroke="{COLOR_TREND_UP}" stroke-width="3"/>'
     )
 
 
@@ -260,7 +262,7 @@ def about_page_html(example: Optional[RatioExample]) -> str:
 <div class="sw" style="border-color:{COLOR_MA};border-top-width:2px"></div><div>Purple line: the 10-day average of the ratio</div>
 <div class="sw" style="border-color:{COLOR_TREND_UP}"></div><div>Green: the 10-day average is rising</div>
 <div class="sw" style="border-color:{COLOR_TREND_DOWN}"></div><div>Red: the 10-day average is falling or flat</div>
-<div class="sw box"></div><div>Pink shading: the red stretches (Uptrend Ratio page, both panels)</div>
+<div class="sw box"></div><div>Pale pink: the red stretches while the ratio is above {lower} (Uptrend Ratio page, both panels)</div>
 <div class="sw box" style="background:{COLOR_OVERSOLD_BAND}"></div><div>Deeper pink: the ratio is below {lower} (Oversold)</div>
 <div class="sw dotted" style="border-color:{COLOR_UPPER}"></div><div>Dotted {upper} line: many stocks are already stretched. In the past, rallies have often paused around here.</div>
 <div class="sw dotted" style="border-color:{COLOR_LOWER}"></div><div>Dotted {lower} line: very few stocks are rising. In the past, selloffs have often ended around here.</div>

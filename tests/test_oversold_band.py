@@ -47,15 +47,24 @@ def test_oversold_is_shaded_even_while_the_10ma_rises():
     assert len(bands) == 2
 
 
-def test_oversold_band_is_deeper_than_the_downtrend_band_and_drawn_on_top():
-    df = _df([0.2, 0.05, 0.2], slopes=[0.1, -0.1, 0.1])
+def test_oversold_band_is_deeper_than_the_downtrend_band():
+    df = _df([0.2, 0.15, 0.05, 0.2], slopes=[0.1, -0.1, -0.1, 0.1])
     fig, oversold = _bands(df)
     down = [s for s in fig.layout.shapes if s.name == DOWNTREND_BAND_NAME]
     alpha = lambda c: float(c.rstrip(")").split(",")[-1])  # noqa: E731
     assert alpha(oversold[0].fillcolor) > alpha(down[0].fillcolor)
-    shapes = list(fig.layout.shapes)
-    assert shapes.index(oversold[0]) > shapes.index(down[0])
     assert oversold[0].layer == "below" and oversold[0].line.width == 0
+
+
+def test_the_bands_never_overlap_so_the_deep_pink_is_one_shade():
+    """Oversold sessions get only the deep band, even inside a downtrend."""
+    df = _df([0.2, 0.15, 0.05, 0.08, 0.15, 0.2], slopes=[0.1, -0.1, -0.1, -0.1, -0.1, 0.1])
+    fig, oversold = _bands(df)
+    down = [s for s in fig.layout.shapes if s.name == DOWNTREND_BAND_NAME]
+    spans = lambda bands: sorted({(pd.Timestamp(b.x0), pd.Timestamp(b.x1)) for b in bands})  # noqa: E731
+    d = df["date"]
+    assert spans(down) == [(d[1], d[2]), (d[4], d[5])]
+    assert spans(oversold) == [(d[2], d[4])]
 
 
 def test_blank_lower_uses_the_default_level():
@@ -94,11 +103,3 @@ def test_all_blank_lower_uses_the_default_level():
     df["lower"] = float("nan")
     _, bands = _bands(df)
     assert len(bands) == 4
-
-
-def test_downtrend_and_oversold_bands_overlap_with_their_own_edges():
-    df = _df([0.2, 0.15, 0.05, 0.08, 0.2, 0.3], slopes=[0.1, -0.1, -0.1, -0.1, -0.1, 0.1])
-    fig, oversold = _bands(df)
-    down = [s for s in fig.layout.shapes if s.name == DOWNTREND_BAND_NAME]
-    assert (pd.Timestamp(down[0].x0), pd.Timestamp(down[0].x1)) == (df["date"][1], df["date"][5])
-    assert (pd.Timestamp(oversold[0].x0), pd.Timestamp(oversold[0].x1)) == (df["date"][2], df["date"][4])
